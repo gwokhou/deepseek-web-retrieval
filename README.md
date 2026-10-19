@@ -3,8 +3,9 @@
 **Bringing [DeepSeek's in-house Search and Fetch APIs](https://api-docs.deepseek.com/guides/search) to coding agents.**
 
 An adapter layer for coding agents. The core is agent-agnostic; each adapter exposes the
-same retrieval behavior to a specific agent. OpenCode v2 is the first adapter. An MCP server
-and other host adapters are not shipped yet.
+same retrieval behavior to a specific agent. OpenCode v2 is the first shipped adapter. An
+MCP server and adapters for other popular coding agents are in progress; they are not
+shipped yet.
 
 This is an unofficial community project. It is not affiliated with OpenCode or DeepSeek.
 
@@ -14,9 +15,11 @@ Only OpenCode v2 has a shipped adapter:
 
 - [OpenCode v2 setup and usage](docs/opencode-v2.md)
 
-For how other coding agents can integrate—native websearch providers, native fetch tools,
-MCP, or wrappers—see the [integration model](docs/integration.md) and its version-locked
-host support matrix. A host is listed as supported only after an adapter and guide exist.
+Support for other popular CLI agents is in progress through an MCP server; those adapters
+are not shipped yet. For how other coding agents can integrate—native websearch providers,
+native fetch tools, MCP, or wrappers—see the [integration model](docs/integration.md) and
+its version-locked host support matrix. A host is listed as supported only after an adapter
+and guide exist.
 
 For shared search, fetch, retry, and privacy behavior, see below.
 

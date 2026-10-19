@@ -45,9 +45,10 @@ Codex, Continue, and Gemini CLI are Apache-2.0; OpenCode and Pi are MIT. Claude 
 Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish installers and docs, not
 source code, under proprietary terms.
 
-`No adapter yet` means a documented integration path exists, but this project has not
-shipped an adapter for that host. OpenCode is pinned to the adapter's tested target
-(2.0.32), not necessarily the latest OpenCode release.
+Support for the other popular CLI agents is in progress through the MCP server. `No adapter
+yet` means an integration path exists and support is in progress, but no adapter has shipped
+for that host yet. OpenCode is pinned to the adapter's tested target (2.0.32), not
+necessarily the latest OpenCode release.
 
 ## Host notes
 
@@ -75,6 +76,11 @@ shipped an adapter for that host. OpenCode is pinned to the adapter's tested tar
 - **Pi** — Pi 1.3.0 has native MCP support and a TypeScript extension API that can add
   custom tools. The core ships read/bash/edit/write tools; web search/fetch are added by
   extensions or MCP. No native websearch provider or fetch override.
+
+## Roadmap
+
+- **MCP server** — in progress; the broadest path for hosts that support MCP tools.
+- **Host-specific adapters and guides** — added as they ship.
 
 ## Sources
 
