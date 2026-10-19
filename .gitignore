@@ -6,3 +6,4 @@ coverage/
 dist/
 *.tgz
 .DS_Store
+.zcode/
