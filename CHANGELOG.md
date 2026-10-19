@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Make `docs/hosts.jsonc` the single source of truth for host facts: the
+  integration.md host table is generated from it (`bun run docs:matrix`, drift fails
+  tests), CI matrices and the e2e Docker build args derive from it, and narrative
+  docs reference it instead of restating version locks
+- Add a local-only end-to-end script (`bun run test:e2e`): a keyless real
+  `pi mcp list` handshake against the built server, and a headless `opencode run`
+  scenario that makes real billed requests; never run in CI. Agents run inside
+  Docker with versions pinned by `test/e2e/Dockerfile` (`--local` opts out)
 - Add an MCP server adapter (`src/mcp/`) exposing `deepseek_web_search` and `deepseek_fetch`
   over stdio, serving MCP clients from revision 2024-11-05 through 2026-07-28
 - Support `DEEPSEEK_*` environment variable configuration in the MCP server, mapped onto the

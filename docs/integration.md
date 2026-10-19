@@ -26,18 +26,22 @@ tools. `Custom tool plugin` means adding tools; it does not replace a host's bui
 
 Rows are sorted with open-source hosts first, then by host name alphabetically.
 
+<!-- generated: host-matrix — edit docs/hosts.jsonc, then run `bun run docs:matrix` -->
+
 | Host | Version checked | Open source | Native search provider | Native fetch override | Best path | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP or plugin | No adapter yet |
+| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP server or plugin | No adapter yet |
 | Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | Continue | 1.5.47 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
-| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Native plugin API | Supported |
-| Pi | 1.3.0 | Yes (MIT) | No | No | MCP server | Supported |
+| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | plugin | Supported |
+| Pi | 1.3.0 | Yes (MIT) | No | No | MCP server or extension | Supported |
 | Claude Code | 2.1.303 | No | No | No | MCP server | No adapter yet |
 | Cursor | 2026.10.08 | No | No | No | MCP server | No adapter yet |
 | Devin | 3000.11.92 | No | No | No | MCP server | No adapter yet |
 | GitHub Copilot | 1.0.98 | No | No | No | MCP server | No adapter yet |
+
+<!-- /generated: host-matrix -->
 
 `Open source` refers to the CLI/client code at the checked version, verified from the
 project repositories on 2026-10-19. It does not cover the hosted model service. Cline,
@@ -49,7 +53,8 @@ Support for the other popular CLI agents is in progress through the MCP server, 
 shipped in `src/mcp/` and works with any host that supports MCP tools over stdio. A host is
 listed as supported only after an adapter and guide exist; for the remaining hosts,
 `No adapter yet` means the shipped MCP server already provides the path, but no guide for
-that host exists yet. OpenCode is pinned to the adapter's tested target (2.0.32), not
+that host exists yet. All version locks live in [hosts.jsonc](hosts.jsonc), the single
+source of truth for this table; OpenCode is pinned to the adapter's tested target, not
 necessarily the latest OpenCode release.
 
 ## Host notes
@@ -146,6 +151,8 @@ code and docs need to match the mechanism the host actually provides.
 
 ## Adding an adapter
 
+- Register the host and its version lock in [hosts.jsonc](hosts.jsonc), then regenerate
+  the host table with `bun run docs:matrix`.
 - Put shared retrieval logic in `src/core/`.
 - Put host-specific glue in `src/<agent>/`, or in `src/mcp/` for the cross-host MCP server.
 - Document setup and usage in `docs/<agent>.md`.

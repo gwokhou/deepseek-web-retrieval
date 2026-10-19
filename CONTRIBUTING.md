@@ -14,6 +14,29 @@ bun test
 The project uses Bun for development. OpenCode supplies `@opencode/plugin` at
 runtime; do not bundle it into the plugin.
 
+## End-to-end tests (local only)
+
+`bun run test:e2e` exercises real coding agents and never runs in CI. By default it
+runs them inside Docker (`test/e2e/Dockerfile`); the agent versions come from
+`docs/hosts.jsonc` and are the compatibility claim under test. The image contains
+no secrets; the key is passed at `docker run` time.
+
+- `bun run test:e2e pi` — keyless. Registers the built MCP server in an isolated
+  Pi config and asserts a real `pi mcp list` handshake (Pi 1.3.0 in the image).
+- `bun run test:e2e opencode` — requires `DEEPSEEK_API_KEY`. Runs headless
+  `opencode run` prompts (OpenCode 2.0.32 in the image) in an isolated project
+  that loads the plugin from this checkout. The LLM is a DeepSeek custom
+  provider configured from the same key, so no `opencode auth login` is needed;
+  this exercises the adapter's environment-variable key fallback. Real billed
+  requests (LLM + retrieval).
+- `bun run test:e2e` — both scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
+- `bun run test:e2e -- --local` — runs the agents from the host `PATH` instead
+  of Docker. Host agent versions drift, so this mode is for quick iteration,
+  not for compatibility claims.
+
+The script rebuilds `dist/cli.js` before running, and a missing key is an
+error, not a skip.
+
 ## Architecture
 
 - `src/core/` is agent-agnostic: HTTP clients, options, URL/domain policy,
@@ -25,8 +48,10 @@ runtime; do not bundle it into the plugin.
   server lives in `src/mcp/`.
 - Adapter-specific setup and usage docs live in `docs/<agent>.md`; keep the
   root README focused on the shared project and adapter overview.
-- Keep the host support matrix in `docs/integration.md` current when a host's
-  extension points or checked version change.
+- Host facts (version locks, capabilities, paths, status) live only in
+  `docs/hosts.jsonc`. When a host changes, update it there and regenerate the
+  host table in `docs/integration.md` with `bun run docs:matrix`; tests fail
+  if the table drifts.
 
 ## Pull requests
 

@@ -37,6 +37,8 @@
     "build": "bun build src/mcp/cli.ts --target=node --format=esm --outdir=dist --external @modelcontextprotocol/server --external @modelcontextprotocol/server/stdio --external zod --external zod/v4",
     "prepublishOnly": "bun run typecheck && bun run build",
     "test": "bun test",
+    "test:e2e": "bun run test/e2e/run.ts",
+    "docs:matrix": "bun run scripts/render-matrix.ts",
     "test:coverage": "bun test --coverage",
     "check": "bun run typecheck && bun run build && bun test"
   },

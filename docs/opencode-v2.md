@@ -199,8 +199,7 @@ Set these in the plugin's `options` object.
 
 | Component | Version |
 | --- | --- |
-| OpenCode | v2.0.32+ |
-| Plugin API | `@opencode/plugin` 2.0.32+ |
+| OpenCode / plugin API | locked in [`docs/hosts.jsonc`](hosts.jsonc) |
 | Runtime | Bun (provided by OpenCode) |
 | DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
 

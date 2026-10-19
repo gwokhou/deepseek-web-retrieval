@@ -1,0 +1,129 @@
+{
+  // Single source of truth for the host compatibility matrix. Machine consumers:
+  // scripts/render-matrix.ts (regenerates the table in docs/integration.md via
+  // `bun run docs:matrix`), scripts/ci-matrix.ts (GitHub Actions matrix),
+  // test/e2e/run.ts (Docker build args), and test/hosts.test.ts (invariants).
+  // Narrative docs reference this file; they must not restate these facts.
+  //
+  // Mechanism ids in "paths" align with the Mechanisms table in
+  // docs/integration.md: native-provider, native-override, plugin, extension,
+  // mcp, wrapper. "paths" is ordered: the first entry is the recommended path.
+  // Rows render in file order — keep open-source hosts first, then alphabetical.
+  "baseline": "2026-10-19",
+  "hosts": [
+    {
+      "name": "cline",
+      "display": "Cline",
+      "version": "0.0.13",
+      "license": "Apache-2.0",
+      "npm": "@cline/cli",
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp", "plugin"],
+      "status": "no-adapter-yet"
+    },
+    {
+      "name": "codex",
+      "display": "Codex",
+      "version": "0.163.0",
+      "license": "Apache-2.0",
+      "npm": "@openai/codex",
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp"],
+      "status": "no-adapter-yet"
+    },
+    {
+      "name": "continue",
+      "display": "Continue",
+      "version": "1.5.47",
+      "license": "Apache-2.0",
+      "npm": "@continuedev/cli",
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp"],
+      "status": "no-adapter-yet"
+    },
+    {
+      "name": "gemini",
+      "display": "Gemini",
+      "version": "0.64.0",
+      "license": "Apache-2.0",
+      "npm": "@google/gemini-cli",
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp"],
+      "status": "no-adapter-yet"
+    },
+    {
+      "name": "opencode",
+      "display": "OpenCode",
+      "version": "2.0.32",
+      "license": "MIT",
+      "npm": "@opencode/cli",
+      "nativeSearchProvider": true,
+      "nativeFetchOverride": true,
+      "paths": ["plugin"],
+      "status": "supported",
+      "adapter": "src/opencode",
+      "guide": "docs/opencode-v2.md",
+      "e2eScenario": "opencode"
+    },
+    {
+      "name": "pi",
+      "display": "Pi",
+      "version": "1.3.0",
+      "license": "MIT",
+      "npm": "@earendil-works/pi-coding-agent",
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp", "extension"],
+      "status": "supported",
+      "adapter": "src/mcp",
+      "guide": "docs/pi.md",
+      "e2eScenario": "pi"
+    },
+    {
+      "name": "claude-code",
+      "display": "Claude Code",
+      "version": "2.1.303",
+      "license": null,
+      "npm": "@anthropic-ai/claude-code",
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp"],
+      "status": "no-adapter-yet"
+    },
+    {
+      "name": "cursor",
+      "display": "Cursor",
+      "version": "2026.10.08",
+      "license": null,
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp"],
+      "status": "no-adapter-yet"
+    },
+    {
+      "name": "devin",
+      "display": "Devin",
+      "version": "3000.11.92",
+      "license": null,
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp"],
+      "status": "no-adapter-yet"
+    },
+    {
+      "name": "github-copilot",
+      "display": "GitHub Copilot",
+      "version": "1.0.98",
+      "license": null,
+      "npm": "@github/copilot",
+      "nativeSearchProvider": false,
+      "nativeFetchOverride": false,
+      "paths": ["mcp"],
+      "status": "no-adapter-yet"
+    }
+  ]
+}

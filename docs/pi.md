@@ -160,7 +160,7 @@ Invalid values fall back to the shared default.
 
 | Component | Version |
 | --- | --- |
-| Pi | 1.3.0+ |
+| Pi | locked in [`docs/hosts.jsonc`](hosts.jsonc) |
 | MCP revision | `2025-11-25` negotiated; server accepts `2024-11-05`–`2026-07-28` |
 | MCP SDK | `@modelcontextprotocol/server` 2.3.1 |
 | Runtime | Node.js 20+ (stdio) |
