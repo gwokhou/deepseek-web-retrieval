@@ -3,12 +3,11 @@
 [DeepSeek Web Retrieval](../README.md) is not tied to one host. Whether a coding agent can
 use it depends on that agent's extension points.
 
-**Research baseline:** 2026-10-19. Versions are the latest stable CLI/agent release checked
-on that date unless noted otherwise. For vendors with multiple surfaces, the CLI/terminal
-agent was evaluated where available; Roo Code and Zed are extension/editor agents. `No`
-means no documented native provider or override was found in the checked version; several
-hosts still ship built-in web tools. MCP tools can add equivalent tools, but do not replace
-built-ins.
+**Research baseline:** 2026-10-19. This matrix covers CLI/terminal agents only; IDE and
+editor extension surfaces are out of scope. Versions are the latest stable CLI release
+checked on that date unless noted otherwise. `No` means no documented native provider or
+override was found in the checked version; several hosts still ship built-in web tools.
+MCP tools can add equivalent tools, but do not replace built-ins.
 
 ## Mechanisms
 
@@ -16,7 +15,7 @@ built-ins.
 | --- | --- | --- | --- | --- |
 | Native websearch provider | Yes | No | Host plugin API | OpenCode v2 adapter |
 | Native tool / fetch override | No | Yes | Host tool API | OpenCode v2 adapter |
-| Custom tool plugin | Yes | Yes | Host plugin API | Cline CLI/SDK; no adapter yet |
+| Custom tool plugin | Yes | Yes | Host plugin API | Cline CLI/SDK and Pi; no adapter yet |
 | MCP server | Yes | Yes | Host MCP client | Not shipped |
 | CLI/HTTP wrapper | Yes | Yes | Host can call external tools | Not shipped |
 
@@ -27,17 +26,16 @@ tools. `Custom tool plugin` means adding tools; it does not replace a host's bui
 
 | Host | Version checked | Native search provider | Native fetch override | MCP | Best path | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| OpenCode v2 | 2.0.32 | Yes | Yes | Not needed | Native plugin API | Supported |
-| Claude Code CLI | 2.1.303 | No | No | Yes | MCP server | No adapter yet |
-| OpenAI Codex CLI | 0.163.0 | No | No | Yes | MCP server | No adapter yet |
-| Gemini CLI | 0.64.0 | No | No | Yes | MCP server | No adapter yet |
-| Cursor CLI | 2026.10.08 | No | No | Yes | MCP server | No adapter yet |
-| GitHub Copilot CLI | 1.0.98 | No | No | Yes | MCP server | No adapter yet |
-| Cline CLI | 0.0.13 | No | No | Yes | MCP or CLI plugin | No adapter yet |
-| Continue CLI | 1.5.47 | No | No | Yes | MCP server | No adapter yet |
-| Devin CLI (Windsurf) | 3000.11.92 | No | No | Yes | MCP server | No adapter yet |
-| Zed | 1.24.2 | No | No | Yes | MCP server | No adapter yet |
-| Roo Code | 3.54.0 | No | No | Yes | MCP server | No adapter yet |
+| OpenCode | 2.0.32 | Yes | Yes | Not needed | Native plugin API | Supported |
+| Claude Code | 2.1.303 | No | No | Yes | MCP server | No adapter yet |
+| Codex | 0.163.0 | No | No | Yes | MCP server | No adapter yet |
+| Gemini | 0.64.0 | No | No | Yes | MCP server | No adapter yet |
+| Cursor | 2026.10.08 | No | No | Yes | MCP server | No adapter yet |
+| GitHub Copilot | 1.0.98 | No | No | Yes | MCP server | No adapter yet |
+| Cline | 0.0.13 | No | No | Yes | MCP or plugin | No adapter yet |
+| Continue | 1.5.47 | No | No | Yes | MCP server | No adapter yet |
+| Devin | 3000.11.92 | No | No | Yes | MCP server | No adapter yet |
+| Pi | 1.3.0 | No | No | Yes | MCP or extension | No adapter yet |
 | Aider | 0.86.2 | No | No | No | Manual `/web` only | Not supported |
 
 `Not needed` for OpenCode means the native adapter does not require MCP. `No adapter yet`
@@ -50,26 +48,27 @@ latest OpenCode release.
 - **OpenCode v2** — The only shipped adapter. It uses OpenCode's native plugin API and
   exposes both a websearch provider and a fetch tool/override. See
   [OpenCode v2](opencode-v2.md).
-- **Claude Code CLI** — Ships built-in `WebSearch` and `WebFetch` tools. No documented native
+- **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. No documented native
   provider or override; MCP servers can add tools, and hooks can block calls but do not
   replace the fetch implementation.
-- **OpenAI Codex CLI** — MCP servers can add tools. No documented native websearch provider
-  or fetch override.
-- **Gemini CLI** — Ships built-in `google_web_search` and `web_fetch` tools. No documented
-  native provider or override; MCP servers and extensions can add tools.
-- **Cursor CLI** — MCP servers can add tools. No documented native provider or fetch
+- **Codex** — MCP servers can add tools. No documented native websearch provider or fetch
   override.
-- **GitHub Copilot CLI** — MCP servers and plugins (which can bundle MCP servers) can add
-  tools. No documented native provider or fetch override.
-- **Cline CLI** — MCP works. Cline CLI/SDK plugins can add custom tools, but the built-in
+- **Gemini** — Gemini CLI ships built-in `google_web_search` and `web_fetch` tools. No
+  documented native provider or override; MCP servers and extensions can add tools.
+- **Cursor** — Cursor CLI uses the same `mcp.json` servers as the editor. No documented
+  native provider or fetch override.
+- **GitHub Copilot** — Copilot CLI supports MCP servers; plugins can bundle MCP servers.
+  No documented native provider or fetch override.
+- **Cline** — Cline CLI supports MCP. CLI/SDK plugins can add custom tools, but the built-in
   `fetch_web_content` tool is not replaced.
-- **Continue CLI** — MCP servers can add tools. A built-in `search_web` tool exists, but it
-  is not a custom provider, and there is no documented fetch override.
-- **Devin CLI (Windsurf)** — MCP servers can add tools. Plugins bundle skills, rules, hooks,
-  and MCP servers, not arbitrary custom tools. Windsurf Desktop/Cascade is a separate IDE
-  surface and is not included in this row.
-- **Zed** — MCP tools only. No documented native provider or fetch override.
-- **Roo Code** — MCP tools only. No documented native provider or fetch override.
+- **Continue** — Continue CLI supports MCP servers. A built-in `search_web` tool exists, but
+  it is not a custom provider, and there is no documented fetch override.
+- **Devin** — Devin CLI supports MCP servers. Plugins bundle skills, rules, hooks, and MCP
+  servers, not arbitrary custom tools. Windsurf Desktop/Cascade is a separate IDE surface
+  and is not included in this row.
+- **Pi** — Pi 1.3.0 has native MCP support and a TypeScript extension API that can add
+  custom tools. The core ships read/bash/edit/write tools; web search/fetch are added by
+  extensions or MCP. No native websearch provider or fetch override.
 - **Aider** — No MCP client in 0.86.2; a native MCP client PR was closed without merging.
   `/web` is a user-invoked command, not a model-callable tool. No native tool API.
 
@@ -92,8 +91,8 @@ latest OpenCode release.
   [agent tools](https://docs.continue.dev/ide-extensions/agent/how-it-works)
 - Devin CLI: [extensibility](https://docs.devin.ai/cli/extensibility/index),
   [MCP](https://docs.devin.ai/cli/extensibility/mcp/overview)
-- Zed: [MCP](https://zed.dev/docs/ai/mcp)
-- Roo Code: [MCP](https://docs.roocode.com/features/mcp/overview)
+- Pi: [extensions](https://pi.dev/docs/latest/extensions),
+  [MCP](https://pi.dev/docs/latest/mcp)
 - Aider: [commands](https://aider.chat/docs/usage/commands.html),
   [closed MCP client PR](https://github.com/Aider-AI/aider/pull/5694)
 
@@ -103,13 +102,13 @@ Version sources:
   [Codex](https://www.npmjs.com/package/@openai/codex),
   [Gemini CLI](https://www.npmjs.com/package/@google/gemini-cli),
   [Cline CLI](https://www.npmjs.com/package/@cline/cli),
-  [Continue CLI](https://www.npmjs.com/package/@continuedev/cli)
+  [Continue CLI](https://www.npmjs.com/package/@continuedev/cli),
+  [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
 - PyPI: [Aider](https://pypi.org/project/aider-chat/)
-- Releases: [Copilot CLI](https://github.com/github/copilot-cli/releases),
-  [Zed](https://github.com/zed-industries/zed/releases),
-  [Roo Code](https://github.com/RooCodeInc/Roo-Code/releases)
+- Releases: [Copilot CLI](https://github.com/github/copilot-cli/releases)
 - Changelogs: [Cursor CLI](https://cursor.com/docs/cli/changelog),
-  [Devin CLI](https://docs.devin.ai/cli/changelog)
+  [Devin CLI](https://docs.devin.ai/cli/changelog),
+  [Pi](https://pi.dev/changelog)
 - OpenCode: `2.0.32` adapter target in this repository
 
 ## Evaluating a host
