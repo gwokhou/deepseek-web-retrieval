@@ -11,6 +11,8 @@ All notable changes to this project are documented here.
 - Truncate API error bodies by Unicode code points
 - Move OpenCode-specific setup and usage into `docs/opencode-v2.md`
 - Add `docs/integration.md` with a version-locked host support matrix
+- Calibrate the OpenCode v2 install and uninstall guide against verified behavior:
+  plugin hot reload, `plugin add` not selecting the provider, and `plugin remove` leftovers
 
 ## 0.1.0
 

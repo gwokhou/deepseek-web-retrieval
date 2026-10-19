@@ -32,16 +32,22 @@ The quickest option is the OpenCode CLI:
 
 ```bash
 opencode plugin add github:gwokhou/deepseek-web-retrieval
-opencode service restart
 ```
 
-This adds the `deepseek` websearch provider and the `deepseek_fetch` tool. The built-in
-`webfetch` stays untouched.
+This fetches the package into OpenCode's plugin cache and adds a
+`"github:gwokhou/deepseek-web-retrieval"` entry to the global `opencode.jsonc`. OpenCode
+watches the config and reloads plugins when it changes, so a restart is normally
+unnecessary; run `opencode service restart` only if the plugin does not appear.
 
-To select DeepSeek for search, set `"websearch": { "provider": "deepseek" }` in
-`opencode.jsonc`, or enable `setDefaultWebsearch` in the plugin options.
+> [!NOTE]
+> `plugin add` registers the `deepseek` websearch provider and the `deepseek_fetch` tool,
+> but it does not select them. Search still uses the built-in provider, and the built-in
+> `webfetch` stays untouched. To route search through DeepSeek, set `websearch.provider` to
+> `deepseek` (see the complete config below), or enable `setDefaultWebsearch` in the plugin
+> options.
 
-To replace `webfetch` or change options, use the object form:
+To replace `webfetch` or change options, replace the string entry with the object form and
+edit its `options`:
 
 ```jsonc
 "plugins": [
@@ -102,7 +108,8 @@ added.
 
 Do not combine auto-discovery with an explicit `plugins` entry for the same directory.
 
-After any install method, restart OpenCode:
+OpenCode reloads plugins when the config or plugin directory changes, so a restart is
+normally unnecessary. If a change does not take effect, restart the background server:
 
 ```bash
 opencode service restart
@@ -186,6 +193,7 @@ Set these in the plugin's `options` object.
 | `format: "text"` / `format: "html"` rejected | DeepSeek Fetch only returns Markdown. |
 | Response too large | Use another fetch tool for the full response. |
 | `websearch` shows a generic "Unable to search" | Check the OpenCode log for the underlying DeepSeek error. |
+| Install or config change does not take effect | Run `opencode service restart`; OpenCode normally reloads plugins automatically. |
 
 ## Compatibility
 
@@ -201,12 +209,30 @@ using both an OpenCode-stored DeepSeek credential and `DEEPSEEK_API_KEY`.
 
 ## Uninstall
 
-Remove the plugin entry from `opencode.jsonc`, remove `websearch.provider` if it points at
-`deepseek`, then restart OpenCode:
+For a CLI install, remove the config entry with:
+
+```bash
+opencode plugin remove github:gwokhou/deepseek-web-retrieval
+```
+
+> [!NOTE]
+> `plugin remove` only edits `opencode.jsonc`. It leaves an empty `"plugins": []` and any
+> `websearch.provider` pointing at `deepseek` in place, so clean those up by hand:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json"
+}
+```
+
+For vendor or auto-discovery installs, also remove the `plugins` entry and delete the
+directory you cloned or copied into (`vendor/` or `plugins/`, global or project-local).
+
+OpenCode reloads plugins when the config changes, so a restart is normally unnecessary:
 
 ```bash
 opencode service restart
 ```
 
-If the package was installed into a vendor directory, delete that directory after removing
-the config entry.
+The CLI installs into OpenCode's plugin cache (for example `~/.cache/opencode/npm/` on
+Linux). Leaving it is safe; OpenCode re-fetches it if you install again.
