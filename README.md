@@ -310,6 +310,10 @@ DeepSeek Fetch only returns Markdown. This is intentional; see above.
 
 OpenCode v1 and the v1 plugin API are not supported.
 
+Tested with OpenCode 2.0.32 on Linux using both an OpenCode-stored DeepSeek
+credential and `DEEPSEEK_API_KEY`. Search, `deepseek_fetch`, and the drop-in
+`webfetch` were exercised against the live DeepSeek API.
+
 ## Development
 
 ```bash

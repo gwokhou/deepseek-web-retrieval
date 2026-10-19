@@ -26,7 +26,7 @@ interface FetchResponse {
   readonly content?: unknown
 }
 
-interface RequestOptions {
+export interface RequestOptions {
   readonly signal: AbortSignal
   readonly auth: RequestAuth
   readonly retry: RetryConfig
