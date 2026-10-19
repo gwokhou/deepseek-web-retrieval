@@ -47,15 +47,14 @@ point directly, and `@opencode/plugin` is supplied by OpenCode at runtime.
 
 ### Quick install with the OpenCode CLI
 
-Once the repository is published, install it with:
+Install it with:
 
 ```bash
-opencode plugin add github:OWNER/deepseek-web-retrieval
+opencode plugin add github:gwokhou/deepseek-web-retrieval
 opencode service restart
 ```
 
-Replace `OWNER` with the GitHub account that hosts this repository. The CLI adds
-a string entry to the global `plugins` array. That uses the safe
+The CLI adds a string entry to the global `plugins` array. That uses the safe
 defaults: `deepseek_fetch` is registered, while the built-in `webfetch` stays
 untouched. To enable the drop-in `webfetch` or change options, replace the
 string entry with the object form below. The same Git package specifier works in
@@ -64,7 +63,7 @@ that object:
 ```jsonc
 "plugins": [
   {
-    "package": "github:OWNER/deepseek-web-retrieval",
+    "package": "github:gwokhou/deepseek-web-retrieval",
     "options": { "fetchOverrideWebfetch": true }
   }
 ]
@@ -76,7 +75,7 @@ Clone the repository outside the auto-discovered `plugins/` directory, so the
 same package is not loaded twice:
 
 ```bash
-git clone https://github.com/OWNER/deepseek-web-retrieval.git \
+git clone https://github.com/gwokhou/deepseek-web-retrieval.git \
   ~/.config/opencode/vendor/deepseek-web-retrieval
 ```
 
@@ -112,7 +111,7 @@ opencode service restart
 
 ```bash
 mkdir -p .opencode/vendor
-git clone https://github.com/OWNER/deepseek-web-retrieval.git \
+git clone https://github.com/gwokhou/deepseek-web-retrieval.git \
   .opencode/vendor/deepseek-web-retrieval
 ```
 
