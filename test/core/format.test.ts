@@ -33,6 +33,21 @@ describe("formatting", () => {
     expect(formatFetchedContent("", "body", 0)).toEqual({ content: "", truncated: true })
   })
 
+  test("does not duplicate a title that already starts the Markdown body", () => {
+    expect(formatFetchedContent("Example Domain", "# Example Domain\n\nbody", 100)).toEqual({
+      content: "# Example Domain\n\nbody",
+      truncated: false,
+    })
+    expect(formatFetchedContent("Example Domain", "  # example domain\n\nbody", 100)).toEqual({
+      content: "# example domain\n\nbody",
+      truncated: false,
+    })
+    expect(formatFetchedContent("Different", "# Example Domain\n\nbody", 100)).toEqual({
+      content: "# Different\n\n# Example Domain\n\nbody",
+      truncated: false,
+    })
+  })
+
   test("redacts API keys and bearer tokens", () => {
     expect(redactSecrets("key sk-1234567890abcdef and Bearer abcdefghijklmnop")).toBe(
       "key sk-*** and Bearer ***",

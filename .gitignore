@@ -4,4 +4,5 @@ node_modules/
 *.log
 coverage/
 dist/
+*.tgz
 .DS_Store

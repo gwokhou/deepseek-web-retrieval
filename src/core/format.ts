@@ -12,7 +12,7 @@ export function truncate(value: string, maxChars: number): string {
 }
 
 export function formatFetchContent(title: string, content: string, maxChars: number): string {
-  return truncate(title ? `# ${title}\n\n${content}` : content, maxChars)
+  return truncate(withTitle(title, content), maxChars)
 }
 
 /**
@@ -25,7 +25,7 @@ export function formatFetchedContent(
   content: string,
   maxChars: number,
 ): FormattedFetchContent {
-  const document = title ? `# ${title}\n\n${content}` : content
+  const document = withTitle(title, content)
   const length = Array.from(document).length
   if (maxChars <= 0) return { content: "", truncated: length > 0 }
   if (length <= maxChars) return { content: document, truncated: false }
@@ -38,6 +38,26 @@ export function formatFetchedContent(
     content: `${truncate(document, maxChars - markerLength)}${FETCH_TRUNCATION_MARKER}`,
     truncated: true,
   }
+}
+
+function withTitle(title: string, content: string): string {
+  const heading = title.trim()
+  if (!heading) return content
+
+  const body = content.trimStart()
+  const firstHeading = body.match(/^#\s+(.+?)(?:\r?\n|$)/)?.[1]
+  if (firstHeading && normalizeHeading(firstHeading) === normalizeHeading(heading)) {
+    return body
+  }
+  return `# ${heading}\n\n${content}`
+}
+
+function normalizeHeading(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s+#+\s*$/, "")
+    .toLowerCase()
 }
 
 export function redactSecrets(value: string): string {
