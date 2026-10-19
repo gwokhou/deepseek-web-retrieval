@@ -41,9 +41,25 @@ DeepSeek.
 
 ## Install
 
-The repository currently installs from a local checkout or a Git package
-specifier. It does not require a build step: OpenCode loads the TypeScript entry
+The repository currently installs from a Git package specifier or a local
+checkout. It does not require a build step: OpenCode loads the TypeScript entry
 point directly, and `@opencode/plugin` is supplied by OpenCode at runtime.
+
+### Quick install with the OpenCode CLI
+
+Once the repository is published, install it with:
+
+```bash
+opencode plugin add github:OWNER/deepseek-web-retrieval
+opencode service restart
+```
+
+Replace `OWNER` with the GitHub account that hosts this repository. The CLI adds
+a string entry to the global `plugins` array. That uses the safe
+defaults: `deepseek_fetch` is registered, while the built-in `webfetch` stays
+untouched. To enable the drop-in `webfetch` or change options, replace the
+string entry with the object form below. The same Git package specifier works in
+that object.
 
 ### Recommended: global install with options
 
@@ -51,7 +67,7 @@ Clone the repository outside the auto-discovered `plugins/` directory, so the
 same package is not loaded twice:
 
 ```bash
-git clone https://github.com/<owner>/deepseek-web-retrieval.git \
+git clone https://github.com/OWNER/deepseek-web-retrieval.git \
   ~/.config/opencode/vendor/deepseek-web-retrieval
 ```
 
@@ -87,7 +103,7 @@ opencode service restart
 
 ```bash
 mkdir -p .opencode/vendor
-git clone https://github.com/<owner>/deepseek-web-retrieval.git \
+git clone https://github.com/OWNER/deepseek-web-retrieval.git \
   .opencode/vendor/deepseek-web-retrieval
 ```
 
