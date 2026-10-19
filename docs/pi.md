@@ -61,7 +61,8 @@ or a new session.
 
 ### Local checkout
 
-Until the package is published to npm, run the server from a checkout:
+To run the server from a checkout instead of the published package (for
+development):
 
 ```bash
 git clone https://github.com/gwokhou/deepseek-web-retrieval.git

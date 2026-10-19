@@ -82,8 +82,7 @@ A complete global config:
 
 **Published npm package**
 
-Once the package is published to npm, use the bare package name (optionally
-pinned) as the `package` value:
+Use the bare package name (optionally pinned) as the `package` value:
 
 ```jsonc
 "plugins": [{ "package": "deepseek-web-retrieval@0.2.0" }]
