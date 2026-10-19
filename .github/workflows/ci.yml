@@ -54,5 +54,8 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Docs matrix in sync
+        run: bun run scripts/render-matrix.ts --check
+
       - name: Test
         run: bun test

@@ -5,13 +5,14 @@ import { ScenarioError } from "./assert"
 import { runOpencodeScenario } from "./opencode"
 import { runPiScenario } from "./pi"
 import { createDockerRunner, createLocalRunner, ensureDockerImage } from "./runner"
+import type { Runner } from "./runner"
 
 const IMAGE = "deepseek-web-retrieval-e2e:latest"
 
 interface Scenario {
   readonly name: string
   readonly requiresApiKey: boolean
-  readonly run: (runner: ReturnType<typeof createLocalRunner>) => Promise<string[]>
+  readonly run: (runner: Runner) => Promise<string[]>
 }
 
 const SCENARIOS: readonly Scenario[] = [

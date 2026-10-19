@@ -69,7 +69,8 @@ const SEARCH_RESULTS = {
 
 describe("MCP server over the legacy protocol eras", () => {
   for (const version of ["2025-11-25", "2025-06-18", "2024-11-05"]) {
-    test(`lists both tools with readOnlyHint as a ${version} client`, async () => {
+    test(`lists and serves both tools as a ${version} client`, async () => {
+      stubFetch(SEARCH_RESULTS)
       const persona = await connectPersona(version)
       try {
         const listed = await persona.client.listTools()
@@ -78,6 +79,21 @@ describe("MCP server over the legacy protocol eras", () => {
           expect(tool.annotations?.readOnlyHint).toBe(true)
           expect((tool.description ?? "").length).toBeLessThan(4096)
         }
+
+        const search = await persona.client.callTool({
+          name: "deepseek_web_search",
+          arguments: { query: "deepseek mcp" },
+        })
+        expect(search.isError).toBeFalsy()
+        expect((search.content[0] as { text: string }).text).toContain("1. [First](https://a.example/one)")
+
+        stubFetch({ title: "Example", content: "Body text." })
+        const fetched = await persona.client.callTool({
+          name: "deepseek_fetch",
+          arguments: { url: "https://a.example/one" },
+        })
+        expect(fetched.isError).toBeFalsy()
+        expect((fetched.content[0] as { text: string }).text).toContain("# Example\n\nBody text.")
       } finally {
         await persona.close()
       }

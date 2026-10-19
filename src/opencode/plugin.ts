@@ -2,9 +2,8 @@ import { Plugin } from "@opencode/plugin"
 import type { Context } from "@opencode/plugin/promise/plugin"
 import type { ToolContext } from "@opencode/plugin/promise/tool"
 import { assertFetchHostPolicy } from "../core/domains"
-import { formatFetchedContent } from "../core/format"
 import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options"
-import { fetchPage, searchWeb } from "../core/client"
+import { fetchDocument, searchWeb } from "../core/client"
 import type { ResolvedOptions } from "../core/types"
 import { parseFetchUrl } from "../core/url"
 import { resolveApiKey } from "./auth"
@@ -84,18 +83,17 @@ async function runFetch(
     source: { type: "tool", messageID: context.messageID, id: context.id },
   })
 
-  const page = await fetchPage(
-    target,
+  const page = await fetchDocument(
+    input.url,
     { ...config.fetch, timeoutMs },
     { signal: context.signal, auth: { apiKey }, retry: config.retry },
   )
-  const formatted = formatFetchedContent(page.title, page.content, config.fetch.maxChars)
   return {
-    content: formatted.content,
+    content: page.content,
     metadata: {
       url: page.url,
       title: page.title,
-      truncated: formatted.truncated,
+      truncated: page.truncated,
     },
   }
 }

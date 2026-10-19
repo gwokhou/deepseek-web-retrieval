@@ -1,9 +1,17 @@
 import { existsSync } from "node:fs"
-import { describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
+import { beforeAll, describe, expect, test } from "bun:test"
 import { Client } from "@modelcontextprotocol/client"
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio"
 
 const CLI = "dist/cli.js"
+
+/** The smoke test must run, so build the entry when a fresh checkout has not. */
+beforeAll(() => {
+  if (existsSync(CLI)) return
+  const build = spawnSync("bun", ["run", "build"], { stdio: "inherit" })
+  if (build.status !== 0) throw new Error("`bun run build` failed; cannot run the stdio smoke test")
+})
 
 async function spawnCli(env: Record<string, string>): Promise<Client> {
   const transport = new StdioClientTransport({
@@ -17,7 +25,7 @@ async function spawnCli(env: Record<string, string>): Promise<Client> {
 }
 
 describe("built CLI smoke test", () => {
-  test.skipIf(!existsSync(CLI))("handshakes over real stdio and lists both tools", async () => {
+  test("handshakes over real stdio and lists both tools", async () => {
     const client = await spawnCli({ DEEPSEEK_API_KEY: "sk-test" })
     try {
       const listed = await client.listTools()
@@ -34,7 +42,7 @@ describe("built CLI smoke test", () => {
     }
   })
 
-  test.skipIf(!existsSync(CLI))("exits with an error when the API key is missing", async () => {
+  test("exits with an error when the API key is missing", async () => {
     const proc = Bun.spawn(["node", CLI], {
       env: { PATH: process.env.PATH ?? "", DEEPSEEK_API_KEY: "" },
       stdout: "pipe",

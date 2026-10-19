@@ -66,10 +66,12 @@ export async function runPiScenario(runner: Runner): Promise<string[]> {
 
   const server = payload.servers?.find((entry) => entry.name === "deepseek")
   check(server !== undefined, "deepseek server missing from `pi mcp list` output")
-  check(server!.state === "connected", "deepseek server did not connect", `state: ${String(server!.state)}`)
-  const tools = Array.isArray(server!.tools) ? (server!.tools as string[]) : []
+  check(server.state === "connected", "deepseek server did not connect", `state: ${String(server.state)}`)
+  const tools = Array.isArray(server.tools) ? server.tools : []
   check(
-    tools.includes("deepseek_web_search") && tools.includes("deepseek_fetch"),
+    tools.every((tool) => typeof tool === "string") &&
+      tools.includes("deepseek_web_search") &&
+      tools.includes("deepseek_fetch"),
     "expected both tools to be listed",
     `tools: ${tools.join(", ")}`,
   )

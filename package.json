@@ -46,7 +46,7 @@
     "test:e2e": "bun run test/e2e/run.ts",
     "docs:matrix": "bun run scripts/render-matrix.ts",
     "test:coverage": "bun test --coverage",
-    "check": "bun run typecheck && bun run build && bun test"
+    "check": "bun run typecheck && bun run docs:matrix --check && bun run build && bun test"
   },
   "peerDependencies": {
     "@opencode/plugin": "^2.0.32"

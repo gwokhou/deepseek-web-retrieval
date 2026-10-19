@@ -53,13 +53,17 @@ export function updateIntegrationDoc(repoRoot: string, hosts: HostsFile): boolea
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
 const hosts = readHosts(repoRoot)
 
-if (process.argv.includes("--check")) {
-  if (updateIntegrationDoc(repoRoot, hosts)) {
-    console.error("docs/integration.md is out of sync with docs/hosts.jsonc; run `bun run docs:matrix` and commit")
-    process.exit(1)
+// CLI only: this module is imported by tests, so running on import would
+// rewrite docs/integration.md and defeat the drift check.
+if (import.meta.main) {
+  if (process.argv.includes("--check")) {
+    if (updateIntegrationDoc(repoRoot, hosts)) {
+      console.error("docs/integration.md is out of sync with docs/hosts.jsonc; run `bun run docs:matrix` and commit")
+      process.exit(1)
+    }
+    console.log("docs/integration.md is in sync with docs/hosts.jsonc")
+  } else {
+    const changed = updateIntegrationDoc(repoRoot, hosts)
+    console.log(changed ? "docs/integration.md updated" : "docs/integration.md already in sync")
   }
-  console.log("docs/integration.md is in sync with docs/hosts.jsonc")
-} else {
-  const changed = updateIntegrationDoc(repoRoot, hosts)
-  console.log(changed ? "docs/integration.md updated" : "docs/integration.md already in sync")
 }

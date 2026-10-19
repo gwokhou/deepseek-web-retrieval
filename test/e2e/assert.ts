@@ -1,7 +1,7 @@
 export class ScenarioError extends Error {}
 
 /** Fails the scenario with a clear message; `detail` carries host output when available. */
-export function check(condition: boolean, message: string, detail?: string): void {
+export function check(condition: boolean, message: string, detail?: string): asserts condition {
   if (!condition) throw new ScenarioError(detail ? `${message}\n${detail}` : message)
 }
 

@@ -7,10 +7,18 @@ import {
   SEARCH_ENDPOINT,
 } from "./constants"
 import { assertFetchHostPolicy } from "./domains"
-import { formatApiError, formatTimeoutError, redactSecrets, truncate } from "./format"
+import {
+  formatApiError,
+  formatFetchedContent,
+  formatTimeoutError,
+  redactSecrets,
+  truncate,
+} from "./format"
 import { buildQuery, processResults } from "./search"
+import { parseFetchUrl } from "./url"
 import type {
   DeepSeekSearchResult,
+  FetchedDocument,
   FetchedPage,
   FetchOptions,
   RequestAuth,
@@ -122,6 +130,26 @@ export async function fetchPage(
     throw new Error("DeepSeek Fetch returned no page content (the page may be empty or unavailable)")
   }
   return { url: url.href, title, content }
+}
+
+/**
+ * The full fetch pipeline adapters share: parse the URL, enforce the host
+ * policy, fetch the page, and format it for the model within its budget.
+ */
+export async function fetchDocument(
+  url: string,
+  options: FetchOptions,
+  request: RequestOptions,
+): Promise<FetchedDocument> {
+  if (typeof url !== "string") throw new Error('"url" must be a string')
+  const page = await fetchPage(parseFetchUrl(url), options, request)
+  const formatted = formatFetchedContent(page.title, page.content, options.maxChars)
+  return {
+    url: page.url,
+    title: page.title,
+    content: formatted.content,
+    truncated: formatted.truncated,
+  }
 }
 
 async function postJson<T>(

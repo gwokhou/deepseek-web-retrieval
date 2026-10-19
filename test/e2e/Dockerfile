@@ -4,7 +4,8 @@
 # docker build without them fails instead of silently using stale pins.
 # No secrets are baked in; DEEPSEEK_API_KEY is passed at `docker run` time.
 
-ARG NODE_IMAGE=node:22-slim
+# Pinned base image so e2e runs are reproducible; bump it deliberately.
+ARG NODE_IMAGE=node:22.23.3-slim
 
 FROM ${NODE_IMAGE} AS agents
 ARG OPENCODE_VERSION

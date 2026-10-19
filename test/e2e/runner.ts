@@ -37,6 +37,12 @@ export interface Runner {
   run(cmd: readonly string[], options: RunOptions): Promise<ExecResult>
 }
 
+const DOCKER_HINT = "install Docker or pass --local to use host binaries"
+
+function requireDocker(): string {
+  return requireWhich("docker", DOCKER_HINT)
+}
+
 export function createLocalRunner(repoRoot: string): Runner {
   const homeDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-home-")))
   const projectDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-project-")))
@@ -51,7 +57,7 @@ export function createLocalRunner(repoRoot: string): Runner {
 }
 
 export function createDockerRunner(repoRoot: string, image: string): Runner {
-  const docker = requireWhich("docker", "install Docker or pass --local to use host binaries")
+  const docker = requireDocker()
   const homeDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-home-")), "/home/verifier")
   const projectDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-project-")), "/project")
   const uid = process.getuid?.() ?? 1000
@@ -92,7 +98,7 @@ export function ensureDockerImage(
   image: string,
   versions: Readonly<Record<string, string>>,
 ): void {
-  const docker = requireWhich("docker", "install Docker or pass --local to use host binaries")
+  const docker = requireDocker()
   const buildArgs = Object.entries(versions).flatMap(([key, value]) => ["--build-arg", `${key}=${value}`])
   const build = spawnSync(
     docker,

@@ -73,6 +73,14 @@ export interface FormattedFetchContent {
   readonly truncated: boolean
 }
 
+/** A fetched page formatted for the model, with truncation reported. */
+export interface FetchedDocument {
+  readonly url: string
+  readonly title: string
+  readonly content: string
+  readonly truncated: boolean
+}
+
 export interface RequestAuth {
   readonly apiKey: string
 }

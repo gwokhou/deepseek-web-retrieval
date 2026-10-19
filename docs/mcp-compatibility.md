@@ -74,17 +74,20 @@ Two release lines of the official TypeScript SDK ([docs](https://github.com/mode
 
 ## What each host supports
 
-| Host | Version | Negotiated revision | Transports | Evidence |
-| --- | --- | --- | --- | --- |
-| Cline | 0.0.13 | `2024-11-05` | stdio, Streamable HTTP, SSE | Custom client (no official SDK); `protocolVersion "2024-11-05"` extracted from the 0.0.13 platform binary; source repo not public |
-| Codex | 0.163.0 | `2025-06-18`; `mcp_2026_07_28` feature flag opts into `2026-07-28` | stdio, Streamable HTTP (no SSE) | Git tag `rust-v0.163.0`: rmcp 3.5.1 pinned; initialize sends `V_2025_06_18` |
-| Continue | 1.5.47 | `2025-11-25` | stdio, Streamable HTTP, SSE | 1.5.47 npm tarball: bundled TS SDK ≥ 1.24.1 (contains `2025-11-25` constants); no git tag exists |
-| Gemini | 0.64.0 | `2025-06-18` | stdio, Streamable HTTP, SSE | Git tag `v0.64.0`: `@modelcontextprotocol/sdk` 1.23.0 pinned in package.json |
-| Pi | 1.3.0 | `2025-11-25` | stdio, Streamable HTTP (SSE rejected) | Git tag `v1.3.0`: own `@earendil-works/pi-mcp` client, `LATEST_PROTOCOL_VERSION "2025-11-25"` |
-| Claude Code | 2.1.303 | `2026-07-28` by default (`MCP_PROTOCOL_NEGOTIATION=legacy` opt-out) | stdio, Streamable HTTP, SSE, ws | Changelog 2.1.296+: "negotiate MCP protocol version 2026-07-28 by default"; docs: TS SDK 2.0 runtime |
-| Cursor | 2026.10.08 | Unpinnable from primary sources (docs show ≥ `2025-06-18` features) | stdio, Streamable HTTP, SSE | Docs feature set only; no revision stated in docs or changelog |
-| Devin | 3000.11.92 | `2026-07-28` | stdio, Streamable HTTP (SSE fallback), SSE | Changelog for 3000.11.92 itself: "Support for MCP protocol revision 2026-07-28" |
-| GitHub Copilot | 1.0.98 | `2026-07-28` | stdio (`type: "local"`), Streamable HTTP, SSE | Changelog 1.0.81: "Ship MCP 2026-07-28 support to CLI, SDK, IDE, and in-memory clients" |
+Host versions are locked in [`docs/hosts.jsonc`](hosts.jsonc), the single source of truth for
+host facts; each row below was verified against that lock on the research baseline.
+
+| Host | Negotiated revision | Transports | Evidence |
+| --- | --- | --- | --- |
+| Cline | `2024-11-05` | stdio, Streamable HTTP, SSE | Custom client (no official SDK); `protocolVersion "2024-11-05"` extracted from the platform binary; source repo not public |
+| Codex | `2025-06-18`; `mcp_2026_07_28` feature flag opts into `2026-07-28` | stdio, Streamable HTTP (no SSE) | Git tag `rust-v0.163.0`: rmcp 3.5.1 pinned; initialize sends `V_2025_06_18` |
+| Continue | `2025-11-25` | stdio, Streamable HTTP, SSE | npm tarball: bundled TS SDK ≥ 1.24.1 (contains `2025-11-25` constants); no git tag exists |
+| Gemini | `2025-06-18` | stdio, Streamable HTTP, SSE | Git tag: `@modelcontextprotocol/sdk` 1.23.0 pinned in package.json |
+| Pi | `2025-11-25` | stdio, Streamable HTTP (SSE rejected) | Git tag: own `@earendil-works/pi-mcp` client, `LATEST_PROTOCOL_VERSION "2025-11-25"` |
+| Claude Code | `2026-07-28` by default (`MCP_PROTOCOL_NEGOTIATION=legacy` opt-out) | stdio, Streamable HTTP, SSE, ws | Changelog 2.1.296+: "negotiate MCP protocol version 2026-07-28 by default"; docs: TS SDK 2.0 runtime |
+| Cursor | Unpinnable from primary sources (docs show ≥ `2025-06-18` features) | stdio, Streamable HTTP, SSE | Docs feature set only; no revision stated in docs or changelog |
+| Devin | `2026-07-28` | stdio, Streamable HTTP (SSE fallback), SSE | Changelog for the locked release itself: "Support for MCP protocol revision 2026-07-28" |
+| GitHub Copilot | `2026-07-28` | stdio (`type: "local"`), Streamable HTTP, SSE | Changelog 1.0.81: "Ship MCP 2026-07-28 support to CLI, SDK, IDE, and in-memory clients" |
 
 Open-source rows are verified at the exact locked versions (git tag, npm tarball, or binary
 analysis); proprietary rows are verified from official docs and changelogs at the locked

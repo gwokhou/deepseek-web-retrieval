@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Fix the hosts.jsonc drift guard: the matrix renderer no longer rewrites
+  docs/integration.md when imported by tests, and CI and `bun run check` now fail
+  on drift (`docs:matrix --check`)
+- Serve both MCP tools end to end at every pinned client revision, not only
+  `listTools`
+- Build `dist/cli.js` on demand for the stdio smoke test instead of silently
+  skipping it on a fresh checkout
+- Share the fetch pipeline (parse, host policy, fetch, format) between the
+  OpenCode and MCP adapters through `fetchDocument` in the core
+- Stop restating host version locks in narrative docs; reference
+  `docs/hosts.jsonc` instead
+- Pin the e2e Docker base image (`node:22.23.3-slim`) and correct the 0.2.0
+  changelog wording about where e2e versions are pinned
+- Type the `DEEPSEEK_*` environment mapping so option keys and variable names
+  cannot drift apart
+
 ## 0.2.0
 
 - Make `docs/hosts.jsonc` the single source of truth for host facts: the
@@ -11,7 +29,8 @@ All notable changes to this project are documented here.
 - Add a local-only end-to-end script (`bun run test:e2e`): a keyless real
   `pi mcp list` handshake against the built server, and a headless `opencode run`
   scenario that makes real billed requests; never run in CI. Agents run inside
-  Docker with versions pinned by `test/e2e/Dockerfile` (`--local` opts out)
+  Docker with versions injected from `docs/hosts.jsonc` as Docker build args
+  (`--local` opts out)
 - Add an MCP server adapter (`src/mcp/`) exposing `deepseek_web_search` and `deepseek_fetch`
   over stdio, serving MCP clients from revision 2024-11-05 through 2026-07-28
 - Support `DEEPSEEK_*` environment variable configuration in the MCP server, mapped onto the

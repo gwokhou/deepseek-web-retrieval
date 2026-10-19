@@ -1,11 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/server"
 import type { CallToolResult } from "@modelcontextprotocol/server"
 import * as z from "zod/v4"
-import { fetchPage, searchWeb } from "../core/client"
-import { assertFetchHostPolicy } from "../core/domains"
-import { formatFetchedContent } from "../core/format"
+import { fetchDocument, searchWeb } from "../core/client"
 import type { ResolvedOptions, WebSearchResult } from "../core/types"
-import { parseFetchUrl } from "../core/url"
 import pkg from "../../package.json"
 import { requireApiKey } from "./auth"
 import type { Env } from "./config"
@@ -98,17 +95,14 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
     async ({ url }, ctx) => {
       try {
         const request = requestContext(config, env, ctx.mcpReq.signal)
-        const target = parseFetchUrl(url)
-        assertFetchHostPolicy(target, config.fetch)
-        const page = await fetchPage(target, config.fetch, request)
-        const formatted = formatFetchedContent(page.title, page.content, config.fetch.maxChars)
+        const page = await fetchDocument(url, config.fetch, request)
         return {
-          content: [{ type: "text", text: formatted.content }],
+          content: [{ type: "text", text: page.content }],
           structuredContent: {
             url: page.url,
             title: page.title,
-            content: formatted.content,
-            truncated: formatted.truncated,
+            content: page.content,
+            truncated: page.truncated,
           },
         }
       } catch (error) {
