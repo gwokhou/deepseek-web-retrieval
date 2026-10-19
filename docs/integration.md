@@ -24,19 +24,22 @@ tools. `Custom tool plugin` means adding tools; it does not replace a host's bui
 
 ## Host support
 
+Rows are sorted by the first letter of the host, then by open-source status (Yes before
+No), then by name.
+
 | Host | Version checked | Open source | Native search provider | Native fetch override | MCP | Best path | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Not needed | Native plugin API | Supported |
-| Claude Code | 2.1.303 | No | No | No | Yes | MCP server | No adapter yet |
-| Codex | 0.163.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
-| Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
-| Cursor | 2026.10.08 | No | No | No | Yes | MCP server | No adapter yet |
-| GitHub Copilot | 1.0.98 | No | No | No | Yes | MCP server | No adapter yet |
-| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | Yes | MCP or plugin | No adapter yet |
-| Continue | 1.5.47 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
-| Devin | 3000.11.92 | No | No | No | Yes | MCP server | No adapter yet |
-| Pi | 1.3.0 | Yes (MIT) | No | No | Yes | MCP or extension | No adapter yet |
 | Aider | 0.86.2 | Yes (Apache-2.0) | No | No | No | Manual `/web` only | Not supported |
+| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | Yes | MCP or plugin | No adapter yet |
+| Codex | 0.163.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
+| Continue | 1.5.47 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
+| Claude Code | 2.1.303 | No | No | No | Yes | MCP server | No adapter yet |
+| Cursor | 2026.10.08 | No | No | No | Yes | MCP server | No adapter yet |
+| Devin | 3000.11.92 | No | No | No | Yes | MCP server | No adapter yet |
+| Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
+| GitHub Copilot | 1.0.98 | No | No | No | Yes | MCP server | No adapter yet |
+| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Not needed | Native plugin API | Supported |
+| Pi | 1.3.0 | Yes (MIT) | No | No | Yes | MCP or extension | No adapter yet |
 
 `Open source` refers to the CLI/client code at the checked version, verified from the
 project repositories on 2026-10-19. It does not cover the hosted model service. Codex and
