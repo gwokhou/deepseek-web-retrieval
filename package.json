@@ -21,6 +21,7 @@
   "files": [
     "index.ts",
     "src",
+    "docs",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",

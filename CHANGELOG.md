@@ -9,6 +9,8 @@ All notable changes to this project are documented here.
 - Reject search queries that exceed 128 characters after adding search operators
 - Block IPv4-mapped IPv6 private addresses in the fetch host policy
 - Truncate API error bodies by Unicode code points
+- Move OpenCode-specific setup and usage into `docs/opencode-v2.md`
+- Add `docs/integration.md` with a version-locked host support matrix
 
 ## 0.1.0
 

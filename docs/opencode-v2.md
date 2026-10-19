@@ -1,0 +1,212 @@
+# OpenCode v2
+
+OpenCode v2 adapter for [DeepSeek Web Retrieval](../README.md).
+
+Integration mechanism: OpenCode's native plugin API (`@opencode/plugin` 2.0.32+), not MCP.
+
+When loaded, it adds:
+
+- A `websearch` provider with the id `deepseek`
+- A `deepseek_fetch` tool backed by DeepSeek Fetch
+- An optional drop-in replacement for the built-in `webfetch`
+
+The built-in `webfetch` is not replaced by default. Set `fetchOverrideWebfetch` to `true`
+if you want all Markdown fetches to go through DeepSeek.
+
+For shared search/fetch limits, retries, and privacy behavior, see
+[General behavior](../README.md#general-behavior).
+
+## Requirements
+
+- OpenCode v2 with `@opencode/plugin` 2.0.32 or newer
+- A DeepSeek account with access to `/v1/tools/search` and `/v1/tools/fetch`
+- A funded DeepSeek account; Search and Fetch are billed per successful request
+- A DeepSeek credential stored in OpenCode, or `DEEPSEEK_API_KEY`
+- Bun, which OpenCode provides at runtime
+
+No build step is required. OpenCode loads the TypeScript entry point directly.
+
+## Install
+
+The quickest option is the OpenCode CLI:
+
+```bash
+opencode plugin add github:gwokhou/deepseek-web-retrieval
+opencode service restart
+```
+
+This adds the `deepseek` websearch provider and the `deepseek_fetch` tool. The built-in
+`webfetch` stays untouched.
+
+To select DeepSeek for search, set `"websearch": { "provider": "deepseek" }` in
+`opencode.jsonc`, or enable `setDefaultWebsearch` in the plugin options.
+
+To replace `webfetch` or change options, use the object form:
+
+```jsonc
+"plugins": [
+  {
+    "package": "github:gwokhou/deepseek-web-retrieval",
+    "options": { "fetchOverrideWebfetch": true }
+  }
+]
+```
+
+A complete global config:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "github:gwokhou/deepseek-web-retrieval",
+      "options": { "fetchOverrideWebfetch": true }
+    }
+  ],
+  "websearch": { "provider": "deepseek" },
+  "permissions": [
+    { "action": "websearch", "resource": "*", "effect": "allow" },
+    { "action": "webfetch", "resource": "*", "effect": "allow" },
+    { "action": "deepseek_fetch", "resource": "*", "effect": "allow" }
+  ]
+}
+```
+
+### Other install methods
+
+**Global checkout**
+
+```bash
+git clone https://github.com/gwokhou/deepseek-web-retrieval.git \
+  ~/.config/opencode/vendor/deepseek-web-retrieval
+```
+
+Use `"package": "./vendor/deepseek-web-retrieval"`.
+
+**Project checkout**
+
+```bash
+mkdir -p .opencode/vendor
+git clone https://github.com/gwokhou/deepseek-web-retrieval.git \
+  .opencode/vendor/deepseek-web-retrieval
+```
+
+Use `"package": "./.opencode/vendor/deepseek-web-retrieval"`.
+
+**Auto-discovery**
+
+Clone or copy the repository into `~/.config/opencode/plugins/deepseek-web-retrieval` or
+`.opencode/plugins/deepseek-web-retrieval`. Auto-discovered plugins do not receive options,
+so `webfetch` stays in place; the `deepseek` search provider and `deepseek_fetch` are still
+added.
+
+Do not combine auto-discovery with an explicit `plugins` entry for the same directory.
+
+After any install method, restart OpenCode:
+
+```bash
+opencode service restart
+```
+
+## Authentication
+
+The adapter resolves a key in this order:
+
+1. The active DeepSeek credential stored in OpenCode
+2. `DEEPSEEK_API_KEY`
+
+Store a key with `opencode auth login` and choose DeepSeek, or set
+`DEEPSEEK_API_KEY`. `apiKeySource` can be `"auto"` (default), `"opencode"`, or `"env"`.
+
+The key is resolved for every request and sent only to `api.deepseek.com` as a Bearer
+token. It is not written to plugin metadata or logs.
+
+## Usage
+
+Ask naturally:
+
+```text
+Search the web for the latest OpenCode v2 plugin API changes and cite the sources.
+Fetch https://opencode.ai/v2/docs/build/plugins and summarize the plugin lifecycle.
+```
+
+The model calls `websearch` (provider `deepseek`) or `deepseek_fetch`. When
+`fetchOverrideWebfetch` is enabled, Markdown fetches go through `webfetch` instead.
+
+## Configuration
+
+Set these in the plugin's `options` object.
+
+### Search
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `count` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
+| `maxResults` | `5` | Results returned to the model after filtering, 0–50. |
+| `minRerank` | `1.5` | Drop results below this relevance score. DeepSeek scores are 0–3. |
+| `minAuthority` | `2` | Drop known authorities below this tier. Authority is 0–4. |
+| `allowUnknownAuthority` | `false` | Keep results whose authority is missing or unknown. |
+| `blockedDomains` | `[]` | Add `-site:` operators to the search query. |
+| `includeDomains` | `[]` | Restrict results with `site:` operators. |
+| `language` | unset | Add a `lang:` operator, for example `zh,en`. |
+| `maxSummaryChars` | `1200` | Per-result summary cap, 0–1,000,000. |
+| `searchTimeoutMs` | `30000` | Search timeout, 1,000–120,000 ms. |
+| `setDefaultWebsearch` | `false` | Make `deepseek` the default websearch provider when the plugin loads. |
+
+### Fetch
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `fetchMaxChars` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
+| `fetchTimeoutMs` | `30000` | Fetch timeout, 1,000–120,000 ms. |
+| `fetchOverrideWebfetch` | `false` | Replace the built-in `webfetch`. |
+| `fetchRegisterTool` | `true` | Register the separate `deepseek_fetch` tool. |
+| `fetchAllowedDomains` | `[]` | If non-empty, only these hosts and subdomains may be fetched. |
+| `fetchBlockedDomains` | `[]` | Always block these hosts and subdomains. Blocked wins over allowed. |
+| `fetchBlockPrivateHosts` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. |
+
+### Credentials and retries
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `apiKeySource` | `"auto"` | Credential strategy: `"auto"`, `"opencode"`, or `"env"`. |
+| `maxRetries` | `0` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
+| `retryBaseDelayMs` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
+
+## Troubleshooting
+
+| Error or symptom | What to do |
+| --- | --- |
+| `DeepSeek API key is not configured` | Run `opencode auth login` or set `DEEPSEEK_API_KEY`. |
+| `HTTP 401, invalid API key` | Check the key and its access to the tools endpoints. |
+| `HTTP 402, insufficient balance` | Top up the DeepSeek account. |
+| `HTTP 429, rate limited` | Wait, reduce concurrency, or increase `maxRetries`. |
+| Search query too long | Shorten the query or reduce configured domain/language operators. |
+| `webfetch` fails on localhost or an internal URL | Use a local fetch tool; DeepSeek cannot reach private networks. |
+| `format: "text"` / `format: "html"` rejected | DeepSeek Fetch only returns Markdown. |
+| Response too large | Use another fetch tool for the full response. |
+| `websearch` shows a generic "Unable to search" | Check the OpenCode log for the underlying DeepSeek error. |
+
+## Compatibility
+
+| Component | Version |
+| --- | --- |
+| OpenCode | v2.0.32+ |
+| Plugin API | `@opencode/plugin` 2.0.32+ |
+| Runtime | Bun (provided by OpenCode) |
+| DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
+
+OpenCode v1 and the v1 plugin API are not supported. Tested with OpenCode 2.0.32 on Linux
+using both an OpenCode-stored DeepSeek credential and `DEEPSEEK_API_KEY`.
+
+## Uninstall
+
+Remove the plugin entry from `opencode.jsonc`, remove `websearch.provider` if it points at
+`deepseek`, then restart OpenCode:
+
+```bash
+opencode service restart
+```
+
+If the package was installed into a vendor directory, delete that directory after removing
+the config entry.

@@ -21,6 +21,10 @@ runtime; do not bundle it into the plugin.
   resolution, provider registration, and tools.
 - Future agents should add a thin adapter under `src/<agent>/` and reuse
   `src/core/` rather than duplicating retrieval logic.
+- Adapter-specific setup and usage docs live in `docs/<agent>.md`; keep the
+  root README focused on the shared project and adapter overview.
+- Keep the host support matrix in `docs/integration.md` current when a host's
+  extension points or checked version change.
 
 ## Pull requests
 
