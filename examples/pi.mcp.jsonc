@@ -1,0 +1,18 @@
+{
+  // Pi MCP config: ~/.pi/agent/mcp.json (user) or .pi/mcp.json (project).
+  // "exposure": "direct" is required: Pi 1.3.0 defaults MCP tools to codemode,
+  // which does not declare them to the model.
+  // "direct" = declared like built-in tools; "deferred" = loaded via tool_search.
+  "mcpServers": {
+    "deepseek": {
+      "command": "node",
+      "args": ["/absolute/path/to/deepseek-web-retrieval/dist/cli.js"],
+      "env": {
+        // Expanded from the shell that launches Pi.
+        "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
+      },
+      "exposure": "direct",
+      "enabled": true
+    }
+  }
+}

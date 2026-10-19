@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Add an MCP server adapter (`src/mcp/`) exposing `deepseek_web_search` and `deepseek_fetch`
+  over stdio, serving MCP clients from revision 2024-11-05 through 2026-07-28
+- Support `DEEPSEEK_*` environment variable configuration in the MCP server, mapped onto the
+  shared option pipeline
+- Add the Pi guide (`docs/pi.md`) and `examples/pi.mcp.jsonc`; Pi 1.3.0 is the first
+  supported MCP host
+- Add `docs/mcp-compatibility.md`, a primary-source review of MCP protocol compatibility
+  across the hosts in the support matrix
+- Add a Node build (`dist/cli.js`) with a `deepseek-web-retrieval` bin entry and Node 20+
+  engines, alongside the existing Bun workflow
+- Cover the MCP server with SDK client personas pinned to 2024-11-05, 2025-06-18,
+  2025-11-25, and 2026-07-28, plus a real stdio smoke test of the built entry
 - Enforce the fetch host policy inside the core client so direct core consumers cannot bypass it
 - Fail fast on a missing API key before the fetch permission prompt, and reject non-string `url` inputs
 - Move OpenCode-specific missing-key guidance out of the agent-agnostic core

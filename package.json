@@ -16,11 +16,16 @@
   ],
   "exports": {
     ".": "./index.ts",
-    "./core": "./src/core/index.ts"
+    "./core": "./src/core/index.ts",
+    "./mcp": "./src/mcp/server.ts"
+  },
+  "bin": {
+    "deepseek-web-retrieval": "./dist/cli.js"
   },
   "files": [
     "index.ts",
     "src",
+    "dist",
     "docs",
     "README.md",
     "LICENSE",
@@ -29,19 +34,28 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build": "bun build src/mcp/cli.ts --target=node --format=esm --outdir=dist --external @modelcontextprotocol/server --external @modelcontextprotocol/server/stdio --external zod --external zod/v4",
+    "prepublishOnly": "bun run typecheck && bun run build",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "check": "bun run typecheck && bun test"
+    "check": "bun run typecheck && bun run build && bun test"
   },
   "peerDependencies": {
     "@opencode/plugin": "^2.0.32"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
     "@opencode/plugin": "2.0.32",
     "@types/bun": "1.4.0",
+    "@types/node": "^26.6.5",
     "typescript": "5.9.3"
   },
   "engines": {
-    "bun": ">=1.3.0"
+    "bun": ">=1.3.0",
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "zod": "^4"
   }
 }

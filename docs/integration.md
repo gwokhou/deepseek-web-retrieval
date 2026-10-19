@@ -16,7 +16,7 @@ MCP tools can add equivalent tools, but do not replace built-ins.
 | Native websearch provider | Yes | No | Host plugin API | OpenCode v2 adapter |
 | Native tool / fetch override | No | Yes | Host tool API | OpenCode v2 adapter |
 | Custom tool plugin | Yes | Yes | Host plugin API | Cline CLI/SDK and Pi; no adapter yet |
-| MCP server | Yes | Yes | Host MCP client | Not shipped |
+| MCP server | Yes | Yes | Host MCP client | Shipped (`src/mcp/`; Pi guide first) |
 | CLI/HTTP wrapper | Yes | Yes | Host can call external tools | Not shipped |
 
 MCP is a protocol, not an agent. It is one possible transport for hosts that support MCP
@@ -33,7 +33,7 @@ Rows are sorted with open-source hosts first, then by host name alphabetically.
 | Continue | 1.5.47 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Native plugin API | Supported |
-| Pi | 1.3.0 | Yes (MIT) | No | No | MCP or extension | No adapter yet |
+| Pi | 1.3.0 | Yes (MIT) | No | No | MCP server | Supported |
 | Claude Code | 2.1.303 | No | No | No | MCP server | No adapter yet |
 | Cursor | 2026.10.08 | No | No | No | MCP server | No adapter yet |
 | Devin | 3000.11.92 | No | No | No | MCP server | No adapter yet |
@@ -45,9 +45,11 @@ Codex, Continue, and Gemini CLI are Apache-2.0; OpenCode and Pi are MIT. Claude 
 Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish installers and docs, not
 source code, under proprietary terms.
 
-Support for the other popular CLI agents is in progress through the MCP server. `No adapter
-yet` means an integration path exists and support is in progress, but no adapter has shipped
-for that host yet. OpenCode is pinned to the adapter's tested target (2.0.32), not
+Support for the other popular CLI agents is in progress through the MCP server, which is
+shipped in `src/mcp/` and works with any host that supports MCP tools over stdio. A host is
+listed as supported only after an adapter and guide exist; for the remaining hosts,
+`No adapter yet` means the shipped MCP server already provides the path, but no guide for
+that host exists yet. OpenCode is pinned to the adapter's tested target (2.0.32), not
 necessarily the latest OpenCode release.
 
 ## Host notes
@@ -75,12 +77,16 @@ necessarily the latest OpenCode release.
   and is not included in this row.
 - **Pi** — Pi 1.3.0 has native MCP support and a TypeScript extension API that can add
   custom tools. The core ships read/bash/edit/write tools; web search/fetch are added by
-  extensions or MCP. No native websearch provider or fetch override.
+  extensions or MCP. No native websearch provider or fetch override. Supported through the
+  MCP server; see [Pi](pi.md).
 
 ## Roadmap
 
-- **MCP server** — in progress; the broadest path for hosts that support MCP tools.
-- **Host-specific adapters and guides** — added as they ship.
+- **MCP server** — shipped in `src/mcp/` with the [Pi](pi.md) guide; the broadest path for
+  hosts that support MCP tools. Protocol compatibility across these hosts is researched in
+  [mcp-compatibility.md](mcp-compatibility.md).
+- **Host-specific guides** — added as requests and testing land; the server itself is
+  host-agnostic.
 
 ## Sources
 
@@ -141,6 +147,6 @@ code and docs need to match the mechanism the host actually provides.
 ## Adding an adapter
 
 - Put shared retrieval logic in `src/core/`.
-- Put host-specific glue in `src/<agent>/`.
+- Put host-specific glue in `src/<agent>/`, or in `src/mcp/` for the cross-host MCP server.
 - Document setup and usage in `docs/<agent>.md`.
 - Link the guide from the README Usage section.

@@ -3,23 +3,25 @@
 **Bringing [DeepSeek's in-house Search and Fetch APIs](https://api-docs.deepseek.com/guides/search) to coding agents.**
 
 An adapter layer for coding agents. The core is agent-agnostic; each adapter exposes the
-same retrieval behavior to a specific agent. OpenCode v2 is the first shipped adapter. An
-MCP server and adapters for other popular coding agents are in progress; they are not
-shipped yet.
+same retrieval behavior to a specific agent. OpenCode v2 has a native plugin adapter, and
+an MCP server covers MCP-capable hosts, with Pi as the first guided host. Guides for other
+coding agents are in progress.
 
 This is an unofficial community project. It is not affiliated with OpenCode or DeepSeek.
 
 ## Usage
 
-Only OpenCode v2 has a shipped adapter:
+Shipped adapters:
 
-- [OpenCode v2 setup and usage](docs/opencode-v2.md)
+- [OpenCode v2 setup and usage](docs/opencode-v2.md) — native plugin API
+- [Pi setup and usage](docs/pi.md) — MCP server over stdio
 
-Support for other popular CLI agents is in progress through an MCP server; those adapters
-are not shipped yet. For how other coding agents can integrate—native websearch providers,
-native fetch tools, MCP, or wrappers—see the [integration model](docs/integration.md) and
-its version-locked host support matrix. A host is listed as supported only after an adapter
-and guide exist.
+The MCP server works with any host that supports MCP tools over stdio; Pi is the first
+host with a shipped guide. For how other coding agents integrate—native websearch
+providers, native fetch tools, MCP, or wrappers—see the
+[integration model](docs/integration.md) with its version-locked host support matrix, and
+the [MCP compatibility research](docs/mcp-compatibility.md). A host is listed as supported
+only after an adapter and guide exist.
 
 For shared search, fetch, retry, and privacy behavior, see below.
 
@@ -75,9 +77,11 @@ bun run typecheck
 bun test
 ```
 
-The test suite mocks the DeepSeek HTTP API and the OpenCode plugin host. Real API calls
+The test suite mocks the DeepSeek HTTP API and the OpenCode plugin host, and drives the
+MCP server with SDK clients pinned to each supported protocol revision. Real API calls
 require a funded DeepSeek account. Shared retrieval logic lives in `src/core/`; adapters
-live in `src/<agent>/`. Adapter docs live in `docs/<agent>.md`.
+live in `src/<agent>/` (the cross-host MCP server lives in `src/mcp/`). Adapter docs live
+in `docs/<agent>.md`.
 
 ## Prior art
 

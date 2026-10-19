@@ -7,6 +7,7 @@ Thanks for helping improve DeepSeek Web Retrieval.
 ```bash
 bun install
 bun run typecheck
+bun run build
 bun test
 ```
 
@@ -20,7 +21,8 @@ runtime; do not bundle it into the plugin.
 - `src/opencode/` is the OpenCode v2 adapter: plugin setup, credential
   resolution, provider registration, and tools.
 - Future agents should add a thin adapter under `src/<agent>/` and reuse
-  `src/core/` rather than duplicating retrieval logic.
+  `src/core/` rather than duplicating retrieval logic. The cross-host MCP
+  server lives in `src/mcp/`.
 - Adapter-specific setup and usage docs live in `docs/<agent>.md`; keep the
   root README focused on the shared project and adapter overview.
 - Keep the host support matrix in `docs/integration.md` current when a host's
