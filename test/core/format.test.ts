@@ -39,7 +39,11 @@ describe("formatting", () => {
       truncated: false,
     })
     expect(formatFetchedContent("Example Domain", "  # example domain\n\nbody", 100)).toEqual({
-      content: "# example domain\n\nbody",
+      content: "# Example Domain\n\nbody",
+      truncated: false,
+    })
+    expect(formatFetchedContent("Example Domain", "\\# Example Domain\n\nbody", 100)).toEqual({
+      content: "# Example Domain\n\nbody",
       truncated: false,
     })
     expect(formatFetchedContent("Different", "# Example Domain\n\nbody", 100)).toEqual({

@@ -45,9 +45,13 @@ function withTitle(title: string, content: string): string {
   if (!heading) return content
 
   const body = content.trimStart()
-  const firstHeading = body.match(/^#\s+(.+?)(?:\r?\n|$)/)?.[1]
+  const lines = body.split(/\r?\n/)
+  const firstHeading = lines[0]?.match(/^\\?#\s+(.+?)\s*$/)?.[1]
   if (firstHeading && normalizeHeading(firstHeading) === normalizeHeading(heading)) {
-    return body
+    // DeepSeek sometimes escapes the leading "#" as "\#"; normalize it so the
+    // result is a real Markdown heading instead of a duplicated literal line.
+    lines[0] = `# ${heading}`
+    return lines.join("\n")
   }
   return `# ${heading}\n\n${content}`
 }
