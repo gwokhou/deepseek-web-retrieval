@@ -15,6 +15,7 @@ export const MAX_TIMEOUT_MS = 120000
 export const MAX_QUERY_CHARS = 128
 export const MAX_URL_CHARS = 8192
 export const MAX_ERROR_BODY_CHARS = 2000
+export const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 export const FETCH_TRUNCATION_MARKER = "\n\n[content truncated]"
 
 export const DEFAULT_API_KEY_SOURCE = "auto"

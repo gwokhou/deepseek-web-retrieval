@@ -72,9 +72,10 @@ export function redactSecrets(value: string): string {
 
 export function formatApiError(operation: string, status: number, body: string): string {
   const detail = redactSecrets(body.trim())
+  const detailChars = Array.from(detail)
   const text = detail
-    ? detail.length > MAX_ERROR_BODY_CHARS
-      ? `${detail.slice(0, MAX_ERROR_BODY_CHARS)}…`
+    ? detailChars.length > MAX_ERROR_BODY_CHARS
+      ? `${detailChars.slice(0, MAX_ERROR_BODY_CHARS).join("")}…`
       : detail
     : "empty response body"
   const hint =

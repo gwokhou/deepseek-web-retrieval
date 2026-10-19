@@ -2,6 +2,7 @@ import {
   FETCH_ENDPOINT,
   MAX_ERROR_BODY_CHARS,
   MAX_QUERY_CHARS,
+  MAX_RESPONSE_BYTES,
   MAX_RETRY_DELAY_MS,
   SEARCH_ENDPOINT,
 } from "./constants"
@@ -71,10 +72,20 @@ export async function searchWeb(
     throw new Error(`DeepSeek search query must be ${MAX_QUERY_CHARS} characters or fewer`)
   }
 
+  const builtQuery = buildQuery(trimmed, options)
+  const builtQueryLength = Array.from(builtQuery).length
+  if (builtQueryLength > MAX_QUERY_CHARS) {
+    throw new Error(
+      `DeepSeek search query must be ${MAX_QUERY_CHARS} characters or fewer after applying ` +
+        `blockedDomains, includeDomains, and language ` +
+        `(built query is ${builtQueryLength} characters)`,
+    )
+  }
+
   const payload = await postJson<SearchResponse>(
     SEARCH_ENDPOINT,
     {
-      query: buildQuery(trimmed, options),
+      query: builtQuery,
       count: options.count,
       need_content: false,
     },
@@ -141,7 +152,7 @@ async function requestOnce<T>(
   options: RequestOptions,
   timeoutMs: number,
 ): Promise<T> {
-  const response = await fetchWithTimeout(
+  return fetchWithTimeout(
     endpoint,
     {
       method: "POST",
@@ -154,35 +165,42 @@ async function requestOnce<T>(
     options.signal,
     timeoutMs,
     operation,
+    async (response) => {
+      if (!response.ok) {
+        const text = await readBoundedText(response, MAX_ERROR_BODY_CHARS)
+        throw new DeepSeekApiError({
+          operation,
+          status: response.status,
+          body: text,
+          retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
+        })
+      }
+
+      const text = await readResponseText(response, MAX_RESPONSE_BYTES, operation)
+      if (!text.trim()) throw new Error(`${operation} returned an empty response body`)
+
+      try {
+        return JSON.parse(text) as T
+      } catch {
+        throw new Error(`${operation} returned invalid JSON: ${truncate(redactSecrets(text), 500)}`)
+      }
+    },
   )
-
-  if (!response.ok) {
-    const text = await readBoundedText(response, MAX_ERROR_BODY_CHARS)
-    throw new DeepSeekApiError({
-      operation,
-      status: response.status,
-      body: text,
-      retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
-    })
-  }
-
-  const text = await response.text()
-  if (!text.trim()) throw new Error(`${operation} returned an empty response body`)
-
-  try {
-    return JSON.parse(text) as T
-  } catch {
-    throw new Error(`${operation} returned invalid JSON: ${truncate(redactSecrets(text), 500)}`)
-  }
 }
 
-async function fetchWithTimeout(
+/**
+ * Runs the request and the callback that consumes its body inside one
+ * timeout/abort scope. The timer must stay active while the response body is
+ * read, otherwise a slow or stalled body can outlive the configured timeout.
+ */
+async function fetchWithTimeout<T>(
   endpoint: string,
   init: RequestInit,
   signal: AbortSignal,
   timeoutMs: number,
   operation: string,
-): Promise<Response> {
+  handleResponse: (response: Response) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController()
   let timedOut = false
   const forwardAbort = () => controller.abort(signal.reason)
@@ -197,7 +215,8 @@ async function fetchWithTimeout(
       }, timeoutMs)
 
   try {
-    return await fetch(endpoint, { ...init, signal: controller.signal })
+    const response = await fetch(endpoint, { ...init, signal: controller.signal })
+    return await handleResponse(response)
   } catch (error) {
     if (timedOut) throw new Error(formatTimeoutError(operation, timeoutMs))
     if (signal.aborted) throw abortReason(signal, operation)
@@ -253,16 +272,55 @@ function abortReason(signal: AbortSignal, operation: string): unknown {
 
 /** Reads at most `maxChars + 1` characters, enough for formatApiError to add its marker. */
 async function readBoundedText(response: Response, maxChars: number): Promise<string> {
-  if (!response.body) return (await response.text()).slice(0, maxChars + 1)
+  if (!response.body) return truncate(await response.text(), maxChars + 1)
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   const limit = maxChars + 1
   let text = ""
+  let chars = 0
   try {
-    while (text.length < limit) {
+    while (chars < limit) {
       const { done, value } = await reader.read()
       if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      text += chunk
+      chars += Array.from(chunk).length
+    }
+    text += decoder.decode()
+  } finally {
+    await reader.cancel().catch(() => undefined)
+    reader.releaseLock()
+  }
+  return truncate(text, limit)
+}
+
+/** Reads a successful response body, rejecting payloads above `maxBytes`. */
+async function readResponseText(
+  response: Response,
+  maxBytes: number,
+  operation: string,
+): Promise<string> {
+  if (!response.body) {
+    const text = await response.text()
+    if (new TextEncoder().encode(text).byteLength > maxBytes) {
+      throw new Error(`${operation} response exceeded ${maxBytes} bytes`)
+    }
+    return text
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let text = ""
+  let bytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      bytes += value.byteLength
+      if (bytes > maxBytes) {
+        throw new Error(`${operation} response exceeded ${maxBytes} bytes`)
+      }
       text += decoder.decode(value, { stream: true })
     }
     text += decoder.decode()
@@ -270,5 +328,5 @@ async function readBoundedText(response: Response, maxChars: number): Promise<st
     await reader.cancel().catch(() => undefined)
     reader.releaseLock()
   }
-  return text.slice(0, limit)
+  return text
 }

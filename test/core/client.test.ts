@@ -15,6 +15,25 @@ function request(signal = new AbortController().signal, retry: RetryConfig = noR
   return { signal, auth, retry, timeoutMs: 1000 }
 }
 
+/** A successful response whose body stalls until the fetch signal is aborted. */
+function stalledResponse(signal: AbortSignal | null | undefined): Response {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (signal?.aborted) {
+        controller.error(signal.reason ?? new Error("aborted"))
+        return
+      }
+      controller.enqueue(new TextEncoder().encode('{"results": ['))
+      signal?.addEventListener(
+        "abort",
+        () => controller.error(signal.reason ?? new Error("aborted")),
+        { once: true },
+      )
+    },
+  })
+  return new Response(stream, { status: 200 })
+}
+
 describe("DeepSeek client", () => {
   test("search posts the query, asks for no content, and maps results", async () => {
     let captured: { url: string; init: RequestInit } | undefined
@@ -152,5 +171,77 @@ describe("DeepSeek client", () => {
     await expect(
       searchWeb("bun", { ...resolveSearchOptions(), timeoutMs: 5 }, request()),
     ).rejects.toThrow("timed out after 5 ms")
+  })
+
+  test("times out while reading a stalled response body", async () => {
+    globalThis.fetch = ((_input: string | URL | Request, init: RequestInit) =>
+      Promise.resolve(stalledResponse(init.signal))) as typeof fetch
+
+    await expect(
+      searchWeb("bun", { ...resolveSearchOptions(), timeoutMs: 5 }, request()),
+    ).rejects.toThrow("timed out after 5 ms")
+  })
+
+  test("aborts while reading a stalled response body", async () => {
+    const controller = new AbortController()
+    globalThis.fetch = ((_input: string | URL | Request, init: RequestInit) =>
+      Promise.resolve(stalledResponse(init.signal))) as typeof fetch
+
+    const pending = searchWeb(
+      "bun",
+      { ...resolveSearchOptions(), timeoutMs: 10000 },
+      request(controller.signal),
+    )
+    setTimeout(() => controller.abort(new Error("stop reading")), 10)
+
+    await expect(pending).rejects.toThrow("stop reading")
+  })
+
+  test("rejects a query that exceeds the limit after search modifiers", async () => {
+    let calls = 0
+    globalThis.fetch = (async () => {
+      calls += 1
+      return new Response(JSON.stringify({ results: [] }))
+    }) as unknown as typeof fetch
+
+    await expect(
+      searchWeb(
+        "q".repeat(100),
+        resolveSearchOptions({
+          blockedDomains: ["pinterest.com", "facebook.com", "x.com"],
+        }),
+        request(),
+      ),
+    ).rejects.toThrow("after applying")
+    expect(calls).toBe(0)
+  })
+
+  test("allows a query exactly at the final query limit", async () => {
+    let sent: string | undefined
+    globalThis.fetch = (async (_input: string | URL | Request, init: RequestInit) => {
+      sent = JSON.parse(String(init.body)).query
+      return new Response(JSON.stringify({ results: [] }))
+    }) as typeof fetch
+
+    await searchWeb("q".repeat(120), resolveSearchOptions({ language: "en" }), request())
+
+    expect(sent?.length).toBe(128)
+  })
+
+  test("rejects oversized successful responses", async () => {
+    const chunk = new Uint8Array(1024 * 1024).fill(0x78)
+    globalThis.fetch = (async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (let index = 0; index < 6; index++) controller.enqueue(chunk)
+          controller.close()
+        },
+      })
+      return new Response(stream, { status: 200 })
+    }) as unknown as typeof fetch
+
+    await expect(searchWeb("bun", resolveSearchOptions(), request())).rejects.toThrow(
+      "exceeded",
+    )
   })
 })

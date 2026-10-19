@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Cover response body reads with the request timeout and cancellation signal
+- Reject successful API responses larger than 5 MiB
+- Reject search queries that exceed 128 characters after adding search operators
+- Block IPv4-mapped IPv6 private addresses in the fetch host policy
+- Truncate API error bodies by Unicode code points
+
 ## 0.1.0
 
 Initial public-ready release.

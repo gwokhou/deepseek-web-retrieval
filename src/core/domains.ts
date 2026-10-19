@@ -126,9 +126,28 @@ function isPrivateIpv6(host: string): boolean {
   if (value.startsWith("fc") || value.startsWith("fd")) return true
   if (/^fe[89ab]/.test(value)) return true
 
-  // IPv4-mapped IPv6, e.g. ::ffff:127.0.0.1.
-  const mapped = value.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1]
+  // IPv4-mapped IPv6, e.g. ::ffff:127.0.0.1. URL parsers normalize the dotted
+  // form to hex (`::ffff:7f00:1`), so both representations must be handled.
+  const dottedMapped = value.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1]
+  if (dottedMapped) return isPrivateIpv4(dottedMapped)
+
+  const mapped = ipv4FromIpv6Hextets(value, /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
   if (mapped) return isPrivateIpv4(mapped)
+
+  // IPv4-compatible IPv6, e.g. ::127.0.0.1, which URL parsers normalize to
+  // ::7f00:1.
+  const compatible = ipv4FromIpv6Hextets(value, /^::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
+  if (compatible) return isPrivateIpv4(compatible)
+
   return false
+}
+
+function ipv4FromIpv6Hextets(value: string, pattern: RegExp): string | undefined {
+  const match = value.match(pattern)
+  if (!match) return undefined
+  const high = Number.parseInt(match[1], 16)
+  const low = Number.parseInt(match[2], 16)
+  if (!Number.isFinite(high) || !Number.isFinite(low)) return undefined
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`
 }
 

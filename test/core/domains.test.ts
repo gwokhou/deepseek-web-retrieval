@@ -50,12 +50,35 @@ describe("domains", () => {
       "fc00::1",
       "fe80::1",
       "::ffff:127.0.0.1",
+      "::ffff:7f00:1",
+      "::ffff:c0a8:101",
+      "::ffff:a9fe:a9fe",
+      "::7f00:1",
     ]) {
       expect(isPrivateHostname(host)).toBe(true)
     }
-    for (const host of ["example.com", "8.8.8.8", "2001:4860:4860::8888"]) {
+    for (const host of [
+      "example.com",
+      "8.8.8.8",
+      "2001:4860:4860::8888",
+      "::ffff:808:808",
+      "::808:808",
+    ]) {
       expect(isPrivateHostname(host)).toBe(false)
     }
+  })
+
+  test("blocks IPv4-mapped IPv6 addresses after URL normalization", () => {
+    const options = resolveFetchOptions()
+    for (const url of [
+      "http://[::ffff:127.0.0.1]/",
+      "http://[::ffff:169.254.169.254]/",
+      "http://[::ffff:192.168.1.1]/",
+      "http://[::7f00:1]/",
+    ]) {
+      expect(() => assertFetchHostPolicy(new URL(url), options)).toThrow("local/private")
+    }
+    expect(() => assertFetchHostPolicy(new URL("http://[::ffff:8.8.8.8]/"), options)).not.toThrow()
   })
 
   test("blocks private hosts before domain allow lists", () => {

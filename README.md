@@ -237,6 +237,10 @@ Search results use DeepSeek's `summary`, falling back to `snippet`. Full page
 content is never requested by Search. Use `deepseek_fetch` when you need the
 page body.
 
+The final query, including `blockedDomains`, `includeDomains`, and `language`
+operators, must be 128 characters or fewer. The plugin rejects longer queries
+locally before calling DeepSeek.
+
 ### Fetch
 
 DeepSeek Fetch returns Markdown only. The tool schema keeps `format` for
@@ -244,15 +248,18 @@ compatibility with the built-in `webfetch`, but `format: "text"` and
 `format: "html"` are rejected with an explicit error instead of returning
 misleading content.
 
+Responses larger than 5 MiB are rejected before parsing.
+
 DeepSeek Fetch does not render JavaScript. Some sites return 403/404 or no
 extractable content. PDFs, images, and other binary files are not supported.
 
 ### No automatic fallback
 
 If the OpenCode credential and `DEEPSEEK_API_KEY` are both unavailable, Search
-and Fetch fail. If DeepSeek returns 401/429/5xx or times out, the request fails
-after the configured retries. The plugin does not silently switch to the
-built-in `webfetch` or another search provider.
+and Fetch fail. Retryable responses (408, 425, 429, and 5xx) are retried up to
+`maxRetries`; other failures, including 401 and request timeouts, fail without
+retrying. The plugin does not silently switch to the built-in `webfetch` or
+another search provider.
 
 To keep the built-in `webfetch`, leave `fetchOverrideWebfetch` at `false`.
 

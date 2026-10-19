@@ -71,4 +71,15 @@ describe("formatting", () => {
       "1234567890abcdef",
     )
   })
+
+  test("truncates API error bodies by code points", () => {
+    const exact = "😀".repeat(2000)
+    expect(formatApiError("DeepSeek Search", 500, exact)).toBe(
+      `DeepSeek Search failed (HTTP 500): ${exact}`,
+    )
+
+    const message = formatApiError("DeepSeek Search", 500, `${"x".repeat(1999)}😀y`)
+    expect(message.endsWith("…")).toBe(true)
+    expect(message).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+  })
 })
