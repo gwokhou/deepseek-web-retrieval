@@ -1,0 +1,91 @@
+name: Bug report
+description: Report a problem with DeepSeek Web Retrieval
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys, tokens, private URLs, or full logs with secrets.
+        Redact keys as `sk-***`.
+
+  - type: input
+    id: opencode-version
+    attributes:
+      label: OpenCode version
+      placeholder: "2.0.32"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version or commit
+      placeholder: "0.1.0 / commit SHA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-mode
+    attributes:
+      label: Install mode
+      options:
+        - Global vendor path
+        - Project vendor path
+        - Auto-discovered plugin directory
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Redacted config
+      description: The relevant plugins/websearch/permissions section.
+      render: jsonc
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact secrets and private URLs.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed API keys and private URLs from this report.
+          required: true
+        - label: I searched existing issues first.
+          required: true

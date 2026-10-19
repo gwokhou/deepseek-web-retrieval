@@ -1,0 +1,24 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Project config: <project>/opencode.jsonc
+  // Assumes the repo is cloned to <project>/.opencode/vendor/deepseek-web-retrieval.
+  "plugins": [
+    {
+      "package": "./.opencode/vendor/deepseek-web-retrieval",
+      "options": {
+        "fetchOverrideWebfetch": false,
+        "fetchRegisterTool": true
+      }
+    }
+  ],
+
+  "websearch": {
+    "provider": "deepseek"
+  },
+
+  "permissions": [
+    { "action": "websearch", "resource": "*", "effect": "allow" },
+    { "action": "deepseek_fetch", "resource": "*", "effect": "allow" }
+  ]
+}
