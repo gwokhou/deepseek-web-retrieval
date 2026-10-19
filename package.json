@@ -1,10 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "deepseek-web-retrieval",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Token-efficient DeepSeek Search and Fetch for coding agents, starting with OpenCode v2.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gwokhou/deepseek-web-retrieval.git"
+  },
+  "homepage": "https://github.com/gwokhou/deepseek-web-retrieval#readme",
+  "bugs": "https://github.com/gwokhou/deepseek-web-retrieval/issues",
   "keywords": [
     "opencode",
     "opencode-plugin",

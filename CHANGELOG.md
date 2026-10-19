@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 0.2.0
 
 - Make `docs/hosts.jsonc` the single source of truth for host facts: the
   integration.md host table is generated from it (`bun run docs:matrix`, drift fails
