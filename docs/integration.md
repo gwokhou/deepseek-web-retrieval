@@ -26,18 +26,18 @@ tools. `Custom tool plugin` means adding tools; it does not replace a host's bui
 
 Rows are sorted with open-source hosts first, then by host name alphabetically.
 
-| Host | Version checked | Open source | Native search provider | Native fetch override | MCP | Best path | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | Yes | MCP or plugin | No adapter yet |
-| Codex | 0.163.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
-| Continue | 1.5.47 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
-| Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
-| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Not needed | Native plugin API | Supported |
-| Pi | 1.3.0 | Yes (MIT) | No | No | Yes | MCP or extension | No adapter yet |
-| Claude Code | 2.1.303 | No | No | No | Yes | MCP server | No adapter yet |
-| Cursor | 2026.10.08 | No | No | No | Yes | MCP server | No adapter yet |
-| Devin | 3000.11.92 | No | No | No | Yes | MCP server | No adapter yet |
-| GitHub Copilot | 1.0.98 | No | No | No | Yes | MCP server | No adapter yet |
+| Host | Version checked | Open source | Native search provider | Native fetch override | Best path | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP or plugin | No adapter yet |
+| Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
+| Continue | 1.5.47 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
+| Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
+| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Native plugin API | Supported |
+| Pi | 1.3.0 | Yes (MIT) | No | No | MCP or extension | No adapter yet |
+| Claude Code | 2.1.303 | No | No | No | MCP server | No adapter yet |
+| Cursor | 2026.10.08 | No | No | No | MCP server | No adapter yet |
+| Devin | 3000.11.92 | No | No | No | MCP server | No adapter yet |
+| GitHub Copilot | 1.0.98 | No | No | No | MCP server | No adapter yet |
 
 `Open source` refers to the CLI/client code at the checked version, verified from the
 project repositories on 2026-10-19. It does not cover the hosted model service. Cline,
@@ -45,10 +45,9 @@ Codex, Continue, and Gemini CLI are Apache-2.0; OpenCode and Pi are MIT. Claude 
 Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish installers and docs, not
 source code, under proprietary terms.
 
-`Not needed` for OpenCode means the native adapter does not require MCP. `No adapter yet`
-means a documented integration path exists, but this project has not shipped an adapter for
-that host. OpenCode is pinned to the adapter's tested target (2.0.32), not necessarily the
-latest OpenCode release.
+`No adapter yet` means a documented integration path exists, but this project has not
+shipped an adapter for that host. OpenCode is pinned to the adapter's tested target
+(2.0.32), not necessarily the latest OpenCode release.
 
 ## Host notes
 
