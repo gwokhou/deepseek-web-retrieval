@@ -23,6 +23,7 @@
     "src",
     "README.md",
     "LICENSE",
+    "CHANGELOG.md",
     "examples"
   ],
   "scripts": {

@@ -59,7 +59,16 @@ a string entry to the global `plugins` array. That uses the safe
 defaults: `deepseek_fetch` is registered, while the built-in `webfetch` stays
 untouched. To enable the drop-in `webfetch` or change options, replace the
 string entry with the object form below. The same Git package specifier works in
-that object.
+that object:
+
+```jsonc
+"plugins": [
+  {
+    "package": "github:OWNER/deepseek-web-retrieval",
+    "options": { "fetchOverrideWebfetch": true }
+  }
+]
+```
 
 ### Recommended: global install with options
 
