@@ -1,12 +1,16 @@
 # DeepSeek Web Retrieval
 
-**Web search and page fetch for coding agents, built on DeepSeek's Search and Fetch APIs.**
+**Bringing [DeepSeek's in-house Search and Fetch APIs](https://api-docs.deepseek.com/guides/search) to coding agents.**
+
+`deepseek-web-retrieval` is an adapter layer for DeepSeek's Search API and Fetch API. Its
+core is agent-agnostic, so each coding agent can share the same retrieval behavior through
+a thin adapter. OpenCode v2 is the first supported adapter; more integrations are planned.
 
 This is an unofficial community project. It is not affiliated with OpenCode or DeepSeek.
 
 ## What it does
 
-`deepseek-web-retrieval` gives a coding agent two useful capabilities:
+`deepseek-web-retrieval` gives coding agents two useful capabilities:
 
 - **Search** a query through DeepSeek Search and return a short list of relevant results.
 - **Fetch** a URL through DeepSeek Fetch and return readable Markdown.
@@ -18,7 +22,7 @@ returns Markdown and limits how much text it sends back.
 ## Why use it
 
 Raw search results are noisy. They often contain duplicate links, low-authority pages,
-and entire page bodies. Sending all of that to a coding agent wastes context and makes
+and entire page bodies. Sending all of that to coding agents wastes context and makes
 answers worse.
 
 This project sits between the agent and DeepSeek:
