@@ -24,28 +24,26 @@ tools. `Custom tool plugin` means adding tools; it does not replace a host's bui
 
 ## Host support
 
-Rows are sorted by the first letter of the host, then by open-source status (Yes before
-No), then by name.
+Rows are sorted with open-source hosts first, then by host name alphabetically.
 
 | Host | Version checked | Open source | Native search provider | Native fetch override | MCP | Best path | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Aider | 0.86.2 | Yes (Apache-2.0) | No | No | No | Manual `/web` only | Not supported |
 | Cline | 0.0.13 | Yes (Apache-2.0) | No | No | Yes | MCP or plugin | No adapter yet |
 | Codex | 0.163.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
 | Continue | 1.5.47 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
+| Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
+| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Not needed | Native plugin API | Supported |
+| Pi | 1.3.0 | Yes (MIT) | No | No | Yes | MCP or extension | No adapter yet |
 | Claude Code | 2.1.303 | No | No | No | Yes | MCP server | No adapter yet |
 | Cursor | 2026.10.08 | No | No | No | Yes | MCP server | No adapter yet |
 | Devin | 3000.11.92 | No | No | No | Yes | MCP server | No adapter yet |
-| Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | Yes | MCP server | No adapter yet |
 | GitHub Copilot | 1.0.98 | No | No | No | Yes | MCP server | No adapter yet |
-| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | Not needed | Native plugin API | Supported |
-| Pi | 1.3.0 | Yes (MIT) | No | No | Yes | MCP or extension | No adapter yet |
 
 `Open source` refers to the CLI/client code at the checked version, verified from the
-project repositories on 2026-10-19. It does not cover the hosted model service. Codex and
-Gemini CLI are Apache-2.0; OpenCode and Pi are MIT; Cline, Continue, and Aider are
-Apache-2.0. Claude Code and Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish
-installers and docs, not source code, under proprietary terms.
+project repositories on 2026-10-19. It does not cover the hosted model service. Cline,
+Codex, Continue, and Gemini CLI are Apache-2.0; OpenCode and Pi are MIT. Claude Code and
+Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish installers and docs, not
+source code, under proprietary terms.
 
 `Not needed` for OpenCode means the native adapter does not require MCP. `No adapter yet`
 means a documented integration path exists, but this project has not shipped an adapter for
@@ -78,8 +76,6 @@ latest OpenCode release.
 - **Pi** — Pi 1.3.0 has native MCP support and a TypeScript extension API that can add
   custom tools. The core ships read/bash/edit/write tools; web search/fetch are added by
   extensions or MCP. No native websearch provider or fetch override.
-- **Aider** — No MCP client in 0.86.2; a native MCP client PR was closed without merging.
-  `/web` is a user-invoked command, not a model-callable tool. No native tool API.
 
 ## Sources
 
@@ -102,8 +98,6 @@ latest OpenCode release.
   [MCP](https://docs.devin.ai/cli/extensibility/mcp/overview)
 - Pi: [extensions](https://pi.dev/docs/latest/extensions),
   [MCP](https://pi.dev/docs/latest/mcp)
-- Aider: [commands](https://aider.chat/docs/usage/commands.html),
-  [closed MCP client PR](https://github.com/Aider-AI/aider/pull/5694)
 
 Version sources:
 
@@ -113,7 +107,6 @@ Version sources:
   [Cline CLI](https://www.npmjs.com/package/@cline/cli),
   [Continue CLI](https://www.npmjs.com/package/@continuedev/cli),
   [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
-- PyPI: [Aider](https://pypi.org/project/aider-chat/)
 - Releases: [Copilot CLI](https://github.com/github/copilot-cli/releases)
 - Changelogs: [Cursor CLI](https://cursor.com/docs/cli/changelog),
   [Devin CLI](https://docs.devin.ai/cli/changelog),
