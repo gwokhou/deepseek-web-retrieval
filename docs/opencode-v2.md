@@ -149,7 +149,7 @@ Set these in the plugin's `options` object.
 | Option | Default | Description |
 | --- | --- | --- |
 | `count` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
-| `maxResults` | `5` | Results returned to the model after filtering, 0–50. |
+| `maxResults` | `5` | Results returned to the model after filtering, 0–50. `0` returns no results. |
 | `minRerank` | `1.5` | Drop results below this relevance score. DeepSeek scores are 0–3. |
 | `minAuthority` | `2` | Drop known authorities below this tier. Authority is 0–4. |
 | `allowUnknownAuthority` | `false` | Keep results whose authority is missing or unknown. |

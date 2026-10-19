@@ -6,6 +6,7 @@ import {
   MAX_RETRY_DELAY_MS,
   SEARCH_ENDPOINT,
 } from "./constants"
+import { assertFetchHostPolicy } from "./domains"
 import { formatApiError, formatTimeoutError, redactSecrets, truncate } from "./format"
 import { buildQuery, processResults } from "./search"
 import type {
@@ -105,6 +106,9 @@ export async function fetchPage(
   options: FetchOptions,
   request: RequestOptions,
 ): Promise<FetchedPage> {
+  // Enforced here so direct core consumers cannot bypass the policy. Adapters
+  // may also pre-check to reject before a permission prompt.
+  assertFetchHostPolicy(url, options)
   const payload = await postJson<FetchResponse>(
     FETCH_ENDPOINT,
     { url: url.href },

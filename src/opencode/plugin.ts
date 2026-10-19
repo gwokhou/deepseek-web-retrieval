@@ -61,9 +61,18 @@ async function runFetch(
     )
   }
 
+  if (typeof input.url !== "string") {
+    throw new Error('"url" must be a string')
+  }
   const target = parseFetchUrl(input.url)
+  // Fail before the permission prompt; fetchPage enforces this again for core
+  // consumers that skip the pre-check.
   assertFetchHostPolicy(target, config.fetch)
   const timeoutMs = resolveFetchTimeoutMs(config.fetch.timeoutMs, input.timeout)
+
+  // Resolved before the permission prompt so a missing key fails fast instead
+  // of asking the user to approve a request that cannot run.
+  const apiKey = await resolveApiKey(ctx, config.auth.source)
 
   await ctx.permission.assert({
     sessionID: context.sessionID,
@@ -75,7 +84,6 @@ async function runFetch(
     source: { type: "tool", messageID: context.messageID, id: context.id },
   })
 
-  const apiKey = await resolveApiKey(ctx, config.auth.source)
   const page = await fetchPage(
     target,
     { ...config.fetch, timeoutMs },

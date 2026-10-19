@@ -307,6 +307,31 @@ describe("OpenCode plugin wiring", () => {
     expect(captured.permissions).toEqual([])
   })
 
+  test("fetch rejects a non-string url before permission and network", async () => {
+    let called = false
+    globalThis.fetch = (async () => {
+      called = true
+      return new Response("{}")
+    }) as unknown as typeof fetch
+
+    const captured = await setup()
+    await expect(captured.tool!.execute({ url: 42 } as never, toolContext())).rejects.toThrow(
+      "must be a string",
+    )
+    expect(called).toBe(false)
+    expect(captured.permissions).toEqual([])
+  })
+
+  test("fetch fails fast when no credential is configured", async () => {
+    delete process.env.DEEPSEEK_API_KEY
+    const captured = await setup()
+
+    await expect(
+      captured.tool!.execute({ url: "https://example.com/page" }, toolContext()),
+    ).rejects.toThrow("DeepSeek API key is not configured")
+    expect(captured.permissions).toEqual([])
+  })
+
   test("can disable the separate deepseek_fetch tool", async () => {
     const captured = await setup({ fetchRegisterTool: false })
     expect(captured.tool).toBeUndefined()

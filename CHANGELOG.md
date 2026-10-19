@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Enforce the fetch host policy inside the core client so direct core consumers cannot bypass it
+- Fail fast on a missing API key before the fetch permission prompt, and reject non-string `url` inputs
+- Move OpenCode-specific missing-key guidance out of the agent-agnostic core
+- Document that `maxResults: 0` returns no results
 - Cover response body reads with the request timeout and cancellation signal
 - Reject successful API responses larger than 5 MiB
 - Reject search queries that exceed 128 characters after adding search operators

@@ -1,8 +1,23 @@
 import type { Context } from "@opencode/plugin/promise/plugin"
-import { apiKeyFromEnv, missingApiKeyError } from "../core/auth"
+import { API_KEY_ENV, apiKeyFromEnv } from "../core/auth"
 import type { ApiKeySource } from "../core/types"
 
 const DEEPSEEK_INTEGRATION_ID = "deepseek"
+
+/** OpenCode-specific guidance for a missing key; the core stays agent-agnostic. */
+function missingApiKeyError(source: ApiKeySource): Error {
+  if (source === "env") {
+    return new Error(`${API_KEY_ENV} is not set. Export it before starting OpenCode.`)
+  }
+  if (source === "opencode") {
+    return new Error(
+      'No DeepSeek credential is stored in OpenCode. Run "opencode auth login" and connect DeepSeek, or set apiKeySource to "env".',
+    )
+  }
+  return new Error(
+    `DeepSeek API key is not configured. Connect DeepSeek in OpenCode ("opencode auth login") or set ${API_KEY_ENV}.`,
+  )
+}
 
 /**
  * Resolves the DeepSeek key for one request. The OpenCode credential is

@@ -84,6 +84,23 @@ describe("DeepSeek client", () => {
     expect(JSON.parse(String(captured!.init.body))).toEqual({ url: "https://example.com/page" })
   })
 
+  test("fetch enforces the host policy before any request", async () => {
+    let calls = 0
+    globalThis.fetch = (async () => {
+      calls += 1
+      return new Response("{}")
+    }) as unknown as typeof fetch
+
+    const blocked = resolveFetchOptions({ fetchBlockedDomains: ["example.com"] })
+    await expect(
+      fetchPage(new URL("https://docs.example.com/page"), blocked, request()),
+    ).rejects.toThrow("fetchBlockedDomains")
+    await expect(
+      fetchPage(new URL("http://localhost:3000/docs"), resolveFetchOptions(), request()),
+    ).rejects.toThrow("local/private")
+    expect(calls).toBe(0)
+  })
+
   test("rejects empty and overlong queries before making a request", async () => {
     let calls = 0
     globalThis.fetch = (async () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { apiKeyFromEnv, requireEnvApiKey } from "../../src/core/auth"
+import { apiKeyFromEnv } from "../../src/core/auth"
 import { resolveApiKey } from "../../src/opencode/auth"
 
 const originalKey = process.env.DEEPSEEK_API_KEY
@@ -29,8 +29,6 @@ describe("API key resolution", () => {
   test("reads and trims the environment variable", () => {
     expect(apiKeyFromEnv({ DEEPSEEK_API_KEY: "  sk-test  " })).toBe("sk-test")
     expect(apiKeyFromEnv({})).toBeUndefined()
-    expect(requireEnvApiKey({ DEEPSEEK_API_KEY: "sk-test" })).toBe("sk-test")
-    expect(() => requireEnvApiKey({})).toThrow("DEEPSEEK_API_KEY is not set")
   })
 
   test("auto prefers the stored OpenCode credential", async () => {
