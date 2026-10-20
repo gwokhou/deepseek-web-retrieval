@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Enforce the forced tier's exclusivity promise and complete the detect phase: other
+  registered MCP servers are now classified web-capable from their name plus
+  command/args/url (a heuristic the plan notes state openly). Under a forced tier, Pi
+  disables the web-capable ones via their per-server `enabled` key with the prior value
+  snapshotted for uninstall, while Codex — which has no per-server kill switch — refuses
+  the tier with guidance instead of promising non-exclusive routing (OpenCode's forced is
+  replacement, which no third-party server overrides). The target rules file is scanned
+  for steering toward other web tools (the installer's own marked block excluded) and the
+  conflict is reported, not resolved; every forced-tier plan names the README's "Privacy
+  and cost" section; the both-off error and the stay-registered/replacement notes become
+  shared strings instead of per-planner copies
+- Refuse cross-scope installs that would claim one config file: Codex's project-scope
+  fallback writes the user-level `~/.codex/config.toml`, so a project install beside a
+  global one left both scopes' records claiming `mcp_servers.deepseek` in that file, and
+  whichever uninstalled first reverted the other's registration. The plan now refuses a
+  second scope whose edits overlap the other scope's recorded files (pointing at the
+  uninstall command to run instead), and uninstall runs the same check defensively for
+  records that predate the guard. Pi and OpenCode scope pairs map to disjoint files and
+  install side by side as before
+- Split installer config editing into `configFile` (JSONC text editing) and
+  `configValue` (the parsed-object model), unifying the duplicated path walkers,
+  append-array dedupe, created-parents pruning, and the isPlainObject guard along the
+  way (no behavior change); add a guard test that every version literal in installer
+  prose appears in `docs/hosts.jsonc`, so a version bump without the re-verification
+  pass fails tests instead of shipping stale facts in user-facing plan notes
 - Close the remaining high- and medium-value e2e coverage gaps with four new Docker
   scenarios: `installer` (keyless — the installer CLI's own product: init/apply/uninstall
   for all three hosts, verified through the real agents' config readers, including the
