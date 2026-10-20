@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Refuse drift between plan and apply (ADR-0001): apply now re-verifies that the value
+  at every set-op path still equals what the plan previewed, and refuses with re-run
+  guidance when the config changed since the plan was rendered — the preview, the secret
+  guard, and the install record describe one snapshot taken once at plan time, and an
+  interim user edit can never be silently overwritten. A file that stopped parsing in
+  that window refuses the same way
+- Deepen the modules the installer and adapters are built on, behavior-preserving
+  except where noted: revert and the cross-scope collision invariant each get exactly
+  one owner (a whole-file orphan revert now deletes a created file it leaves empty,
+  matching uninstall's semantics; partial orphan reverts never delete a still-claimed
+  file); the three config formats — comment-preserving JSONC, comment-lossy TOML, and
+  the host-marked rules block — sit behind one codec registry, with a plan's file edits
+  as a discriminated union instead of optional-field smuggling; each host module owns
+  its per-scope paths, tool ids, and shared plan header, the CLI roster derives from
+  the planner registry, and `docs/hosts.jsonc` records which hosts have installer
+  modules with test guards holding both in sync; the DeepSeek HTTP transport moves
+  behind its own seam with an injectable fetch, the per-call timeout becomes part of
+  the request context (the shorter of it and the configured timeout wins, for search
+  as well as fetch), and the OpenCode adapter stops rebuilding resolved options; the
+  core returns a host-neutral search result, owns the capability-fact description
+  fragments both adapters compose from, and resolves OpenCode's registration knobs
+  inside the OpenCode adapter where they are consumed; the `DEEPSEEK_*` environment
+  variable names have a single source in the core constants
+- Make the installer CLI edge testable and explicit: command output is injectable,
+  input validation returns a discriminated result instead of smuggling exit codes as
+  numbers, and the config home is an explicit input with the XDG comparison resolved
+  once at the entry (behavior unchanged)
+- Track the project's domain documentation: `CONTEXT.md` (the glossary hosts, adapters,
+  tiers, plans, records, reverts, codecs are written in) and `docs/adr/` now live in
+  the repository, alongside the `docs/agents/` agent-skills configuration (GitHub
+  Issues as the tracker, default triage labels, single-context domain docs)
 - Enforce the forced tier's exclusivity promise and complete the detect phase: other
   registered MCP servers are now classified web-capable from their name plus
   command/args/url (a heuristic the plan notes state openly). Under a forced tier, Pi
