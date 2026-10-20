@@ -12,7 +12,7 @@ afterEach(() => {
 })
 
 function request(signal = new AbortController().signal, retry: RetryConfig = noRetry) {
-  return { signal, auth, retry, timeoutMs: 1000 }
+  return { signal, auth, retry }
 }
 
 /** A successful response whose body stalls until the fetch signal is aborted. */

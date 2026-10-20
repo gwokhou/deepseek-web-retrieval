@@ -1,11 +1,9 @@
 import { Plugin } from "@opencode/plugin"
 import type { Context } from "@opencode/plugin/promise/plugin"
 import type { ToolContext } from "@opencode/plugin/promise/tool"
-import { assertFetchHostPolicy } from "../core/domains"
+import { fetchDocument, inspectFetchTarget, searchWeb } from "../core/client"
 import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options"
-import { fetchDocument, searchWeb } from "../core/client"
 import type { ResolvedOptions } from "../core/types"
-import { parseFetchUrl } from "../core/url"
 import { resolveApiKey } from "./auth"
 
 type FetchInput = {
@@ -63,10 +61,9 @@ async function runFetch(
   if (typeof input.url !== "string") {
     throw new Error('"url" must be a string')
   }
-  const target = parseFetchUrl(input.url)
-  // Fail before the permission prompt; fetchPage enforces this again for core
-  // consumers that skip the pre-check.
-  assertFetchHostPolicy(target, config.fetch)
+  // Inspect before the permission prompt so an invalid or blocked target fails
+  // without asking the user; fetchPage enforces the policy again.
+  const target = inspectFetchTarget(input.url, config.fetch)
   const timeoutMs = resolveFetchTimeoutMs(config.fetch.timeoutMs, input.timeout)
 
   // Resolved before the permission prompt so a missing key fails fast instead
@@ -83,11 +80,12 @@ async function runFetch(
     source: { type: "tool", messageID: context.messageID, id: context.id },
   })
 
-  const page = await fetchDocument(
-    input.url,
-    { ...config.fetch, timeoutMs },
-    { signal: context.signal, auth: { apiKey }, retry: config.retry },
-  )
+  const page = await fetchDocument(target, config.fetch, {
+    signal: context.signal,
+    auth: { apiKey },
+    retry: config.retry,
+    timeoutMs,
+  })
   return {
     content: page.content,
     metadata: {
