@@ -27,6 +27,10 @@ of the whole install.
 - **Optional** — registered, the model picks freely.
 - **Preferred** — registered plus rules steering the model toward them.
 - **Forced** — deterministic routing (replacement, exclusion, or de-facto).
+- **Off** — the capability's tool is not registered at all. When the other capability
+  stays on, the MCP entry still lands and carries that capability's server-side
+  false-only switch (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); both off
+  refuses to install anything.
 - **Scope** — project-level (this checkout, shareable via VCS) or global (every project
   for that host on the machine).
 
@@ -63,7 +67,14 @@ already exists, and the installer runs three phases before anything is written:
   conditions; it does not resolve them.
 - **Forced is conditional**: the exclusion kill switches remove the built-in
   competitor, not third-party web MCP servers — those must be excluded too (the
-  per-host keys cover them), or routing is not actually forced. Forced also overrides
+  per-host keys cover them), or routing is not actually forced. Concretely: Pi's
+  per-server `enabled` key lets the plan disable detected web-capable competitors
+  (each prior value snapshotted for uninstall); Codex has no per-server kill switch,
+  so a detected web-capable competitor makes the plan refuse the tier instead of
+  promising non-exclusive routing; OpenCode's forced is replacement, which no
+  third-party server overrides. Detection classifies a server web-capable from its
+  name plus its command/args/url — a heuristic the plan notes never hide. Forced also
+  overrides
   explicit user choices (OpenCode's `websearch.provider`), and its deny rules affect
   workflows beyond this project (a Claude Code deny cannot be carved out by allow
   rules), so the plan must state the blast radius before the user approves it.
@@ -99,7 +110,11 @@ settings hierarchy, OpenCode's global versus project config) under three rules:
   reports them instead of failing silently.
 
 Uninstall is scope-aware: removing a project-scope install never touches user-scope
-entries and vice versa, and a list mode shows what is installed where.
+entries and vice versa, and a list mode shows what is installed where. The invariant is
+guarded, not just assumed: two records for one host never claim the same file. When a
+scope choice would overlap the other scope's record — Codex's project-scope fallback
+onto `~/.codex/config.toml` beside a global install — the plan refuses with guidance,
+and uninstall runs the same check defensively before touching anything.
 
 ## Rollback
 
@@ -117,15 +132,20 @@ pointing at the removed plugin, and the user must clean up by hand.
 | Optional | Host config registering the server, plus host-side per-tool filtering where supported (Copilot `tools` whitelist, Codex `enabled_tools`); Pi needs `"exposure": "direct"` |
 | Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](../research/control-matrix.md#per-host-reference)) |
 | Forced (replacement) | OpenCode plugin options (`setDefaultWebsearch` / `fetchOverrideWebfetch`) |
-| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found |
+| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found — Pi sets their `enabled` key to `false`; Codex, lacking a per-server kill switch, refuses the tier instead |
 | Forced (de-facto) | Nothing beyond the Optional artifacts — no competitor exists |
+| Off | The MCP entry with the capability's false-only server-side switch instead of that tool (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); both capabilities off refuses to install |
+
+OpenCode additionally appends `permissions` allow entries for exactly the tools it
+registers (`websearch`, `deepseek_fetch`, and `webfetch` when fetch is forced), merged
+into any existing `permissions` array rather than replacing it.
 
 ## Non-negotiables
 
 - **Cost warning on the Forced tier.** Search and Fetch are billed per successful
   request; deterministic routing removes both the model's discretion and its restraint as
-  a cost brake. The README's privacy-and-cost section should be surfaced in the wizard's
-  Forced-tier copy.
+  a cost brake. Every forced-tier plan carries a note naming the README's "Privacy and
+  cost" section.
 - **Rules content.** Name the full tool ids (`mcp__deepseek__deepseek_web_search`), state
   trigger conditions rather than unconditional preference, and list exclusions
   (localhost/private-network URLs go to local fetch tools; the server blocks them by
@@ -143,6 +163,10 @@ pointing at the removed plugin, and the user must clean up by hand.
   full file contents, so other servers' secrets stay out of the state file.
 - Re-applying over a previous init inherits the original snapshots instead of recording
   the installer's own output as the "previous" value.
+- Verify is file-level: after apply it re-reads each written file and asserts every op
+  holds (set values in place, appended entries present, rules block present). Higher
+  layers would be a plan-time detect concern, and none of the three shipped hosts
+  documents a layer above user config, so there is nothing to check there yet.
 
 ## Server-side gap (resolved)
 
