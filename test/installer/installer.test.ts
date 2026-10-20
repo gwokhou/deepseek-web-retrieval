@@ -329,6 +329,19 @@ describe("review fixes", () => {
     expect(plan.edits).toEqual([])
   })
 
+  test("re-init over the installer's own ${VAR} indirection is not treated as a secret", () => {
+    const input = makeInput("pi", "global", "optional", "optional")
+    applyPlan(planForHost("pi", input), input)
+    // The written entry carries env.DEPSEEK_API_KEY = "${DEEPSEEK_API_KEY}"; a
+    // re-init must snapshot that indirection form, not refuse it as a literal key.
+    const reinit = planForHost("pi", input)
+    expect(reinit.errors).toEqual([])
+    expect(reinit.edits.length).toBeGreaterThan(0)
+    applyPlan(reinit, input)
+    uninstall(input)
+    expect(existsSync(join(input.home, ".pi", "agent", "mcp.json"))).toBe(false)
+  })
+
   test("per-host markers let pi and codex share one AGENTS.md", () => {
     const piInput = makeInput("pi", "project", "preferred", "off")
     applyPlan(planForHost("pi", piInput), piInput)

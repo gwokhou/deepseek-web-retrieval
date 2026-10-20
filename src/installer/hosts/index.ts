@@ -21,6 +21,8 @@ export function planForHost(host: HostName, input: InstallerInput): InstallPlan 
  * Refuses to snapshot values that look like credentials: replacing an existing entry
  * that carries a literal API key would copy that secret into the install record, so
  * the plan errors and asks the user to move the key to environment indirection first.
+ * A pure `${VAR}` expansion is that indirection — including the form this installer
+ * itself writes — so it is allowed through and re-init over our own output works.
  */
 function withSecretGuard(plan: InstallPlan): InstallPlan {
   for (const edit of plan.edits) {
@@ -51,7 +53,12 @@ function findSecretLike(value: unknown, at: string): string | undefined {
   if (typeof value !== "object" || value === null) return undefined
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     const path = `${at}.${key}`
-    if (/(api[_-]?key|token|secret|password|credential)/i.test(key) && typeof child === "string" && child.length > 0) {
+    if (
+      /(api[_-]?key|token|secret|password|credential)/i.test(key) &&
+      typeof child === "string" &&
+      child.length > 0 &&
+      !/^\$\{[^}]+\}$/.test(child)
+    ) {
       return path
     }
     const nested = findSecretLike(child, path)

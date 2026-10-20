@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Fix the installer's secret guard refusing its own output: a re-init over an existing
+  entry whose `DEEPSEEK_API_KEY` is the `${DEEPSEEK_API_KEY}` indirection form was
+  rejected as a literal credential. Pure `${VAR}` expansions now pass the guard (found
+  by the new installer e2e scenario running after pi-billed in a shared HOME); literal
+  keys are still refused
 - Fix the `codex` e2e scenario, which had never actually completed a turn: the slim
   Node base image ships no system CA bundle, so Codex's static-musl TLS stack (rustls,
   unlike Node's bundled store) failed every HTTPS request as an opaque
