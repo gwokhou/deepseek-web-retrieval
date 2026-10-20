@@ -22,9 +22,9 @@ runs them inside Docker (`test/e2e/Dockerfile`); the agent versions come from
 no secrets; the key is passed at `docker run` time.
 
 - `bun run test:e2e pi` — keyless. Registers the built MCP server in an isolated
-  Pi config and asserts a real `pi mcp list` handshake (Pi 1.3.0 in the image).
+  Pi config and asserts a real `pi mcp list` handshake.
 - `bun run test:e2e opencode` — requires `DEEPSEEK_API_KEY`. Runs headless
-  `opencode run` prompts (OpenCode 2.0.32 in the image) in an isolated project
+  `opencode run` prompts in an isolated project
   that loads the plugin from this checkout. The LLM is a DeepSeek custom
   provider configured from the same key, so no `opencode auth login` is needed;
   this exercises the adapter's environment-variable key fallback. Real billed
@@ -50,8 +50,18 @@ error, not a skip.
   root README focused on the shared project and adapter overview.
 - Host facts (version locks, capabilities, paths, status) live only in
   `docs/hosts.jsonc`. When a host changes, update it there and regenerate the
-  host table in `docs/integration.md` with `bun run docs:matrix`; tests fail
-  if the table drifts.
+  host table in `docs/integration.md` and the control matrix in
+  `docs/research/control-matrix.md` with `bun run docs:matrix`; tests fail
+  if either table drifts.
+- Bumping `baseline` or a host `version` in `docs/hosts.jsonc` obliges a
+  re-verification pass for that host: re-verify its per-host reference section
+  and `control` keys in `docs/research/control-matrix.md`, and re-check the
+  drift list there (Cline's docs already describe the 3.x binary, Codex's
+  config docs have moved, Copilot's `GEMINI.md` support is undated). Version
+  mentions inside prose and `key` strings are provenance anchors, not lock
+  restatements — they move with the re-verification, not with the bump. Update
+  a research note's own baseline date only when its facts were actually
+  re-checked.
 
 ## Pull requests
 

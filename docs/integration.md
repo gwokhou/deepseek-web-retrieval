@@ -3,11 +3,11 @@
 [DeepSeek Web Retrieval](../README.md) is not tied to one host. Whether a coding agent can
 use it depends on that agent's extension points.
 
-**Research baseline:** 2026-10-19. This matrix covers CLI/terminal agents only; IDE and
-editor extension surfaces are out of scope. Versions are the latest stable CLI release
-checked on that date unless noted otherwise. `No` means no documented native provider or
-override was found in the checked version; several hosts still ship built-in web tools.
-MCP tools can add equivalent tools, but do not replace built-ins.
+**Research baseline:** the `baseline` field of [hosts.jsonc](hosts.jsonc). This matrix covers
+CLI/terminal agents only; IDE and editor extension surfaces are out of scope. Versions are
+the latest stable CLI release checked at that baseline unless noted otherwise. `No` means no
+documented native provider or override was found in the checked version; several hosts still
+ship built-in web tools. MCP tools can add equivalent tools, but do not replace built-ins.
 
 ## Mechanisms
 
@@ -15,7 +15,8 @@ MCP tools can add equivalent tools, but do not replace built-ins.
 | --- | --- | --- | --- | --- |
 | Native websearch provider | Yes | No | Host plugin API | OpenCode v2 adapter |
 | Native tool / fetch override | No | Yes | Host tool API | OpenCode v2 adapter |
-| Custom tool plugin | Yes | Yes | Host plugin API | Cline CLI/SDK and Pi; no adapter yet |
+| Custom tool plugin | Yes | Yes | Host plugin API | Cline CLI/SDK; no adapter yet |
+| Extension API | Yes | Yes | Host extension API | Pi; no adapter yet |
 | MCP server | Yes | Yes | Host MCP client | Shipped (`src/mcp/`; Pi guide first) |
 | CLI/HTTP wrapper | Yes | Yes | Host can call external tools | Not shipped |
 
@@ -30,12 +31,12 @@ Rows are sorted with open-source hosts first, then by host name alphabetically.
 
 | Host | Version checked | Open source | Native search provider | Native fetch override | Best path | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP server or plugin | No adapter yet |
+| Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP server or custom tool plugin | No adapter yet |
 | Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | Continue | 1.5.47 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
-| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | plugin | Supported |
-| Pi | 1.3.0 | Yes (MIT) | No | No | MCP server or extension | Supported |
+| OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | native websearch provider or native tool/fetch override | Supported |
+| Pi | 1.3.0 | Yes (MIT) | No | No | MCP server or extension API | Supported |
 | Claude Code | 2.1.303 | No | No | No | MCP server | No adapter yet |
 | Cursor | 2026.10.08 | No | No | No | MCP server | No adapter yet |
 | Devin | 3000.11.92 | No | No | No | MCP server | No adapter yet |
@@ -127,7 +128,7 @@ Version sources:
 - Changelogs: [Cursor CLI](https://cursor.com/docs/cli/changelog),
   [Devin CLI](https://docs.devin.ai/cli/changelog),
   [Pi](https://pi.dev/changelog)
-- OpenCode: `2.0.32` adapter target in this repository
+- OpenCode: the adapter's tested target, locked in [hosts.jsonc](hosts.jsonc)
 
 ## Evaluating a host
 

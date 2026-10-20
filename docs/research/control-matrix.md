@@ -11,7 +11,10 @@ protocol research and its evidence.
 **Research baseline:** 2026-10-20, using the same version locks as
 [hosts.jsonc](../hosts.jsonc), the single source of truth for host facts. Open-source rows are
 verified at exact git tags, npm tarballs, or binary analysis; proprietary rows from official
-docs and changelogs at the locked versions. The matrix below is generated — edit
+docs and changelogs at the locked versions. Version mentions inside the per-host sections
+and the generated `key` strings are research-provenance anchors verified at the lock, not
+restatements of it; they are re-verified on a baseline bump (see the drift list at the end).
+The matrix below is generated — edit
 hosts.jsonc, then run `bun run docs:matrix`.
 
 ## Tiers
@@ -20,7 +23,7 @@ hosts.jsonc, then run `bun run docs:matrix`.
 | --- | --- | --- |
 | Optional | Tools are declared to the model with no preference guidance; the model picks freely among available tools. | None |
 | Preferred | Prompt-level rules (instruction files, system-prompt additions) steer the model toward the tools. | Probabilistic |
-| Forced | Routing is guaranteed. Three flavors: **replacement** (the built-in tool's implementation is swapped), **exclusion** (the built-in competitor is denied or disabled so the DeepSeek path is the only one), **de-facto** (the host ships no built-in web tool). | Deterministic |
+| Forced | Routing is deterministic **relative to the built-in competitor**; other web-capable MCP servers or a higher configuration layer can still break it (reading notes below). Three flavors: **replacement** (the built-in tool's implementation is swapped), **exclusion** (the built-in competitor is denied or disabled so the DeepSeek path is the only one), **de-facto** (the host ships no built-in web tool). | Deterministic (conditional) |
 
 ## Matrix
 
@@ -60,12 +63,19 @@ Reading notes:
   registered tools are the only web path.
 - Cursor's search row is the one Forced-tier gap in the matrix: no documented deny token
   exists for its built-in web search.
+- An `Exclusion` flavor forces routing **relative to the built-in competitor only**. If
+  other web-capable MCP servers are already registered, they stay on the field and
+  routing is not forced until they are excluded too; higher configuration layers
+  (managed, enterprise, system) can also outrank the kill switch. Install-time handling
+  of both conditions is specified in the
+  [installer design](../design/installer-design.md).
 
 ## Per-host reference
 
 One section per host, in hosts.jsonc order. Each carries what an install needs beyond the
 matrix: the built-in competitors, their kill switches, how the MCP server is registered,
-and which rules files steer preference.
+and which rules files steer preference. Config paths imply the available scopes; keys
+locked to a single scope are enumerated in the [installer design](../design/installer-design.md#scope).
 
 ### Cline
 
@@ -182,7 +192,9 @@ and which rules files steer preference.
   (`exposure: "codemode"`); `"exposure": "direct"` declares them like built-ins — the
   prerequisite for every tier. SSE is rejected. Text results over 20 KB are
   middle-truncated with the full text saved to a file, and the per-request default
-  timeout is 60 s. Pi is the one open-source host that reads `structuredContent` and tool
+  timeout is 60 s. Pi is content-first for the model, with a `structuredContent`
+  fallback used only when a result has no content blocks — the one open-source host that
+  touches `structuredContent` at all — and a re-declared (not validated) tool
   `outputSchema`.
 - **Rules** — `AGENTS.md`/`CLAUDE.md` context files from the agent dir, the working
   directory, and its parents; `SYSTEM.md` replaces the system prompt and `APPEND_SYSTEM.md`

@@ -11,10 +11,10 @@ const CONTROL_BEGIN = "<!-- generated: control-matrix — edit docs/hosts.jsonc,
 const CONTROL_END = "<!-- /generated: control-matrix -->"
 
 const MECHANISM_DISPLAY: Readonly<Record<Mechanism, string>> = {
-  "native-provider": "native provider",
-  "native-override": "native override",
-  plugin: "plugin",
-  extension: "extension",
+  "native-provider": "native websearch provider",
+  "native-override": "native tool/fetch override",
+  plugin: "custom tool plugin",
+  extension: "extension API",
   mcp: "MCP server",
   wrapper: "CLI/HTTP wrapper",
 }

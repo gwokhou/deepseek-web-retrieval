@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Fix documentation review findings: resolve the Pi `structuredContent` contradiction
+  against the v1.3.0 source (content-first, structuredContent as a no-content
+  fallback), add the missing `extension` mechanism to the taxonomy and re-path
+  OpenCode to its native mechanisms, qualify the Forced tier in the Tiers table
+  itself, de-restate version locks and the baseline in CONTRIBUTING/integration,
+  replace "planned" with "shipped" for the MCP server, tighten installer rollback
+  and forced-unavailable/session-scoped semantics, and dedupe the provenance and
+  quirk summaries
+- State the installer principles — never overwrite user configuration without the
+  user's knowledge, and post-install behavior and impact scope must be controllable
+  and knowable — and specify the detect/merge/verify flow, tier semantics against
+  stock configuration, snapshot-based rollback, and a first-class project/global
+  scope choice (honor or report, never silently downgrade) in
+  `docs/design/installer-design.md`; qualify the control matrix's exclusion flavor as
+  relative to built-in competitors only
 - Categorize `docs/`: per-agent guides in `docs/agents/`, research notes in
   `docs/research/`, and design notes in `docs/design/`; the integration hub and
   `docs/hosts.jsonc` stay at the root

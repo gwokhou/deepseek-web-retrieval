@@ -14,6 +14,10 @@
   // "replacement" (swap the built-in implementation), "exclusion" (disable or
   // deny the built-in competitor), "de-facto" (no built-in competitor), or
   // "none" — plus the config key that realizes it.
+  // Version mentions inside `key` strings and per-host prose are research-provenance
+  // anchors verified at the locked version, not lock restatements; re-verify them
+  // whenever "baseline" or a host "version" changes (docs/research/control-matrix.md
+  // tracks the known drift points).
   // Rows render in file order — keep open-source hosts first, then alphabetical.
   "baseline": "2026-10-19",
   "hosts": [
@@ -85,7 +89,7 @@
       "npm": "@opencode/cli",
       "nativeSearchProvider": true,
       "nativeFetchOverride": true,
-      "paths": ["plugin"],
+      "paths": ["native-provider", "native-override"],
       "status": "supported",
       "control": {
         "search": { "optional": "n/a", "preferred": "n/a", "forced": "replacement", "key": "`websearch.provider: \"deepseek\"` or plugin `setDefaultWebsearch`" },

@@ -1,6 +1,6 @@
 # MCP compatibility across hosts
 
-This note answers one question for the planned MCP server: do the hosts in the
+This note answers one question for the shipped MCP server: do the hosts in the
 [support matrix](../integration.md) speak the same MCP protocol standard? Short answer: they all
 speak MCP, but not the same revision. MCP has split into two eras, hosts negotiate different
 revisions, and one dual-era server covers them all.
@@ -89,10 +89,10 @@ host facts; each row below was verified against that lock on the research baseli
 | Devin | `2026-07-28` | stdio, Streamable HTTP (SSE fallback), SSE | Changelog for the locked release itself: "Support for MCP protocol revision 2026-07-28" |
 | GitHub Copilot | `2026-07-28` | stdio (`type: "local"`), Streamable HTTP, SSE | Changelog 1.0.81: "Ship MCP 2026-07-28 support to CLI, SDK, IDE, and in-memory clients" |
 
-Open-source rows are verified at the exact locked versions (git tag, npm tarball, or binary
-analysis); proprietary rows are verified from official docs and changelogs at the locked
-versions. All nine support stdio and Streamable HTTP; legacy SSE is never required (and Codex
-and Pi reject it).
+All nine support stdio and Streamable HTTP; legacy SSE is never required (and Codex
+and Pi reject it). Verification methodology and provenance follow the
+[per-host reference](control-matrix.md#per-host-reference); the Evidence column cites per-row
+sources and Sources lists the file-level links.
 
 Registration paths, config shapes, approval surfaces, and per-host quirks live in the
 [per-host reference](control-matrix.md#per-host-reference) of the control-matrix note; they
@@ -111,8 +111,10 @@ differences:
    serve roots; Continue exposes nothing beyond tools and prompts). Always return readable
    text in `content` blocks, and mirror the same data in `structuredContent` for
    `2025-06-18`+ clients — the spec's own backwards-compat SHOULD. This split matters in
-   practice: Codex *replaces* content with `structuredContent` when present, Gemini and
-   Continue *ignore* `structuredContent`, Pi and Cline read content only.
+   practice: Codex *replaces* content with `structuredContent` when present; Gemini and
+   Continue *ignore* `structuredContent`; Cline reads text content only; Pi is
+   content-first, falling back to `structuredContent` only when a result has no content
+   blocks (verified in `tools.ts` at v1.3.0).
 2. **stdio is the universal transport.** Every host in the matrix launches stdio servers
    with the same conceptual JSON (`mcpServers` → `command`/`args`/`env`), differing only in
    file location and cosmetic field names. stdio needs no OAuth and no URL config, and the
@@ -130,11 +132,9 @@ differences:
    over the now-deprecated Dynamic Client Registration.
 5. **Host quirks to design around.** Tool naming (`deepseek_web_search`,
    `deepseek_fetch`) already reflects the quirk catalog in the
-   [per-host reference](control-matrix.md#per-host-reference): raw, colliding tool names
-   (Continue) and 63-char name truncation (Gemini); Codex's stdio env allowlist versus
-   `${VAR}`-style expansion elsewhere; output caps (Claude Code's 25k-token default, Pi's
-   20 KB truncation); and per-host approval surfaces (`mcp__deepseek__*` rules, `tools`
-   lists, `--approve-mcps`, `autoApprove`, `exposure: "direct"`).
+   [per-host reference](control-matrix.md#per-host-reference) — name collisions and
+   truncation, environment passing, output caps, and per-host approval surfaces; consult
+   it per host rather than this summary.
 
 ## Sources
 
