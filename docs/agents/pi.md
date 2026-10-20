@@ -37,7 +37,10 @@ npx deepseek-web-retrieval init --host pi --scope <project|global> \
 
 It prints the full plan — every file, old value → new value, and notes about existing
 MCP servers and the `exposure` requirement — and writes nothing until you pass `--apply`.
-JSON edits preserve comments. `uninstall` restores exactly what the plan applied. The
+JSON edits preserve comments. `uninstall` restores exactly what the plan applied. Under a
+forced tier, other registered MCP servers that look web-capable are disabled
+(`enabled: false`, prior value snapshotted) so DeepSeek routing is exclusive, and
+`uninstall` restores them. The
 tiers follow the [control matrix](../research/control-matrix.md): Pi ships no built-in web
 tool, so forced is de-facto for both capabilities and `off` writes
 `DEEPSEEK_ENABLE_SEARCH`/`DEEPSEEK_ENABLE_FETCH` into the server's env block.

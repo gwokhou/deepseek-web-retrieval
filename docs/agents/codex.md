@@ -165,7 +165,7 @@ defaults and clamping match the other adapters. `DEEPSEEK_API_KEY` goes in `env_
 | Search still uses the built-in tool under the forced tier | The kill switch is the top-level `web_search = "disabled"` key; the `[tools] web_search` form is a no-op at 0.163.0. |
 | Tool results look like raw JSON | When a result has `structuredContent`, Codex replaces the content blocks with the serialized JSON — expected behavior. |
 | Tools time out around 60 s | Raise `tool_timeout_sec` for the server entry if you raise `DEEPSEEK_*_TIMEOUT_MS` beyond it. |
-| Routing not exclusive | Other `[mcp_servers.*]` entries stay registered; the installer notes them in the plan, and forced routing holds only when they do not offer web tools. |
+| Routing not exclusive | Other `[mcp_servers.*]` entries stay registered and are noted in the plan. Under a forced tier, an entry that looks web-capable makes `init` refuse — Codex has no per-server kill switch, so remove the server or restrict its tools via `disabled_tools` by hand. |
 | `HTTP 402`, `HTTP 429` | Top up the DeepSeek account; wait, reduce concurrency, or set `DEEPSEEK_MAX_RETRIES`. |
 | Fetch fails on localhost or an internal URL | Use a local fetch tool; DeepSeek cannot reach private networks. |
 

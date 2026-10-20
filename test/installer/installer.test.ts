@@ -213,7 +213,7 @@ describe("apply and uninstall round-trips", () => {
     const input = makeInput("codex", "global", "forced", "optional")
     const dir = join(input.home, ".codex")
     mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, "config.toml"), '# my comment\nmodel = "gpt-5.2"\nweb_search = "live"\n\n[mcp_servers.tavily]\ncommand = "npx"\n')
+    writeFileSync(join(dir, "config.toml"), '# my comment\nmodel = "gpt-5.2"\nweb_search = "live"\n\n[mcp_servers.github]\ncommand = "npx"\n')
     const plan = planCodex(input)
     expect(plan.notes.join(" ")).toContain("comments")
     const applied = applyPlan(plan, input)
@@ -221,13 +221,74 @@ describe("apply and uninstall round-trips", () => {
     const text = readFileSync(join(dir, "config.toml"), "utf8")
     expect(text).toContain("[mcp_servers.deepseek]")
     expect(text).toContain('web_search = "disabled"')
-    expect(text).toContain("[mcp_servers.tavily]")
+    expect(text).toContain("[mcp_servers.github]")
     expect(text).toContain("env_vars")
     uninstall(input)
     const restored = readFileSync(join(dir, "config.toml"), "utf8")
     expect(restored).toContain('web_search = "live"')
-    expect(restored).toContain("[mcp_servers.tavily]")
+    expect(restored).toContain("[mcp_servers.github]")
     expect(restored).not.toContain("mcp_servers.deepseek")
+  })
+
+  test("codex forced refuses while a web-capable MCP server stays registered", () => {
+    const input = makeInput("codex", "global", "forced", "optional")
+    const dir = join(input.home, ".codex")
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, "config.toml"), '[mcp_servers.tavily]\ncommand = "npx"\n')
+    const plan = planForHost("codex", input)
+    expect(plan.errors.length).toBe(1)
+    expect(plan.errors[0]?.message).toContain("mcp_servers.tavily")
+    expect(plan.errors[0]?.message).toContain("no per-server kill switch")
+    expect(existsSync(join(dir, "config.toml"))).toBe(true)
+    expect(readFileSync(join(dir, "config.toml"), "utf8")).not.toContain("deepseek")
+  })
+
+  test("pi forced disables web-capable competitors and restores them on uninstall", () => {
+    const input = makeInput("pi", "project", "forced", "optional")
+    mkdirSync(join(input.cwd, ".pi"), { recursive: true })
+    writeFileSync(
+      join(input.cwd, ".pi/mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          tavily: { command: "npx", args: ["-y", "tavily-mcp"], enabled: true },
+          github: { command: "npx", args: ["-y", "@github/mcp"] },
+        },
+      }, null, 2),
+    )
+    const plan = planForHost("pi", input)
+    expect(plan.errors).toEqual([])
+    const exclusion = plan.edits[0]?.ops.find((op) => op.op === "set" && op.path.join(".") === "mcpServers.tavily.enabled")
+    expect(exclusion && "value" in exclusion ? exclusion.value : undefined).toBe(false)
+    expect(exclusion && "previous" in exclusion ? exclusion.previous : undefined).toBe(true)
+    expect(plan.notes.join(" ")).toContain("tavily")
+    expect(plan.notes.join(" ")).toContain("not exclusive")
+    applyPlan(plan, input)
+    const applied = JSON.parse(readFileSync(join(input.cwd, ".pi/mcp.json"), "utf8")) as {
+      mcpServers: Record<string, { enabled?: boolean }>
+    }
+    expect(applied.mcpServers.tavily?.enabled).toBe(false)
+    expect(applied.mcpServers.github?.enabled).toBeUndefined()
+    uninstall(input)
+    const restored = JSON.parse(readFileSync(join(input.cwd, ".pi/mcp.json"), "utf8")) as {
+      mcpServers: Record<string, { enabled?: boolean }>
+    }
+    expect(restored.mcpServers.tavily?.enabled).toBe(true)
+    expect(restored.mcpServers.github).toBeDefined()
+  })
+
+  test("preferred notes existing rules steering toward another web tool", () => {
+    const input = makeInput("pi", "project", "preferred", "optional")
+    writeFileSync(join(input.cwd, "AGENTS.md"), "# Rules\n\nAlways use the built-in webfetch tool for pages.\n")
+    const plan = planForHost("pi", input)
+    expect(plan.errors).toEqual([])
+    expect(plan.notes.join(" ")).toContain("steer toward other web tools")
+    expect(plan.notes.join(" ")).toContain("built-in webfetch")
+  })
+
+  test("forced plans point at the README's privacy-and-cost section", () => {
+    const input = makeInput("codex", "global", "forced", "optional")
+    const plan = planForHost("codex", input)
+    expect(plan.notes.join(" ")).toContain('README\'s "Privacy and cost" section')
   })
 
   test("uninstall refuses when nothing is recorded", () => {
@@ -414,10 +475,6 @@ describe("review fixes", () => {
   })
 })
 
-function relativePath(from: string, to: string): string {
-  return to.startsWith(from) ? to.slice(from.length + 1) : to
-}
-
 describe("scope isolation", () => {
   test("a codex install refuses a second scope that claims the same config file", () => {
     const input = makeInput("codex", "global", "optional", "optional")
@@ -465,3 +522,7 @@ describe("scope isolation", () => {
     expect(() => uninstall(input)).toThrow(/also recorded at the project scope/)
   })
 })
+
+function relativePath(from: string, to: string): string {
+  return to.startsWith(from) ? to.slice(from.length + 1) : to
+}

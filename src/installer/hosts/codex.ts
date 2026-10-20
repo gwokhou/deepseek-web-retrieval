@@ -1,4 +1,14 @@
 import { loadConfig } from "../configFile"
+import { isPlainObject } from "../configValue"
+import {
+  BOTH_CAPABILITIES_OFF,
+  FORCED_COST_NOTE,
+  competitorSteeringNote,
+  findCompetitorSteering,
+  othersStayRegisteredNote,
+  replacingExistingEntryNote,
+  splitCompetitors,
+} from "../detect"
 import { hostPaths } from "../paths"
 import { buildRulesBlock } from "../rules"
 import { rulesLines } from "../rulesContent"
@@ -17,11 +27,11 @@ export function planCodex(input: InstallerInput): InstallPlan {
     return { host: "codex", scope: input.scope, tiers, edits, notes, errors }
   }
   if (input.search === "off" && input.fetch === "off") {
-    errors.push({ message: "Both capabilities are off; nothing would be installed." })
+    errors.push({ message: BOTH_CAPABILITIES_OFF })
   }
 
   const tools = loaded.value.tools
-  if (typeof tools === "object" && tools !== null && !Array.isArray(tools) && "web_search" in tools) {
+  if (isPlainObject(tools) && "web_search" in tools) {
     errors.push({
       message:
         `${paths.config} sets [tools] web_search, which is a silent no-op at Codex 0.163.0 (only the top-level ` +
@@ -29,19 +39,26 @@ export function planCodex(input: InstallerInput): InstallPlan {
     })
   }
 
+  const steering = findCompetitorSteering("codex", paths.rules)
+  if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering))
+
   const servers = loaded.value.mcp_servers
-  if (typeof servers === "object" && servers !== null && !Array.isArray(servers)) {
-    if ("deepseek" in servers) {
-      notes.push(
-        "An existing mcp_servers.deepseek entry is being replaced; its previous form is recorded for uninstall.",
-      )
+  if (isPlainObject(servers)) {
+    if ("deepseek" in servers) notes.push(replacingExistingEntryNote("mcp_servers.deepseek"))
+    const { competitors, bystanders } = splitCompetitors(servers)
+    if ((input.search === "forced" || input.fetch === "forced") && competitors.length > 0) {
+      // Codex has no per-server kill switch (only per-tool enabled_tools/disabled_tools
+      // inside a server), so a web-capable competitor cannot be excluded from the plan —
+      // refuse the tier instead of promising routing that is not actually forced.
+      errors.push({
+        message:
+          `Forced cannot deliver exclusive routing: [mcp_servers.${competitors.join("], [mcp_servers.")}] look(s) web-capable, ` +
+          "and Codex offers no per-server kill switch. Remove the server(s), disable their tools by hand via their " +
+          "disabled_tools key, or choose a lower tier.",
+      })
     }
-    const others = Object.keys(servers).filter((name) => name !== "deepseek")
-    if (others.length > 0) {
-      notes.push(
-        `Other MCP servers stay registered (${others.join(", ")}); routing to DeepSeek is not exclusive while they offer web tools.`,
-      )
-    }
+    const stayRegistered = input.search === "forced" || input.fetch === "forced" ? bystanders : [...competitors, ...bystanders]
+    if (stayRegistered.length > 0) notes.push(othersStayRegisteredNote(stayRegistered))
   }
 
   const env: Record<string, string> = {}
@@ -54,10 +71,7 @@ export function planCodex(input: InstallerInput): InstallPlan {
     env_vars: ["DEEPSEEK_API_KEY"],
   }
 
-  const existingEntry =
-    typeof servers === "object" && servers !== null && !Array.isArray(servers)
-      ? (servers as Record<string, unknown>).deepseek
-      : undefined
+  const existingEntry = isPlainObject(servers) ? servers.deepseek : undefined
   const ops: ConfigOp[] = [
     { op: "set", path: ["mcp_servers", "deepseek"], value: entry, previous: existingEntry },
   ]
@@ -79,7 +93,7 @@ export function planCodex(input: InstallerInput): InstallPlan {
   if (input.scope === "project") {
     notes.push(
       "Codex config lives in ~/.codex/config.toml only (user level), so the server registration and kill switch are " +
-      "written there even for a project-scope install; the rules file stays project-local.",
+        "written there even for a project-scope install; the rules file stays project-local.",
     )
   }
   if (loaded.lossy) {
@@ -87,8 +101,7 @@ export function planCodex(input: InstallerInput): InstallPlan {
   }
   if (input.search === "forced" || input.fetch === "forced") {
     notes.push(
-      'Forced search is exclusion: the built-in web_search tool is disabled ("disabled" mode). Search and Fetch are ' +
-        "billed per successful request.",
+      'Forced search is exclusion: the built-in web_search tool is disabled ("disabled" mode). ' + FORCED_COST_NOTE,
     )
   }
   if (input.search === "optional" || input.fetch === "optional") {

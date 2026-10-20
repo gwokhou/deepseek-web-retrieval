@@ -1,4 +1,6 @@
 import { loadConfig } from "../configFile"
+import { isPlainObject } from "../configValue"
+import { BOTH_CAPABILITIES_OFF, FORCED_COST_NOTE, competitorSteeringNote, findCompetitorSteering } from "../detect"
 import { hostPaths } from "../paths"
 import { buildRulesBlock } from "../rules"
 import { rulesLines } from "../rulesContent"
@@ -27,12 +29,15 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
     })
   }
   if (input.search === "off" && input.fetch === "off") {
-    errors.push({ message: "Both capabilities are off; nothing would be installed." })
+    errors.push({ message: BOTH_CAPABILITIES_OFF })
   }
+
+  const steering = findCompetitorSteering("opencode", paths.rules)
+  if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering))
 
   const plugins = Array.isArray(loaded.value.plugins) ? loaded.value.plugins : []
   const alreadyInstalled = plugins.some(
-    (entry) => isRecord(entry) && typeof entry.package === "string" && entry.package.includes("deepseek-web-retrieval"),
+    (entry) => isPlainObject(entry) && typeof entry.package === "string" && entry.package.includes("deepseek-web-retrieval"),
   )
   if (alreadyInstalled && readRecord(input) === undefined) {
     errors.push({
@@ -73,7 +78,7 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
   }
 
   if (input.search === "forced") {
-    const currentProvider = isRecord(loaded.value.websearch) ? loaded.value.websearch.provider : undefined
+    const currentProvider = isPlainObject(loaded.value.websearch) ? loaded.value.websearch.provider : undefined
     ops.push({ op: "set", path: ["websearch", "provider"], value: "deepseek", previous: currentProvider })
     notes.push(
       currentProvider === undefined
@@ -94,9 +99,7 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
     )
   }
   if (input.search === "forced" || input.fetch === "forced") {
-    notes.push(
-      "Forced tier replaces built-in routing; Search and Fetch are billed per successful request.",
-    )
+    notes.push("Forced tier replaces built-in routing. " + FORCED_COST_NOTE)
   }
 
   if (input.fetch === "preferred") {
@@ -110,8 +113,4 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
   }
 
   return { host: "opencode", scope: input.scope, tiers, edits, notes, errors }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
