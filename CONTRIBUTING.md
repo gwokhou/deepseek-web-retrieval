@@ -39,9 +39,14 @@ image contains no secrets; the key is passed at `docker run` time.
 - `bun run test:e2e codex` — requires `DEEPSEEK_API_KEY`. Runs headless
   `codex exec` prompts in an isolated HOME whose config.toml registers the built
   MCP server (key forwarded via `env_vars`, never written to a file) and points
-  Codex at DeepSeek as the LLM over the Responses wire — Codex 0.163.0 dropped
-  `wire_api = "chat"`, and DeepSeek serves the Responses endpoint, which is what
-  makes the single-key setup possible. Real billed requests (LLM + retrieval).
+  Codex at DeepSeek as the LLM over the Responses wire, following DeepSeek's
+  official Codex integration: the vendored `test/e2e/codex-models.json` catalog
+  is written to `~/.codex/models.json` and referenced via `model_catalog_json`
+  (without it Codex cannot resolve DeepSeek models), and the scenario also
+  exercises the top-level `web_search = "disabled"` kill switch for real. Real
+  billed requests (LLM + retrieval). The Dockerfile installs `ca-certificates`
+  because Codex is a static musl binary whose TLS stack reads the system CA
+  store, which the slim Node base does not ship.
 - `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
 
 The script rebuilds `dist/cli.js` before running, and a missing key is an

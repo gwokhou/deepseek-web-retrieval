@@ -22,4 +22,10 @@ RUN npm install --global --prefix /opt/agents \
 FROM ${NODE_IMAGE}
 COPY --from=agents /opt/agents /opt/agents
 ENV PATH=/opt/agents/bin:$PATH
+# Codex is a static musl binary whose rustls reads the system CA store; the slim
+# base ships none (Node bundles its own, which is why the node-based agents
+# worked). Without it every Codex HTTPS request fails as "error sending request".
+RUN apt-get update \
+      && apt-get install -y --no-install-recommends ca-certificates \
+      && rm -rf /var/lib/apt/lists/*
 WORKDIR /work

@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Fix the `codex` e2e scenario, which had never actually completed a turn: the slim
+  Node base image ships no system CA bundle, so Codex's static-musl TLS stack (rustls,
+  unlike Node's bundled store) failed every HTTPS request as an opaque
+  "Reconnecting... waiting for network" loop — the Dockerfile now installs
+  `ca-certificates`. The scenario config also follows DeepSeek's official Codex
+  integration: a vendored `test/e2e/codex-models.json` catalog is written to
+  `~/.codex/models.json` and referenced via `model_catalog_json` (without it Codex
+  cannot resolve DeepSeek model slugs), with `wire_api = "responses"` and the key
+  still forwarded through `env_key`/`env_vars` instead of the official script's
+  bearer-token-in-file. The scenario now exercises the `web_search = "disabled"`
+  kill switch for real. All four scenarios (pi, pi-billed, opencode, codex) pass in
+  Docker with real billed requests
 - Add the billed `pi-billed` e2e scenario, bringing Pi to the same invocation-level
   coverage as the opencode and codex scenarios: headless `pi --print` prompts whose
   LLM is Pi's native DeepSeek provider (`deepseek/deepseek-flash`), so one key pays

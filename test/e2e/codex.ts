@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { check, excerpt, requireEnv } from "./assert"
 import type { Runner } from "./runner"
@@ -11,6 +11,14 @@ const RUN_TIMEOUT_MS = 240_000
  * Responses wire, so one key pays for both legs — mirroring the opencode
  * scenario. Codex 0.163.0 removed `wire_api = "chat"`, and DeepSeek serves the
  * Responses endpoint, which is what makes this single-key setup possible.
+ *
+ * The config follows DeepSeek's official Codex integration: Codex has no
+ * built-in metadata for DeepSeek models, so `~/.codex/models.json` (vendored
+ * from the official setup script) must exist and be referenced via
+ * `model_catalog_json`, or the model cannot be resolved. The key stays in the
+ * environment (`env_key`); unlike the official script we never write it into
+ * config.toml. `web_search = "disabled"` is the forced-search kill switch, so
+ * this scenario also exercises that tier's mechanism for real.
  */
 export async function runCodexScenario(runner: Runner): Promise<string[]> {
   check(
@@ -23,15 +31,26 @@ export async function runCodexScenario(runner: Runner): Promise<string[]> {
 
   const codexDir = join(runner.homeDir.host, ".codex")
   mkdirSync(codexDir, { recursive: true })
+  copyFileSync(
+    join(runner.repoHostDir, "test", "e2e", "codex-models.json"),
+    join(codexDir, "models.json"),
+  )
+  const modelsJsonPath = join(runner.homeDir.guest, ".codex", "models.json")
   writeFileSync(
     join(codexDir, "config.toml"),
     [
-      `model = "deepseek-chat"`,
-      `model_provider = "deepseek-llm"`,
+      `model = "deepseek-flash"`,
+      `model_provider = "deepseek"`,
+      `forced_login_method = "api"`,
+      `model_reasoning_effort = "low"`,
+      `web_search = "disabled"`,
+      `show_raw_agent_reasoning = true`,
+      `model_catalog_json = "${modelsJsonPath}"`,
       ``,
-      `[model_providers.deepseek-llm]`,
-      `name = "DeepSeek"`,
-      `base_url = "https://api.deepseek.com"`,
+      `[model_providers.deepseek]`,
+      `name = "deepseek"`,
+      `base_url = "https://api.deepseek.com/"`,
+      `wire_api = "responses"`,
       `env_key = "DEEPSEEK_API_KEY"`,
       ``,
       `[mcp_servers.deepseek]`,
@@ -43,7 +62,7 @@ export async function runCodexScenario(runner: Runner): Promise<string[]> {
     ].join("\n"),
   )
   lines.push(
-    `wrote ${join(runner.homeDir.guest, ".codex/config.toml")} (key forwarded via env_vars, never written to a file)`,
+    `wrote ${join(runner.homeDir.guest, ".codex/config.toml")} + models.json (key forwarded via env_key, never written to a file)`,
   )
 
   const version = await runner.run(["codex", "--version"], { cwd: runner.projectDir.guest, env })
