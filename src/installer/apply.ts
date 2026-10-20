@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
-import { applyJsonOps, applyTomlOps, deepEqual, jsonGet, loadConfig, removeKeyAt, revertJsonOps, revertTomlOps, serializeConfig, valueAt, writeConfig } from "./configFile"
+import { applyJsonOps, jsonGet, loadConfig, revertJsonOps, serializeConfig, writeConfig } from "./configFile"
+import { applyTomlOps, deepEqual, pruneCreatedParents, revertTomlOps, valueAt } from "./configValue"
 import { hasBlock, removeBlock, upsertBlock } from "./rules"
 import { readRecord, writeRecord } from "./state"
 import type { ConfigOp, FileEdit, InstallPlan, InstallRecord, InstallerInput, RecordedFile } from "./types"
@@ -123,12 +124,7 @@ function applyReverts(reverts: readonly RecordedFile[], host: InstallPlan["host"
     }
     const value = parseToml(text) as Record<string, unknown>
     const notes = revertTomlOps(value, revert.ops)
-    for (const parent of [...(revert.createdParents ?? [])].reverse()) {
-      const current = valueAt(value, parent)
-      if (typeof current === "object" && current !== null && !Array.isArray(current) && Object.keys(current).length === 0) {
-        removeKeyAt(value, parent)
-      }
-    }
+    pruneCreatedParents(value, revert.createdParents ?? [])
     writeFileSync(revert.file, `${stringifyToml(value)}\n`)
     lines.push(`reverted the previous init's artifacts in ${revert.file}`)
     lines.push(...notes.map((note) => `  note: ${note}`))

@@ -1,5 +1,11 @@
 import type { HostName, InstallerInput, Scope } from "./types"
 
+/** The filesystem roots path resolution needs; InstallerInput satisfies this structurally. */
+export interface FsRoots {
+  readonly home: string
+  readonly cwd: string
+}
+
 /** The files a host edit touches for a given scope. */
 export interface HostPaths {
   /** Main host config file the installer edits. */
@@ -15,17 +21,17 @@ function join(...parts: readonly string[]): string {
   return parts.filter((part) => part.length > 0).join("/")
 }
 
-function configHome(input: InstallerInput): string {
+function configHome(roots: FsRoots): string {
   const xdg = process.env.XDG_CONFIG_HOME
-  if (xdg && input.home === (process.env.HOME ?? "")) return xdg
-  return join(input.home, ".config")
+  if (xdg && roots.home === (process.env.HOME ?? "")) return xdg
+  return join(roots.home, ".config")
 }
 
 /** State records live with their scope: global installs under the config home, project installs in the checkout. */
-export function stateDir(input: InstallerInput, scope: Scope): string {
+export function stateDir(roots: FsRoots, scope: Scope): string {
   return scope === "global"
-    ? join(configHome(input), "deepseek-web-retrieval")
-    : join(input.cwd, ".deepseek-web-retrieval")
+    ? join(configHome(roots), "deepseek-web-retrieval")
+    : join(roots.cwd, ".deepseek-web-retrieval")
 }
 
 export function hostPaths(host: HostName, input: InstallerInput): HostPaths {

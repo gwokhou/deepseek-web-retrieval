@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
-import { deepEqual, removeKeyAt, revertJsonOps, revertTomlOps, valueAt } from "./configFile"
+import { pruneCreatedParents, revertTomlOps } from "./configValue"
+import { revertJsonOps } from "./configFile"
 import { stateDir } from "./paths"
 import { hasBlock, removeBlock } from "./rules"
 import { deleteRecord, readRecord } from "./state"
@@ -76,12 +77,7 @@ function uninstallFile(file: RecordedFile, host: HostName): string[] {
   }
   let value = parseToml(text) as Record<string, unknown>
   const notes = revertTomlOps(value, file.ops)
-  for (const parent of [...(file.createdParents ?? [])].reverse()) {
-    const current = valueAt(value, parent)
-    if (typeof current === "object" && current !== null && !Array.isArray(current) && Object.keys(current).length === 0) {
-      removeKeyAt(value, parent)
-    }
-  }
+  pruneCreatedParents(value, file.createdParents ?? [])
   if (file.created && Object.keys(value).length === 0) {
     unlinkSync(file.file)
     pruneEmptyDir(dirname(file.file))
