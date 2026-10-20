@@ -9,6 +9,27 @@ coding agents are in progress.
 
 This is an unofficial community project. It is not affiliated with OpenCode or DeepSeek.
 
+## Features
+
+- **One core, every host** — a native OpenCode v2 plugin plus a stdio MCP
+  server for everything else; identical retrieval behavior on each
+- **Token- and cost-efficient** — filtered summaries and capped fetch
+  budgets, not raw page dumps; retries off by default, because every
+  successful retry is a billed request
+- **Tiered routing** — optional, preferred, forced, or off, per capability;
+  forced refuses when exclusivity is impossible
+- **Plan-then-apply installer** — every write previewed as old → new before
+  touching disk; arrays merge instead of replacing; uninstall reverses
+  exactly what was applied
+- **Trap-aware detection** — catches what the agents' own docs don't warn
+  about: Codex's silent `[tools] web_search` no-op, Pi's codemode hiding MCP
+  tools; conflicting rules and web-capable servers surface in the plan
+- **Git-safe installs** — the key never enters config files
+  (`${DEEPSEEK_API_KEY}` indirection or `env_vars`), so a project-scope
+  install commits clean
+- **Fails loudly, never falls back** — no silent provider switches;
+  localhost and private URLs blocked before they leave the machine
+
 ## Usage
 
 Shipped adapters:
