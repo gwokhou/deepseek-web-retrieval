@@ -1,18 +1,15 @@
-import type { HostName, Tier } from "./types"
+import type { Tier } from "./types"
 
-/** Full tool ids per host, per the installer design's rules non-negotiables. */
-function toolIds(host: HostName): { search: string; fetch: string } {
-  if (host === "opencode") return { search: "websearch (provider deepseek)", fetch: "deepseek_fetch" }
-  return { search: "mcp__deepseek__deepseek_web_search", fetch: "mcp__deepseek__deepseek_fetch" }
-}
+/** Full MCP tool ids, per the installer design's rules non-negotiables. */
+export const MCP_TOOL_IDS = { search: "mcp__deepseek__deepseek_web_search", fetch: "mcp__deepseek__deepseek_fetch" } as const
 
 /**
  * Builds the rules block lines for the preferred tier: names the full tool ids,
  * states trigger conditions rather than unconditional preference, and lists the
  * private-network exclusion. Only mentions capabilities that are not "off".
+ * Hosts whose tools are named differently pass their own ids.
  */
-export function rulesLines(host: HostName, search: Tier, fetch: Tier): string[] {
-  const ids = toolIds(host)
+export function rulesLines(ids: { readonly search: string; readonly fetch: string }, search: Tier, fetch: Tier): string[] {
   const lines: string[] = ["DeepSeek retrieval guidance:"]
   if (search !== "off") {
     lines.push(

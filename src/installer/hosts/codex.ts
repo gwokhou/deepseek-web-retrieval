@@ -1,35 +1,37 @@
 import { codecFor } from "../formats"
 import { isPlainObject } from "../formats/value"
 import {
-  BOTH_CAPABILITIES_OFF,
   FORCED_COST_NOTE,
-  competitorSteeringNote,
-  findCompetitorSteering,
   othersStayRegisteredNote,
   replacingExistingEntryNote,
   splitCompetitors,
 } from "../detect"
-import { hostPaths } from "../paths"
+import { join } from "../paths"
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../formats/rules"
-import { rulesLines } from "../rulesContent"
-import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
+import { MCP_TOOL_IDS, rulesLines } from "../rulesContent"
+import { planHeader } from "./shared"
+import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan } from "../types"
+
+/** Codex config is user-level only; project scope keeps the rules file project-local. */
+function codexPaths(input: InstallerInput): HostPaths {
+  return {
+    config: join(input.home, ".codex/config.toml"),
+    rules: input.scope === "global" ? join(input.home, ".codex/AGENTS.md") : join(input.cwd, "AGENTS.md"),
+  }
+}
 
 export function planCodex(input: InstallerInput): InstallPlan {
-  const paths = hostPaths("codex", input)
+  const paths = codexPaths(input)
   const loaded = codecFor("toml", input.host).load(paths.config)
-  const notes: string[] = []
-  const errors: { message: string }[] = []
-  const edits: FileEdit[] = []
   const tiers = { search: input.search, fetch: input.fetch }
-
-  if (loaded.parseError) {
-    errors.push({ message: `${paths.config} exists but does not parse as TOML: ${loaded.parseError}` })
-    return { host: "codex", scope: input.scope, tiers, edits, notes, errors }
+  const header = planHeader(input, paths, loaded, "TOML")
+  if (header.abort) {
+    return { host: "codex", scope: input.scope, tiers, edits: [], notes: header.notes, errors: header.errors }
   }
-  if (input.search === "off" && input.fetch === "off") {
-    errors.push({ message: BOTH_CAPABILITIES_OFF })
-  }
+  const notes = [...header.notes]
+  const errors = [...header.errors]
+  const edits: FileEdit[] = []
 
   const tools = loaded.value.tools
   if (isPlainObject(tools) && "web_search" in tools) {
@@ -39,9 +41,6 @@ export function planCodex(input: InstallerInput): InstallPlan {
         "web_search key controls the tool). Remove it first so the config cannot mislead.",
     })
   }
-
-  const steering = findCompetitorSteering("codex", paths.rules)
-  if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering))
 
   const servers = loaded.value.mcp_servers
   if (isPlainObject(servers)) {
@@ -116,7 +115,7 @@ export function planCodex(input: InstallerInput): InstallPlan {
     edits.push({
       file: paths.rules,
       format: "rules",
-      block: buildRulesBlock(input.host, rulesLines("codex", input.search, input.fetch)),
+      block: buildRulesBlock(input.host, rulesLines(MCP_TOOL_IDS, input.search, input.fetch)),
     })
     notes.push(
       input.scope === "global"

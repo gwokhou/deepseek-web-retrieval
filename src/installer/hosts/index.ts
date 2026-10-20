@@ -7,10 +7,14 @@ import type { HostName, InstallerInput, InstallPlan, RecordedFile } from "../typ
 
 export type HostPlanner = (input: InstallerInput) => InstallPlan
 
+/**
+ * The host registry. Key order feeds the CLI's usage string, and a new host is one
+ * module plus one line here — everything else derives from the keys.
+ */
 export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
-  codex: planCodex,
   opencode: planOpenCode,
   pi: planPi,
+  codex: planCodex,
 }
 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {

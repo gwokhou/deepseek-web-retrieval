@@ -41,6 +41,8 @@ export interface HostEntry {
   /** Ordered integration paths; the first entry is the recommended one. */
   readonly paths: readonly Mechanism[]
   readonly status: HostStatus
+  /** Source module of this host's installer planner, when the installer CLI supports it. */
+  readonly installer?: string
   readonly adapter?: string
   readonly guide?: string
   readonly e2eScenario?: string

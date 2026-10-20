@@ -1,24 +1,34 @@
 import { codecFor } from "../formats"
 import { isPlainObject } from "../formats/value"
-import { BOTH_CAPABILITIES_OFF, FORCED_COST_NOTE, competitorSteeringNote, findCompetitorSteering } from "../detect"
-import { hostPaths } from "../paths"
+import { FORCED_COST_NOTE } from "../detect"
+import { configHome, join } from "../paths"
 import { buildRulesBlock } from "../formats/rules"
 import { rulesLines } from "../rulesContent"
 import { readRecord } from "../state"
-import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
+import { planHeader } from "./shared"
+import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan } from "../types"
+
+/** OpenCode's tools are named differently from the raw MCP ids. */
+const OPENCODE_TOOL_IDS = { search: "websearch (provider deepseek)", fetch: "deepseek_fetch" } as const
+
+/** OpenCode config and rules files per scope; the host module owns this mapping. */
+function opencodePaths(input: InstallerInput): HostPaths {
+  return input.scope === "global"
+    ? { config: join(configHome(input), "opencode/opencode.jsonc"), rules: join(configHome(input), "opencode/AGENTS.md") }
+    : { config: join(input.cwd, "opencode.jsonc"), rules: join(input.cwd, "AGENTS.md") }
+}
 
 export function planOpenCode(input: InstallerInput): InstallPlan {
-  const paths = hostPaths("opencode", input)
+  const paths = opencodePaths(input)
   const loaded = codecFor("json", input.host).load(paths.config)
-  const notes: string[] = []
-  const errors: { message: string }[] = []
-  const edits: FileEdit[] = []
   const tiers = { search: input.search, fetch: input.fetch }
-
-  if (loaded.parseError) {
-    errors.push({ message: `${paths.config} exists but does not parse as JSONC: ${loaded.parseError}` })
-    return { host: "opencode", scope: input.scope, tiers, edits, notes, errors }
+  const header = planHeader(input, paths, loaded, "JSONC")
+  if (header.abort) {
+    return { host: "opencode", scope: input.scope, tiers, edits: [], notes: header.notes, errors: header.errors }
   }
+  const notes = [...header.notes]
+  const errors = [...header.errors]
+  const edits: FileEdit[] = []
 
   if (input.search === "preferred") {
     errors.push({
@@ -28,12 +38,6 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
         "--search forced (replace the engine), or --search off.",
     })
   }
-  if (input.search === "off" && input.fetch === "off") {
-    errors.push({ message: BOTH_CAPABILITIES_OFF })
-  }
-
-  const steering = findCompetitorSteering("opencode", paths.rules)
-  if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering))
 
   const plugins = Array.isArray(loaded.value.plugins) ? loaded.value.plugins : []
   const alreadyInstalled = plugins.some(
@@ -106,7 +110,7 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
     edits.push({
       file: paths.rules,
       format: "rules",
-      block: buildRulesBlock(input.host, rulesLines("opencode", input.search, input.fetch)),
+      block: buildRulesBlock(input.host, rulesLines(OPENCODE_TOOL_IDS, input.search, input.fetch)),
     })
     notes.push(`Rules block upserted in ${paths.rules}; OpenCode loads AGENTS.md only (no CLAUDE.md fallback in v2).`)
   }

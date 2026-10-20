@@ -5,6 +5,7 @@ import { parseJsonc } from "../src/core/jsonc"
 import { findHost, FORCED_FLAVORS, MECHANISMS, readHosts } from "../scripts/hosts"
 import type { HostEntry } from "../scripts/hosts"
 import { renderControlTable, renderHostTable } from "../scripts/render-matrix"
+import { HOST_PLANNERS } from "../src/installer/hosts"
 
 const repoRoot = join(import.meta.dir, "..")
 
@@ -147,5 +148,25 @@ describe("installer prose stays anchored to docs/hosts.jsonc", () => {
       }
     }
     expect(seen.length).toBeGreaterThan(0)
+  })
+})
+
+describe("the installer host registry owns host identity", () => {
+  test("registry keys and hosts.jsonc installer fields are the same set and point at real modules", () => {
+    const hosts = readHosts(repoRoot)
+    const withInstaller = hosts.hosts.filter((host) => host.installer !== undefined)
+    expect(withInstaller.map((host) => host.name).sort()).toEqual([...Object.keys(HOST_PLANNERS)].sort())
+    for (const host of withInstaller) {
+      expect(host.installer).toBe(`src/installer/hosts/${host.name}`)
+      expect(existsSync(join(repoRoot, `${host.installer}.ts`))).toBe(true)
+    }
+  })
+
+  test("hosts directory holds exactly the registry keys plus the shared helper", () => {
+    const modules = readdirSync(join(repoRoot, "src", "installer", "hosts"))
+      .filter((name) => name.endsWith(".ts") && name !== "index.ts" && name !== "shared.ts")
+      .map((name) => name.replace(/\.ts$/, ""))
+      .sort()
+    expect(modules).toEqual([...Object.keys(HOST_PLANNERS)].sort())
   })
 })

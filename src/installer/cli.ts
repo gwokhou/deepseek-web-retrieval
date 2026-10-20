@@ -1,21 +1,22 @@
 import { homedir } from "node:os"
 import { resolve } from "node:path"
-import { planForHost } from "./hosts"
+import { HOST_PLANNERS, planForHost } from "./hosts"
 import { applyPlan } from "./apply"
 import { renderPlan } from "./render"
 import { listRecords } from "./state"
 import { uninstall } from "./uninstall"
 import type { HostName, InstallerInput, Scope, Tier } from "./types"
 
-const HOSTS: readonly HostName[] = ["opencode", "pi", "codex"]
+const HOSTS = Object.keys(HOST_PLANNERS) as readonly HostName[]
+const HOST_CHOICES = `<${HOSTS.join("|")}>`
 const SCOPES: readonly Scope[] = ["project", "global"]
 const TIERS: readonly Tier[] = ["optional", "preferred", "forced", "off"]
 
 const USAGE = `Usage:
-  deepseek-web-retrieval init --host <opencode|pi|codex> --scope <project|global> \
+  deepseek-web-retrieval init --host ${HOST_CHOICES} --scope <project|global> \
 --search <optional|preferred|forced|off> --fetch <optional|preferred|forced|off> \
 [--package <npm ref>] [--cwd <dir>] [--apply]
-  deepseek-web-retrieval uninstall --host <opencode|pi|codex> --scope <project|global> [--cwd <dir>]
+  deepseek-web-retrieval uninstall --host ${HOST_CHOICES} --scope <project|global> [--cwd <dir>]
   deepseek-web-retrieval list [--cwd <dir>]
 
 init prints the full plan (every file, old value → new value) and writes nothing

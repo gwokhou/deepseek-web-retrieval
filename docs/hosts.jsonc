@@ -47,6 +47,7 @@
       "paths": ["mcp"],
       "status": "supported",
       "adapter": "src/mcp",
+      "installer": "src/installer/hosts/codex",
       "guide": "docs/agents/codex.md",
       "e2eScenario": "codex",
       "control": {
@@ -69,6 +70,7 @@
         "fetch": { "optional": "yes", "preferred": "yes", "forced": "replacement", "key": "`fetchOverrideWebfetch: true`" }
       },
       "adapter": "src/opencode",
+      "installer": "src/installer/hosts/opencode",
       "guide": "docs/agents/opencode-v2.md",
       "e2eScenario": "opencode"
     },
@@ -87,6 +89,7 @@
         "fetch": { "optional": "yes", "preferred": "yes", "forced": "de-facto", "key": "no built-in web tool at 1.3.0 (source-verified)" }
       },
       "adapter": "src/mcp",
+      "installer": "src/installer/hosts/pi",
       "guide": "docs/agents/pi.md",
       "e2eScenario": "pi"
     },

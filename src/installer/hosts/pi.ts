@@ -1,38 +1,36 @@
 import { codecFor } from "../formats"
 import { isPlainObject } from "../formats/value"
 import {
-  BOTH_CAPABILITIES_OFF,
   FORCED_COST_NOTE,
-  competitorSteeringNote,
-  findCompetitorSteering,
   othersStayRegisteredNote,
   replacingExistingEntryNote,
   splitCompetitors,
 } from "../detect"
-import { hostPaths } from "../paths"
+import { join } from "../paths"
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../formats/rules"
-import { rulesLines } from "../rulesContent"
-import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
+import { MCP_TOOL_IDS, rulesLines } from "../rulesContent"
+import { planHeader } from "./shared"
+import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan } from "../types"
+
+/** Pi config and rules files per scope; the host module owns this mapping. */
+function piPaths(input: InstallerInput): HostPaths {
+  return input.scope === "global"
+    ? { config: join(input.home, ".pi/agent/mcp.json"), rules: join(input.home, ".pi/agent/AGENTS.md") }
+    : { config: join(input.cwd, ".pi/mcp.json"), rules: join(input.cwd, "AGENTS.md") }
+}
 
 export function planPi(input: InstallerInput): InstallPlan {
-  const paths = hostPaths("pi", input)
+  const paths = piPaths(input)
   const loaded = codecFor("json", input.host).load(paths.config)
-  const notes: string[] = []
-  const errors: { message: string }[] = []
-  const edits: FileEdit[] = []
   const tiers = { search: input.search, fetch: input.fetch }
-
-  if (loaded.parseError) {
-    errors.push({ message: `${paths.config} exists but does not parse as JSON: ${loaded.parseError}` })
-    return { host: "pi", scope: input.scope, tiers, edits, notes, errors }
+  const header = planHeader(input, paths, loaded, "JSON")
+  if (header.abort) {
+    return { host: "pi", scope: input.scope, tiers, edits: [], notes: header.notes, errors: header.errors }
   }
-  if (input.search === "off" && input.fetch === "off") {
-    errors.push({ message: BOTH_CAPABILITIES_OFF })
-  }
-
-  const steering = findCompetitorSteering("pi", paths.rules)
-  if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering))
+  const notes = [...header.notes]
+  const errors = [...header.errors]
+  const edits: FileEdit[] = []
 
   const env: Record<string, string> = { [API_KEY_ENV]: "\${DEEPSEEK_API_KEY}" }
   if (input.search === "off") env[ENABLE_SEARCH_ENV] = "false"
@@ -101,7 +99,7 @@ export function planPi(input: InstallerInput): InstallPlan {
     edits.push({
       file: paths.rules,
       format: "rules",
-      block: buildRulesBlock(input.host, rulesLines("pi", input.search, input.fetch)),
+      block: buildRulesBlock(input.host, rulesLines(MCP_TOOL_IDS, input.search, input.fetch)),
     })
     notes.push(`Rules block upserted in ${paths.rules}; Pi loads AGENTS.md context files from the working directory and its parents.`)
   }

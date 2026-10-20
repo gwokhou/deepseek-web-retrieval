@@ -4,6 +4,23 @@ export type HostName = "opencode" | "pi" | "codex"
 /** Install scope, a first-class user choice. */
 export type Scope = "project" | "global"
 
+/**
+ * The filesystem roots path resolution needs; InstallerInput satisfies this structurally.
+ * Each host module owns the mapping from an input to its config and rules files.
+ */
+export interface FsRoots {
+  readonly home: string
+  readonly cwd: string
+}
+
+/** The files a host edit touches for a given scope. */
+export interface HostPaths {
+  /** Main host config file the installer edits. */
+  readonly config: string
+  /** Rules file receiving the marked block for the preferred tier. */
+  readonly rules: string
+}
+
 /** Control tier per capability; "off" skips the tool entirely. */
 export type Tier = "optional" | "preferred" | "forced" | "off"
 
