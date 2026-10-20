@@ -1,6 +1,6 @@
 import { normalizeDomains } from "./domains"
 import { truncate } from "./format"
-import type { DeepSeekSearchResult, SearchOptions, WebSearchResult } from "./types"
+import type { DeepSeekSearchResult, SearchOptions, SearchResult } from "./types"
 import { normalizeResultUrl } from "./url"
 
 /**
@@ -29,15 +29,15 @@ export function parsePublished(value: unknown): number | undefined {
 }
 
 /**
- * Filters and maps DeepSeek results to OpenCode's WebSearch.Result shape.
+ * Filters and maps DeepSeek results into the neutral SearchResult shape.
  * Missing/non-finite rerank_score never passes. Authority -1/missing is
  * "unknown" and only passes when allowUnknownAuthority is enabled.
  */
 export function processResults(
   raw: readonly DeepSeekSearchResult[],
   options: SearchOptions,
-): WebSearchResult[] {
-  const results: WebSearchResult[] = []
+): SearchResult[] {
+  const results: SearchResult[] = []
   const seen = new Set<string>()
 
   for (const item of raw) {
@@ -64,15 +64,13 @@ export function processResults(
       optionalText(item.summary) ?? optionalText(item.snippet) ?? "",
       options.maxSummaryChars,
     )
-    const time: { published?: number } = {}
     const published = parsePublished(item.date)
-    if (published !== undefined) time.published = published
     const title = optionalText(item.title)
     results.push({
       url,
       ...(title ? { title } : {}),
       ...(content ? { content } : {}),
-      time,
+      ...(published !== undefined ? { published } : {}),
     })
   }
 

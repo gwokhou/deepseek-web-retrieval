@@ -1,12 +1,12 @@
 import { MAX_ERROR_BODY_CHARS, MAX_RESPONSE_BYTES, MAX_RETRY_DELAY_MS } from "./constants"
 import { formatApiError, formatTimeoutError, redactSecrets, truncate } from "./format"
-import type { RequestAuth, RetryConfig } from "./types"
+import type { RequestAuth, RetryOptions } from "./types"
 
 /** Everything one POST needs; `fetchImpl` is injectable so tests need no monkey-patching. */
 export interface TransportOptions {
   readonly signal: AbortSignal
   readonly auth: RequestAuth
-  readonly retry: RetryConfig
+  readonly retry: RetryOptions
   readonly timeoutMs: number
   readonly fetchImpl?: typeof fetch
 }

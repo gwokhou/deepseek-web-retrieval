@@ -15,7 +15,6 @@ export interface SearchOptions {
   readonly language?: string
   readonly maxSummaryChars: number
   readonly timeoutMs: number
-  readonly setDefault: boolean
   readonly enabled: boolean
 }
 
@@ -24,8 +23,6 @@ export interface FetchOptions {
   readonly allowedDomains: readonly string[]
   readonly blockedDomains: readonly string[]
   readonly timeoutMs: number
-  readonly overrideWebfetch: boolean
-  readonly registerTool: boolean
   readonly blockPrivateHosts: boolean
   readonly enabled: boolean
 }
@@ -56,12 +53,12 @@ export interface DeepSeekSearchResult {
   readonly date?: string | null
 }
 
-/** Matches the OpenCode v2 WebSearch.Result shape. */
-export interface WebSearchResult {
+/** A neutral, host-agnostic search result. */
+export interface SearchResult {
   readonly url: string
   readonly title?: string
   readonly content?: string
-  readonly time: { readonly published?: number }
+  readonly published?: number
 }
 
 export interface FetchedPage {
@@ -85,9 +82,4 @@ export interface FetchedDocument {
 
 export interface RequestAuth {
   readonly apiKey: string
-}
-
-export interface RetryConfig {
-  readonly maxRetries: number
-  readonly baseDelayMs: number
 }

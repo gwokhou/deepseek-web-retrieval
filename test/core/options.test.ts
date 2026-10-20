@@ -22,7 +22,6 @@ describe("resolve options", () => {
         language: undefined,
         maxSummaryChars: 1200,
         timeoutMs: 30000,
-        setDefault: false,
         enabled: true,
       },
       fetch: {
@@ -30,8 +29,6 @@ describe("resolve options", () => {
         allowedDomains: [],
         blockedDomains: [],
         timeoutMs: 30000,
-        overrideWebfetch: false,
-        registerTool: true,
         blockPrivateHosts: true,
         enabled: true,
       },
@@ -70,10 +67,7 @@ describe("resolve options", () => {
     expect(options.language).toBe("zh,en")
   })
 
-  test("resolves fetch safety and registration flags", () => {
-    expect(resolveFetchOptions({ fetchOverrideWebfetch: true }).overrideWebfetch).toBe(true)
-    expect(resolveFetchOptions({ fetchOverrideWebfetch: "yes" }).overrideWebfetch).toBe(false)
-    expect(resolveFetchOptions({ fetchRegisterTool: false }).registerTool).toBe(false)
+  test("resolves fetch safety limits", () => {
     expect(resolveFetchOptions({ fetchBlockPrivateHosts: false }).blockPrivateHosts).toBe(false)
     expect(resolveFetchOptions({ fetchMaxChars: -1 }).maxChars).toBe(0)
     expect(resolveFetchOptions({ fetchTimeoutMs: 999_999 }).timeoutMs).toBe(120000)

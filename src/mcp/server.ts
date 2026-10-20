@@ -2,11 +2,19 @@ import { McpServer } from "@modelcontextprotocol/server"
 import type { CallToolResult } from "@modelcontextprotocol/server"
 import * as z from "zod/v4"
 import { fetchDocument, searchWeb } from "../core/client"
-import type { ResolvedOptions, WebSearchResult } from "../core/types"
+import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
+import {
+  FETCH_OUTPUT_TRUNCATED,
+  FETCH_SERVICE_LIMITS,
+  SEARCH_EMPTY_IS_NORMAL,
+  SEARCH_QUERY_OPERATORS,
+  SEARCH_RANKED_FILTERED,
+} from "../core/descriptions"
+import { formatSearchResults } from "../core/format"
+import type { ResolvedOptions, SearchResult } from "../core/types"
 import pkg from "../../package.json"
 import { requireApiKey } from "./auth"
 import type { Env } from "./config"
-import { formatSearchResults } from "./format"
 
 export const MCP_SERVER_NAME = "deepseek-web-retrieval"
 
@@ -43,15 +51,16 @@ const FETCH_OUTPUT = z.object({
 
 const SEARCH_DESCRIPTION =
   "Search the web with DeepSeek's in-house search engine and return a short, filtered result " +
-    "list (title, URL, summary). Results are ranked by relevance and source authority, deduplicated " +
-    "by URL, and capped at the configured maximum. An empty result list is normal, not an error. " +
-    "Use site:/-site: operators in the query to include or exclude domains; the full query must stay " +
-    "within 128 characters. To read a full page, pass a result URL to the deepseek_fetch tool."
+    "list (title, URL, summary). " +
+    `${SEARCH_RANKED_FILTERED} ` +
+    `${SEARCH_EMPTY_IS_NORMAL} ` +
+    `${SEARCH_QUERY_OPERATORS} ` +
+    "To read a full page, pass a result URL to the deepseek_fetch tool."
 
 const FETCH_DESCRIPTION =
-  "Fetch one web page as clean Markdown through DeepSeek's Fetch API. DeepSeek does not render " +
-    "JavaScript and cannot reach private networks; PDFs, images, and other binary files are " +
-    "unsupported. Output is truncated to the configured size."
+  "Fetch one web page as clean Markdown through DeepSeek's Fetch API. " +
+    `${FETCH_SERVICE_LIMITS} ` +
+    `${FETCH_OUTPUT_TRUNCATED}`
 
 /**
  * Builds the host-agnostic MCP server exposing the two DeepSeek retrieval tools.
@@ -122,13 +131,22 @@ function requestContext(config: ResolvedOptions, env: Env, signal: AbortSignal) 
   return { signal, auth: { apiKey: requireApiKey(env) }, retry: config.retry }
 }
 
-function toStructuredResult(result: WebSearchResult) {
+function toStructuredResult(result: SearchResult) {
   return {
     url: result.url,
     ...(result.title ? { title: result.title } : {}),
     ...(result.content ? { content: result.content } : {}),
-    ...(result.time.published !== undefined ? { published: result.time.published } : {}),
+    ...(result.published !== undefined ? { published: result.published } : {}),
   }
+}
+
+/** Returns the both-disabled message, or undefined when a tool stays enabled. */
+export function servePrecheck(config: ResolvedOptions): string | undefined {
+  if (config.search.enabled || config.fetch.enabled) return undefined
+  return (
+    `Both tools are disabled (${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false); ` +
+    "at least one must stay enabled."
+  )
 }
 
 function toErrorResult(error: unknown): CallToolResult {

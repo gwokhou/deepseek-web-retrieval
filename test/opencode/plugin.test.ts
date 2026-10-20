@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import plugin from "../../index"
+import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../../src/core/descriptions"
+import { resolveRegistration } from "../../src/opencode/plugin"
 
 interface CapturedTool {
   name: string
@@ -352,5 +354,32 @@ describe("OpenCode plugin wiring", () => {
     expect(captured.tool).toBeUndefined()
     expect(captured.added).toEqual([])
     expect(captured.tools.get("webfetch")).toBe(captured.builtinWebfetch)
+  })
+
+  test("resolves the registration knobs where they are consumed", () => {
+    expect(resolveRegistration()).toEqual({
+      setDefault: false,
+      overrideWebfetch: false,
+      registerTool: true,
+    })
+    expect(
+      resolveRegistration({
+        setDefaultWebsearch: true,
+        fetchOverrideWebfetch: true,
+        fetchRegisterTool: false,
+      }),
+    ).toEqual({ setDefault: true, overrideWebfetch: true, registerTool: false })
+    expect(resolveRegistration({ setDefaultWebsearch: "yes" }).setDefault).toBe(false)
+    expect(resolveRegistration({ fetchRegisterTool: "no" }).registerTool).toBe(true)
+  })
+
+  test("composes the fetch descriptions from the shared capability fragments", async () => {
+    const captured = await setup({ fetchOverrideWebfetch: true })
+
+    expect(captured.tool?.description).toContain(FETCH_MARKDOWN_ONLY)
+    expect(captured.tool?.description).toContain(FETCH_OUTPUT_TRUNCATED)
+    const webfetch = captured.tools.get("webfetch")
+    expect(webfetch?.description).toContain(FETCH_MARKDOWN_ONLY)
+    expect(webfetch?.description).toContain(FETCH_OUTPUT_TRUNCATED)
   })
 })

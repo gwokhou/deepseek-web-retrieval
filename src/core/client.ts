@@ -10,9 +10,9 @@ import type {
   FetchedPage,
   FetchOptions,
   RequestAuth,
-  RetryConfig,
+  RetryOptions,
   SearchOptions,
-  WebSearchResult,
+  SearchResult,
 } from "./types"
 
 export { DeepSeekApiError } from "./transport"
@@ -29,7 +29,7 @@ interface FetchResponse {
 export interface RequestOptions {
   readonly signal: AbortSignal
   readonly auth: RequestAuth
-  readonly retry: RetryConfig
+  readonly retry: RetryOptions
   /** Per-call cap in milliseconds; the shorter of this and the configured timeout wins. */
   readonly timeoutMs?: number
 }
@@ -38,7 +38,7 @@ export async function searchWeb(
   query: string,
   options: SearchOptions,
   request: RequestOptions,
-): Promise<WebSearchResult[]> {
+): Promise<SearchResult[]> {
   const trimmed = query.trim()
   if (!trimmed) throw new Error("DeepSeek search query must not be empty")
   if (Array.from(trimmed).length > MAX_QUERY_CHARS) {
