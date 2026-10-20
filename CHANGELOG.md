@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Close the remaining high- and medium-value e2e coverage gaps with four new Docker
+  scenarios: `installer` (keyless — the installer CLI's own product: init/apply/uninstall
+  for all three hosts, verified through the real agents' config readers, including the
+  Codex kill-switch write and the OpenCode engine replacement), `pkg` (keyless — the
+  `npm pack` tarball installed with npm in the container, its bin executed directly,
+  then registered as the Pi server for a real handshake), `capability-off` (keyless —
+  `DEEPSEEK_ENABLE_FETCH=false` leaves exactly the search tool, both flags false refuses
+  to start, and a registration without `exposure` reports `codemode`), and `preferred`
+  (billed — installer product at Pi project scope with preferred tiers, then
+  natural-language prompts that name no tool, so only the AGENTS.md rules block can steer
+  the model). The harness now accepts multiple scenario names, packs the npm tarball
+  before running, gives each scenario an isolated HOME and project dir (cleaned up
+  afterwards) while sharing one npm download cache per run, and suggests the keyless
+  subset when `DEEPSEEK_API_KEY` is missing
 - Fix the installer's secret guard refusing its own output: a re-init over an existing
   entry whose `DEEPSEEK_API_KEY` is the `${DEEPSEEK_API_KEY}` indirection form was
   rejected as a literal credential. Pure `${VAR}` expansions now pass the guard (found

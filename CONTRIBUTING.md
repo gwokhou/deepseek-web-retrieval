@@ -30,6 +30,28 @@ image contains no secrets; the key is passed at `docker run` time.
   actually calling `mcp__deepseek__deepseek_fetch` and
   `mcp__deepseek__deepseek_web_search` through Pi's own MCP client. Real billed
   requests (LLM + retrieval).
+- `bun run test:e2e installer` — keyless. Runs the installer CLI itself inside
+  the container: `init --apply` for Pi (global, verified by a real handshake),
+  Codex (global, forced search — the `web_search = "disabled"` kill switch —
+  verified by `codex mcp list` and the written config), and OpenCode (project,
+  forced search + preferred fetch, verified at the file level), then `uninstall`
+  and asserts everything it applied is gone.
+- `bun run test:e2e pkg` — keyless. Installs the `npm pack` tarball of this
+  checkout with npm inside the container, executes its bin directly, and
+  registers the installed binary as the Pi MCP server for a real handshake.
+  Every other scenario runs the checkout's `dist/cli.js`, which would stay green
+  if the packaging broke.
+- `bun run test:e2e capability-off` — keyless. Covers the per-capability
+  switches and the exposure trap through `pi mcp list --json`:
+  `DEEPSEEK_ENABLE_FETCH=false` leaves exactly the search tool, both flags
+  false refuses to start (failed state with the refusal message), and a
+  registration without `exposure` reports `codemode`.
+- `bun run test:e2e preferred` — requires `DEEPSEEK_API_KEY`. Installs Pi at
+  project scope with preferred tiers via the installer, then prompts in natural
+  language without naming any tool — only the AGENTS.md rules block can steer
+  the model to the DeepSeek tools, which is exactly what the preferred tier
+  promises. Also covers the project scope and the print-mode `--approve` trust
+  path. Real billed requests (LLM + retrieval).
 - `bun run test:e2e opencode` — requires `DEEPSEEK_API_KEY`. Runs headless
   `opencode run` prompts in an isolated project
   that loads the plugin from this checkout. The LLM is a DeepSeek custom
@@ -48,6 +70,10 @@ image contains no secrets; the key is passed at `docker run` time.
   because Codex is a static musl binary whose TLS stack reads the system CA
   store, which the slim Node base does not ship.
 - `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
+  Multiple names select a subset (`bun run test:e2e pi installer pkg
+  capability-off` runs every keyless scenario); the harness packs the npm
+  tarball before running, so the installer and pkg scenarios always exercise
+  the current checkout's packaging.
 
 The script rebuilds `dist/cli.js` before running, and a missing key is an
 error, not a skip.

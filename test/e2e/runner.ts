@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { mkdtempSync } from "node:fs"
+import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ScenarioError, requireWhich } from "./assert"
@@ -34,6 +34,8 @@ export interface Runner {
   /** Scratch project directory for host configs. */
   readonly projectDir: Dir
   run(cmd: readonly string[], options: RunOptions): Promise<ExecResult>
+  /** Removes the isolated HOME and project dir; call after the scenario finishes. */
+  cleanup(): void
 }
 
 const DOCKER_HINT = "install Docker; the e2e suites only run inside containers"
@@ -42,7 +44,7 @@ function requireDocker(): string {
   return requireWhich("docker", DOCKER_HINT)
 }
 
-export function createDockerRunner(repoRoot: string, image: string): Runner {
+export function createDockerRunner(repoRoot: string, image: string, sharedNpmCacheHost: string): Runner {
   const docker = requireDocker()
   const homeDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-home-")), "/home/verifier")
   const projectDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-project-")), "/project")
@@ -59,6 +61,15 @@ export function createDockerRunner(repoRoot: string, image: string): Runner {
     `${homeDir.host}:${homeDir.guest}`,
     "-v",
     `${projectDir.host}:${projectDir.guest}`,
+    // One npm cache per harness run, shared across scenarios: each scenario's
+    // HOME stays isolated (configs, npx install trees), but downloaded tarballs
+    // are content-addressed and safe to share — and every scenario after the
+    // first skips the registry round trips. Per-run, not persistent, so a
+    // repacked tarball can never be served stale.
+    "-v",
+    `${sharedNpmCacheHost}:/scratch/npm-cache`,
+    "-e",
+    "npm_config_cache=/scratch/npm-cache",
   ]
 
   return {
@@ -75,6 +86,10 @@ export function createDockerRunner(repoRoot: string, image: string): Runner {
         [docker, ...dockerArgs, ...envFlags, "-w", options.cwd, image, ...cmd],
         { cwd: repoRoot, env: process.env, timeoutMs: options.timeoutMs },
       )
+    },
+    cleanup: () => {
+      rmSync(homeDir.host, { recursive: true, force: true })
+      rmSync(projectDir.host, { recursive: true, force: true })
     },
   }
 }
