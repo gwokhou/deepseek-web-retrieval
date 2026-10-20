@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { check, excerpt, requireWhich } from "./assert"
+import { check, excerpt } from "./assert"
 import type { Runner } from "./runner"
 
 interface PiServerEntry {
@@ -22,9 +22,6 @@ export async function runPiScenario(runner: Runner): Promise<string[]> {
   const log: string[] = []
   const cli = join(runner.repoDir, "dist", "cli.js")
   check(existsSync(join(runner.repoHostDir, "dist", "cli.js")), "dist/cli.js is missing", "run `bun run build` first")
-  if (runner.mode === "local") {
-    requireWhich("pi", "install: npm i -g @earendil-works/pi-coding-agent@1.3.0, or drop --local to use docker")
-  }
 
   const version = await runner.run(["pi", "--version"], { cwd: runner.repoDir, env: { HOME: runner.homeDir.guest } })
   log.push(`pi version: ${excerpt(version.stdout.trim(), 80)}`)

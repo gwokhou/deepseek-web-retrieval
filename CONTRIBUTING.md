@@ -16,10 +16,10 @@ runtime; do not bundle it into the plugin.
 
 ## End-to-end tests (local only)
 
-`bun run test:e2e` exercises real coding agents and never runs in CI. By default it
-runs them inside Docker (`test/e2e/Dockerfile`); the agent versions come from
-`docs/hosts.jsonc` and are the compatibility claim under test. The image contains
-no secrets; the key is passed at `docker run` time.
+`bun run test:e2e` exercises real coding agents and never runs in CI. It only runs
+inside Docker (`test/e2e/Dockerfile`); there is no host-binary mode, so the agent
+versions from `docs/hosts.jsonc` are always the compatibility claim under test. The
+image contains no secrets; the key is passed at `docker run` time.
 
 - `bun run test:e2e pi` — keyless. Registers the built MCP server in an isolated
   Pi config and asserts a real `pi mcp list` handshake.
@@ -29,10 +29,13 @@ no secrets; the key is passed at `docker run` time.
   provider configured from the same key, so no `opencode auth login` is needed;
   this exercises the adapter's environment-variable key fallback. Real billed
   requests (LLM + retrieval).
-- `bun run test:e2e` — both scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
-- `bun run test:e2e -- --local` — runs the agents from the host `PATH` instead
-  of Docker. Host agent versions drift, so this mode is for quick iteration,
-  not for compatibility claims.
+- `bun run test:e2e codex` — requires `DEEPSEEK_API_KEY`. Runs headless
+  `codex exec` prompts in an isolated HOME whose config.toml registers the built
+  MCP server (key forwarded via `env_vars`, never written to a file) and points
+  Codex at DeepSeek as the LLM over the Responses wire — Codex 0.163.0 dropped
+  `wire_api = "chat"`, and DeepSeek serves the Responses endpoint, which is what
+  makes the single-key setup possible. Real billed requests (LLM + retrieval).
+- `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
 
 The script rebuilds `dist/cli.js` before running, and a missing key is an
 error, not a skip.

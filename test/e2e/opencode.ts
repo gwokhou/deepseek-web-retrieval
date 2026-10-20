@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { check, excerpt, requireEnv, requireWhich } from "./assert"
+import { check, excerpt, requireEnv } from "./assert"
 import type { Runner } from "./runner"
 
 const RUN_TIMEOUT_MS = 180_000
@@ -14,9 +14,6 @@ const RUN_TIMEOUT_MS = 180_000
  */
 export async function runOpencodeScenario(runner: Runner): Promise<string[]> {
   const log: string[] = []
-  if (runner.mode === "local") {
-    requireWhich("opencode", "install: https://opencode.ai/v2/docs/, or drop --local to use docker")
-  }
   const apiKey = requireEnv(
     "DEEPSEEK_API_KEY",
     "the opencode scenario makes real billed DeepSeek requests",

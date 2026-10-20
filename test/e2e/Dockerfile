@@ -10,12 +10,14 @@ ARG NODE_IMAGE=node:22.23.3-slim
 FROM ${NODE_IMAGE} AS agents
 ARG OPENCODE_VERSION
 ARG PI_VERSION
+ARG CODEX_VERSION
 # An empty version would silently resolve to npm "latest", drifting off the
 # pins — fail the build instead.
-RUN test -n "$OPENCODE_VERSION" && test -n "$PI_VERSION"
+RUN test -n "$OPENCODE_VERSION" && test -n "$PI_VERSION" && test -n "$CODEX_VERSION"
 RUN npm install --global --prefix /opt/agents \
       @opencode/cli@${OPENCODE_VERSION} \
-      @earendil-works/pi-coding-agent@${PI_VERSION}
+      @earendil-works/pi-coding-agent@${PI_VERSION} \
+      @openai/codex@${CODEX_VERSION}
 
 FROM ${NODE_IMAGE}
 COPY --from=agents /opt/agents /opt/agents

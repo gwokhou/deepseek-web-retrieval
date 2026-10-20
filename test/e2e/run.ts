@@ -2,9 +2,10 @@ import { spawnSync } from "node:child_process"
 import { resolve } from "node:path"
 import { findHost, readHosts } from "../../scripts/hosts"
 import { ScenarioError } from "./assert"
+import { runCodexScenario } from "./codex"
 import { runOpencodeScenario } from "./opencode"
 import { runPiScenario } from "./pi"
-import { createDockerRunner, createLocalRunner, ensureDockerImage } from "./runner"
+import { createDockerRunner, ensureDockerImage } from "./runner"
 import type { Runner } from "./runner"
 
 const IMAGE = "deepseek-web-retrieval-e2e:latest"
@@ -26,14 +27,24 @@ const SCENARIOS: readonly Scenario[] = [
     requiresApiKey: true,
     run: (runner) => runOpencodeScenario(runner),
   },
+  {
+    name: "codex",
+    requiresApiKey: true,
+    run: (runner) => runCodexScenario(runner),
+  },
 ]
 
 const repoRoot = resolve(import.meta.dir, "..", "..")
-const args = process.argv.slice(2)
-const useLocal = args.includes("--local")
-const requested = args.find((arg) => !arg.startsWith("--"))
+const flagArgs = process.argv.slice(2).filter((arg) => arg.startsWith("--"))
+const requested = process.argv.slice(2).find((arg) => !arg.startsWith("--"))
 
 async function main(): Promise<number> {
+  if (flagArgs.length > 0) {
+    console.error(
+      `Unknown flag(s): ${flagArgs.join(", ")}. The e2e suites only run inside Docker; there is no --local mode.`,
+    )
+    return 1
+  }
   if (requested !== undefined && !SCENARIOS.some((scenario) => scenario.name === requested)) {
     const names = SCENARIOS.map((scenario) => scenario.name).join(", ")
     console.error(`Unknown scenario "${requested}". Available: ${names} (or no argument for all).`)
@@ -45,7 +56,7 @@ async function main(): Promise<number> {
   // Hard guard, not a skip: a missing key means the run is misconfigured.
   if (selected.some((scenario) => scenario.requiresApiKey) && !(process.env.DEEPSEEK_API_KEY ?? "").trim()) {
     console.error(
-      "DEEPSEEK_API_KEY is not set. The opencode scenario makes real billed DeepSeek requests.\n" +
+      "DEEPSEEK_API_KEY is not set. The opencode and codex scenarios make real billed DeepSeek requests.\n" +
         "Export the key and re-run, or run only the keyless scenario: bun run test:e2e pi",
     )
     return 1
@@ -57,22 +68,19 @@ async function main(): Promise<number> {
     return 1
   }
 
-  const runner = useLocal ? createLocalRunner(repoRoot) : createDockerRunner(repoRoot, IMAGE)
-  if (!useLocal) {
-    const hosts = readHosts(repoRoot)
-    try {
-      ensureDockerImage(repoRoot, IMAGE, {
-        OPENCODE_VERSION: findHost(hosts, "opencode").version,
-        PI_VERSION: findHost(hosts, "pi").version,
-      })
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error))
-      return 1
-    }
+  const runner = createDockerRunner(repoRoot, IMAGE)
+  const hosts = readHosts(repoRoot)
+  try {
+    ensureDockerImage(repoRoot, IMAGE, {
+      OPENCODE_VERSION: findHost(hosts, "opencode").version,
+      PI_VERSION: findHost(hosts, "pi").version,
+      CODEX_VERSION: findHost(hosts, "codex").version,
+    })
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    return 1
   }
-  console.log(
-    `mode: ${runner.mode} (agent versions pinned by ${useLocal ? "the host" : "docs/hosts.jsonc"})`,
-  )
+  console.log("mode: docker (agent versions pinned by docs/hosts.jsonc)")
 
   let failures = 0
   for (const scenario of selected) {

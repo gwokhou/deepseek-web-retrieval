@@ -20,15 +20,14 @@ export interface RunOptions {
 export interface Dir {
   /** Host-side path, for writing files. */
   readonly host: string
-  /** Path the agents see (identical in local mode, a mount point in docker mode). */
+  /** Path the agents see (a mount point inside the container). */
   readonly guest: string
 }
 
 export interface Runner {
-  readonly mode: "local" | "docker"
   /** Repo checkout path on the host, for existence checks. */
   readonly repoHostDir: string
-  /** Repo checkout as seen by the agents (read-only in docker mode). */
+  /** Repo checkout as seen by the agents (read-only mount). */
   readonly repoDir: string
   /** Isolated HOME for the agents. */
   readonly homeDir: Dir
@@ -37,23 +36,10 @@ export interface Runner {
   run(cmd: readonly string[], options: RunOptions): Promise<ExecResult>
 }
 
-const DOCKER_HINT = "install Docker or pass --local to use host binaries"
+const DOCKER_HINT = "install Docker; the e2e suites only run inside containers"
 
 function requireDocker(): string {
   return requireWhich("docker", DOCKER_HINT)
-}
-
-export function createLocalRunner(repoRoot: string): Runner {
-  const homeDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-home-")))
-  const projectDir = dir(mkdtempSync(join(tmpdir(), "deepseek-e2e-project-")))
-  return {
-    mode: "local",
-    repoHostDir: repoRoot,
-    repoDir: repoRoot,
-    homeDir,
-    projectDir,
-    run: (cmd, options) => exec(cmd, { ...options, env: { ...process.env, ...options.env } }),
-  }
 }
 
 export function createDockerRunner(repoRoot: string, image: string): Runner {
@@ -76,14 +62,15 @@ export function createDockerRunner(repoRoot: string, image: string): Runner {
   ]
 
   return {
-    mode: "docker",
     repoHostDir: repoRoot,
     repoDir: "/work",
     homeDir,
     projectDir,
     run: (cmd, options) => {
       const env = options.env ?? {}
-      const envFlags = Object.entries(env).flatMap(([key, value]) => ["-e", value ? `${key}=${value}` : key])
+      const envFlags = Object.entries(env).flatMap(([key, value]) =>
+        value === undefined ? [] : ["-e", `${key}=${value}`],
+      )
       return exec(
         [docker, ...dockerArgs, ...envFlags, "-w", options.cwd, image, ...cmd],
         { cwd: repoRoot, env: process.env, timeoutMs: options.timeoutMs },
