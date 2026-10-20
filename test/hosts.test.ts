@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
 import { parseJsonc } from "../src/core/jsonc"
@@ -126,5 +126,26 @@ describe("docs/research/control-matrix.md stays in sync with docs/hosts.jsonc", 
     expect(block).toBe(
       `<!-- generated: control-matrix — edit docs/hosts.jsonc, then run \`bun run docs:matrix\` -->\n\n${renderControlTable(readHosts(repoRoot))}\n\n<!-- /generated: control-matrix -->`,
     )
+  })
+})
+
+describe("installer prose stays anchored to docs/hosts.jsonc", () => {
+  test("every version literal in src/installer appears in docs/hosts.jsonc", () => {
+    // CONTRIBUTING: version mentions in prose are provenance anchors that move with
+    // re-verification, not with the bump. A literal that vanished from hosts.jsonc
+    // means a bump happened without the re-verification pass — fail here, not in a
+    // user's plan note.
+    const hostsText = readFileSync(join(repoRoot, "docs", "hosts.jsonc"), "utf8")
+    const seen: string[] = []
+    for (const entry of readdirSync(join(repoRoot, "src", "installer"), { recursive: true })) {
+      const name = String(entry)
+      if (!name.endsWith(".ts")) continue
+      const text = readFileSync(join(repoRoot, "src", "installer", name), "utf8")
+      for (const match of text.matchAll(/\b\d+\.\d+\.\d+\b/g)) {
+        seen.push(`${name}: ${match[0]}`)
+        expect(hostsText).toContain(match[0])
+      }
+    }
+    expect(seen.length).toBeGreaterThan(0)
   })
 })
