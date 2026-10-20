@@ -2,9 +2,9 @@
 
 Design note for a future install-time flow (for example a
 `deepseek-web-retrieval init` wizard). It is not shipped; it records how the
-[control tiers](control-matrix.md) map to the artifacts an installer would emit, so the
+[control tiers](../research/control-matrix.md) map to the artifacts an installer would emit, so the
 design survives between conversations. Research backing lives in
-[control-matrix.md](control-matrix.md); host facts in [hosts.jsonc](hosts.jsonc).
+[control-matrix.md](../research/control-matrix.md); host facts in [hosts.jsonc](../hosts.jsonc).
 
 ## Goal
 
@@ -20,7 +20,7 @@ strongly the tools are routed:
 | Choice | Artifacts |
 | --- | --- |
 | Optional | Host config registering the server, plus host-side per-tool filtering where supported (Copilot `tools` whitelist, Gemini `includeTools`, Codex `enabled_tools`); Pi needs `"exposure": "direct"` |
-| Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](control-matrix.md#per-host-reference)) |
+| Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](../research/control-matrix.md#per-host-reference)) |
 | Forced (replacement) | OpenCode plugin options (`setDefaultWebsearch` / `fetchOverrideWebfetch`) |
 | Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference) |
 | Forced (de-facto) | Nothing beyond the Optional artifacts — no competitor exists |
@@ -39,7 +39,7 @@ strongly the tools are routed:
 ## Server-side gap
 
 The MCP server registers both tools unconditionally
-([src/mcp/config.ts](../src/mcp/config.ts) has no tool-level enable flags), so
+([src/mcp/config.ts](../../src/mcp/config.ts) has no tool-level enable flags), so
 per-capability control on MCP hosts currently lives in host-side filtering only. A
 `DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH` env pair would make the split uniform
 across hosts that lack per-tool filtering (Pi, Claude Code, Devin, Cursor, Cline,

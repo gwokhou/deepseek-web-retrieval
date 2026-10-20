@@ -1,15 +1,15 @@
 # Control levels across hosts
 
-This note answers one question: for each host in the [support matrix](integration.md), how
+This note answers one question: for each host in the [support matrix](../integration.md), how
 strongly can a user steer when the DeepSeek tools are called — optionally available,
 preferentially used, or forcibly routed — independently for search and fetch? It is also
 the per-host reference for setup facts: MCP registration, rules files, built-in web
-competitors, and their kill switches. [integration.md](integration.md) keeps the mechanism
+competitors, and their kill switches. [integration.md](../integration.md) keeps the mechanism
 taxonomy and host-support matrix; [mcp-compatibility.md](mcp-compatibility.md) keeps the
 protocol research and its evidence.
 
 **Research baseline:** 2026-10-20, using the same version locks as
-[hosts.jsonc](hosts.jsonc), the single source of truth for host facts. Open-source rows are
+[hosts.jsonc](../hosts.jsonc), the single source of truth for host facts. Open-source rows are
 verified at exact git tags, npm tarballs, or binary analysis; proprietary rows from official
 docs and changelogs at the locked versions. The matrix below is generated — edit
 hosts.jsonc, then run `bun run docs:matrix`.
@@ -155,7 +155,7 @@ and which rules files steer preference.
 ### OpenCode
 
 - **Positioning** — the only host with both a native websearch provider and a native fetch
-  override; the shipped adapter uses them, not MCP. See [OpenCode v2](opencode-v2.md).
+  override; the shipped adapter uses them, not MCP. See [OpenCode v2](../agents/opencode-v2.md).
 - **Built-in web tools** — `websearch` (bundled providers: exa, firecrawl, parallel,
   tavily, tinyfish, or `"random"`) and `webfetch`. `"websearch": false` removes the search
   tool from model requests entirely; `webfetch` has no disable config key at 2.0.32 — the
@@ -171,7 +171,7 @@ and which rules files steer preference.
 ### Pi
 
 - **Positioning** — minimal, fully customizable agent (earendil-works). MIT. MCP server
-  plus a TypeScript extension API. See [Pi](pi.md).
+  plus a TypeScript extension API. See [Pi](../agents/pi.md).
 - **Built-in web tools** — none at 1.3.0. The built-in set is exactly `bash, edit, find,
   grep, ls, powershell, read, write` (default-active: `read, bash, edit, write`); web
   search/fetch arrive via MCP or extensions

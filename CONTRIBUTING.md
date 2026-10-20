@@ -46,7 +46,7 @@ error, not a skip.
 - Future agents should add a thin adapter under `src/<agent>/` and reuse
   `src/core/` rather than duplicating retrieval logic. The cross-host MCP
   server lives in `src/mcp/`.
-- Adapter-specific setup and usage docs live in `docs/<agent>.md`; keep the
+- Adapter-specific setup and usage docs live in `docs/agents/<agent>.md`; keep the
   root README focused on the shared project and adapter overview.
 - Host facts (version locks, capabilities, paths, status) live only in
   `docs/hosts.jsonc`. When a host changes, update it there and regenerate the

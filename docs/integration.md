@@ -56,40 +56,40 @@ listed as supported only after an adapter and guide exist; for the remaining hos
 that host exists yet. All version locks live in [hosts.jsonc](hosts.jsonc), the single
 source of truth for this table; OpenCode is pinned to the adapter's tested target, not
 necessarily the latest OpenCode release. Control tiers per host and capability — optional,
-preferred, or forced routing — are researched in [control-matrix.md](control-matrix.md),
+preferred, or forced routing — are researched in [control-matrix.md](research/control-matrix.md),
 whose per-host reference also carries MCP registration and rules files.
 
 ## Host notes
 
-One line per host. The [per-host reference](control-matrix.md#per-host-reference) carries
+One line per host. The [per-host reference](research/control-matrix.md#per-host-reference) carries
 the details: built-in web tools and their kill switches, MCP registration, and rules files.
 
 - **OpenCode v2** — The only shipped adapter. It uses OpenCode's native plugin API and
   exposes both a websearch provider and a fetch tool/override. See
-  [OpenCode v2](opencode-v2.md).
+  [OpenCode v2](agents/opencode-v2.md).
 - **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. See
-  [Claude Code](control-matrix.md#claude-code).
-- **Codex** — Ships a built-in `web_search` tool. See [Codex](control-matrix.md#codex).
+  [Claude Code](research/control-matrix.md#claude-code).
+- **Codex** — Ships a built-in `web_search` tool. See [Codex](research/control-matrix.md#codex).
 - **Gemini** — Ships built-in `google_web_search` and `web_fetch` tools. See
-  [Gemini](control-matrix.md#gemini).
+  [Gemini](research/control-matrix.md#gemini).
 - **Cursor** — Uses the same `mcp.json` servers as the editor; ships built-in web search
-  and `WebFetch` tools. See [Cursor](control-matrix.md#cursor).
+  and `WebFetch` tools. See [Cursor](research/control-matrix.md#cursor).
 - **GitHub Copilot** — Ships a built-in `web_fetch` tool, and web search via the bundled
-  GitHub MCP server. See [GitHub Copilot](control-matrix.md#github-copilot).
+  GitHub MCP server. See [GitHub Copilot](research/control-matrix.md#github-copilot).
 - **Cline** — Ships a built-in `fetch_web_content` tool. See
-  [Cline](control-matrix.md#cline).
+  [Cline](research/control-matrix.md#cline).
 - **Continue** — The CLI's only built-in web tool is `Fetch`. See
-  [Continue](control-matrix.md#continue).
+  [Continue](research/control-matrix.md#continue).
 - **Devin** — Ships built-in `web_search` and `webfetch` tools. See
-  [Devin](control-matrix.md#devin).
+  [Devin](research/control-matrix.md#devin).
 - **Pi** — No built-in web tools; MCP plus a TypeScript extension API. Supported through
-  the MCP server; see [Pi](pi.md) and [Pi in the per-host reference](control-matrix.md#pi).
+  the MCP server; see [Pi](agents/pi.md) and [Pi in the per-host reference](research/control-matrix.md#pi).
 
 ## Roadmap
 
-- **MCP server** — shipped in `src/mcp/` with the [Pi](pi.md) guide; the broadest path for
+- **MCP server** — shipped in `src/mcp/` with the [Pi](agents/pi.md) guide; the broadest path for
   hosts that support MCP tools. Protocol compatibility across these hosts is researched in
-  [mcp-compatibility.md](mcp-compatibility.md).
+  [mcp-compatibility.md](research/mcp-compatibility.md).
 - **Host-specific guides** — added as requests and testing land; the server itself is
   host-agnostic.
 
@@ -140,10 +140,11 @@ Check the host's documentation for these questions:
 5. Which rules or instruction files does the host read, and can they steer tool preference?
 6. Which built-in web tools does it ship, and can each be disabled or denied?
 
-Record the answers in `docs/<agent>.md`. Add a link from the README Usage section only after
-the adapter ships. To request evaluation for another host,
-[open an issue](https://github.com/gwokhou/deepseek-web-retrieval/issues) with links to its
-plugin, tool, or MCP documentation.
+Record the answers in the per-host reference in
+[research/control-matrix.md](research/control-matrix.md#per-host-reference). Add a link from
+the README Usage section only after the adapter ships. To request evaluation for another
+host, [open an issue](https://github.com/gwokhou/deepseek-web-retrieval/issues) with links
+to its plugin, tool, or MCP documentation.
 
 ## Why the distinction matters
 
@@ -157,5 +158,5 @@ code and docs need to match the mechanism the host actually provides.
   the host table with `bun run docs:matrix`.
 - Put shared retrieval logic in `src/core/`.
 - Put host-specific glue in `src/<agent>/`, or in `src/mcp/` for the cross-host MCP server.
-- Document setup and usage in `docs/<agent>.md`.
+- Document setup and usage in `docs/agents/<agent>.md`.
 - Link the guide from the README Usage section.

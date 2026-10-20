@@ -13,14 +13,14 @@ This is an unofficial community project. It is not affiliated with OpenCode or D
 
 Shipped adapters:
 
-- [OpenCode v2 setup and usage](docs/opencode-v2.md) — native plugin API
-- [Pi setup and usage](docs/pi.md) — MCP server over stdio
+- [OpenCode v2 setup and usage](docs/agents/opencode-v2.md) — native plugin API
+- [Pi setup and usage](docs/agents/pi.md) — MCP server over stdio
 
 The MCP server works with any host that supports MCP tools over stdio; Pi is the first
 host with a shipped guide. For how other coding agents integrate—native websearch
 providers, native fetch tools, MCP, or wrappers—see the
 [integration model](docs/integration.md) with its version-locked host support matrix, and
-the [MCP compatibility research](docs/mcp-compatibility.md). A host is listed as supported
+the [MCP compatibility research](docs/research/mcp-compatibility.md). A host is listed as supported
 only after an adapter and guide exist.
 
 For shared search, fetch, retry, and privacy behavior, see below.
@@ -81,7 +81,7 @@ The test suite mocks the DeepSeek HTTP API and the OpenCode plugin host, and dri
 MCP server with SDK clients pinned to each supported protocol revision. Real API calls
 require a funded DeepSeek account. Shared retrieval logic lives in `src/core/`; adapters
 live in `src/<agent>/` (the cross-host MCP server lives in `src/mcp/`). Adapter docs live
-in `docs/<agent>.md`.
+in `docs/agents/<agent>.md`.
 
 ## Prior art
 

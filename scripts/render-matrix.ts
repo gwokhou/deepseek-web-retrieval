@@ -78,9 +78,9 @@ export function updateIntegrationDoc(repoRoot: string, hosts: HostsFile): boolea
   return true
 }
 
-/** Replaces the generated control block in docs/control-matrix.md. Returns true when the file changed. */
+/** Replaces the generated control block in docs/research/control-matrix.md. Returns true when the file changed. */
 export function updateControlDoc(repoRoot: string, hosts: HostsFile): boolean {
-  const docPath = join(repoRoot, "docs", "control-matrix.md")
+  const docPath = join(repoRoot, "docs", "research", "control-matrix.md")
   const current = readFileSync(docPath, "utf8")
   const beginIndex = current.indexOf(CONTROL_BEGIN)
   const endIndex = current.indexOf(CONTROL_END)
@@ -111,7 +111,7 @@ if (import.meta.main) {
     if (integrationChanged || controlChanged) {
       const stale = [
         integrationChanged ? "docs/integration.md" : null,
-        controlChanged ? "docs/control-matrix.md" : null,
+        controlChanged ? "docs/research/control-matrix.md" : null,
       ]
         .filter(Boolean)
         .join(" and ")
@@ -123,7 +123,7 @@ if (import.meta.main) {
     const [integrationChanged, controlChanged] = run()
     const messages = [
       integrationChanged ? "docs/integration.md updated" : "docs/integration.md already in sync",
-      controlChanged ? "docs/control-matrix.md updated" : "docs/control-matrix.md already in sync",
+      controlChanged ? "docs/research/control-matrix.md updated" : "docs/research/control-matrix.md already in sync",
     ]
     console.log(messages.join("; "))
   }

@@ -1,7 +1,7 @@
 # MCP compatibility across hosts
 
 This note answers one question for the planned MCP server: do the hosts in the
-[support matrix](integration.md) speak the same MCP protocol standard? Short answer: they all
+[support matrix](../integration.md) speak the same MCP protocol standard? Short answer: they all
 speak MCP, but not the same revision. MCP has split into two eras, hosts negotiate different
 revisions, and one dual-era server covers them all.
 
@@ -9,10 +9,10 @@ The nine MCP-capable hosts in the matrix span **four different negotiated revisi
 `2024-11-05` (Cline), `2025-06-18` (Codex, Gemini), `2025-11-25` (Continue, Pi), and
 `2026-07-28` (Claude Code, Devin, GitHub Copilot) — plus Cursor, whose revision no primary
 source pins. OpenCode is out of scope here: its shipped integration is the
-[native plugin adapter](opencode-v2.md), not MCP.
+[native plugin adapter](../agents/opencode-v2.md), not MCP.
 
 **Research baseline:** 2026-10-19, using the same version locks as the host support matrix in
-[integration.md](integration.md). Claims are cited to primary sources: the MCP specification,
+[integration.md](../integration.md). Claims are cited to primary sources: the MCP specification,
 official host docs and changelogs, npm registry manifests, and host source code at the locked
 versions.
 
@@ -74,7 +74,7 @@ Two release lines of the official TypeScript SDK ([docs](https://github.com/mode
 
 ## What each host supports
 
-Host versions are locked in [`docs/hosts.jsonc`](hosts.jsonc), the single source of truth for
+Host versions are locked in [`docs/hosts.jsonc`](../hosts.jsonc), the single source of truth for
 host facts; each row below was verified against that lock on the research baseline.
 
 | Host | Negotiated revision | Transports | Evidence |

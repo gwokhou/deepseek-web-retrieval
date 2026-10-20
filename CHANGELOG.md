@@ -4,19 +4,22 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
-- Add `docs/control-matrix.md`: control-tier research (optional / preferred / forced,
-  per host and capability) with a consolidated per-host reference — built-in web tools
-  and their kill switches, MCP registration, and rules files. The control matrix is
+- Categorize `docs/`: per-agent guides in `docs/agents/`, research notes in
+  `docs/research/`, and design notes in `docs/design/`; the integration hub and
+  `docs/hosts.jsonc` stay at the root
+- Add `docs/research/control-matrix.md`: control-tier research (optional / preferred /
+  forced, per host and capability) with a consolidated per-host reference — built-in web
+  tools and their kill switches, MCP registration, and rules files. The control matrix is
   generated from the new `control` field in `docs/hosts.jsonc` (`bun run docs:matrix`;
   drift fails tests)
 - Correct the Continue host note (the CLI has no built-in `search_web`; it is
   IDE-extension-only) and state the built-in web tools in the Codex, Cursor, Devin, and
   Copilot notes; extend the host-evaluation checklist with the rules and built-in
   kill-switch questions
-- Move install-time tier planning to `docs/installer-design.md`, and fold the
-  `mcp-compatibility.md` per-host setup notes and quirk catalog into the control-matrix
-  per-host reference; `integration.md` host notes now link there instead of restating
-  details
+- Move install-time tier planning to `docs/design/installer-design.md`, and fold the
+  `docs/research/mcp-compatibility.md` per-host setup notes and quirk catalog into the
+  control-matrix per-host reference; `integration.md` host notes now link there instead
+  of restating details
 - Fix the hosts.jsonc drift guard: the matrix renderer no longer rewrites
   docs/integration.md when imported by tests, and CI and `bun run check` now fail
   on drift (`docs:matrix --check`)

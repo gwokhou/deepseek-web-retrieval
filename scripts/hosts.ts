@@ -9,7 +9,7 @@ export type Mechanism = (typeof MECHANISMS)[number]
 
 export type HostStatus = "supported" | "no-adapter-yet"
 
-/** How deterministically a capability can be routed to this project; aligned with docs/control-matrix.md. */
+/** How deterministically a capability can be routed to this project; aligned with docs/research/control-matrix.md. */
 export const FORCED_FLAVORS = ["replacement", "exclusion", "de-facto", "none"] as const
 export type ForcedFlavor = (typeof FORCED_FLAVORS)[number]
 
@@ -44,7 +44,7 @@ export interface HostEntry {
   readonly adapter?: string
   readonly guide?: string
   readonly e2eScenario?: string
-  /** Control-tier facts for the generated matrix in docs/control-matrix.md. */
+  /** Control-tier facts for the generated matrix in docs/research/control-matrix.md. */
   readonly control: ControlEntry
 }
 

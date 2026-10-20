@@ -1,7 +1,7 @@
 {
   // Single source of truth for the host compatibility matrix. Machine consumers:
   // scripts/render-matrix.ts (regenerates the host table in docs/integration.md and the
-  // control matrix in docs/control-matrix.md via `bun run docs:matrix`),
+  // control matrix in docs/research/control-matrix.md via `bun run docs:matrix`),
   // scripts/ci-matrix.ts (GitHub Actions matrix),
   // test/e2e/run.ts (Docker build args), and test/hosts.test.ts (invariants).
   // Narrative docs reference this file; they must not restate these facts.
@@ -9,7 +9,7 @@
   // Mechanism ids in "paths" align with the Mechanisms table in
   // docs/integration.md: native-provider, native-override, plugin, extension,
   // mcp, wrapper. "paths" is ordered: the first entry is the recommended path.
-  // "control" aligns with docs/control-matrix.md: per capability, the optional/
+  // "control" aligns with docs/research/control-matrix.md: per capability, the optional/
   // preferred tiers ("yes" or structurally "n/a") and the forced tier —
   // "replacement" (swap the built-in implementation), "exclusion" (disable or
   // deny the built-in competitor), "de-facto" (no built-in competitor), or
@@ -92,7 +92,7 @@
         "fetch": { "optional": "yes", "preferred": "yes", "forced": "replacement", "key": "`fetchOverrideWebfetch: true`" }
       },
       "adapter": "src/opencode",
-      "guide": "docs/opencode-v2.md",
+      "guide": "docs/agents/opencode-v2.md",
       "e2eScenario": "opencode"
     },
     {
@@ -110,7 +110,7 @@
         "fetch": { "optional": "yes", "preferred": "yes", "forced": "de-facto", "key": "no built-in web tool at 1.3.0 (source-verified)" }
       },
       "adapter": "src/mcp",
-      "guide": "docs/pi.md",
+      "guide": "docs/agents/pi.md",
       "e2eScenario": "pi"
     },
     {

@@ -115,9 +115,9 @@ describe("docs/integration.md stays in sync with docs/hosts.jsonc", () => {
   })
 })
 
-describe("docs/control-matrix.md stays in sync with docs/hosts.jsonc", () => {
+describe("docs/research/control-matrix.md stays in sync with docs/hosts.jsonc", () => {
   test("the generated control matrix matches the rendered table", () => {
-    const doc = readFileSync(join(repoRoot, "docs", "control-matrix.md"), "utf8")
+    const doc = readFileSync(join(repoRoot, "docs", "research", "control-matrix.md"), "utf8")
     const begin = doc.indexOf("<!-- generated: control-matrix")
     const end = doc.indexOf("<!-- /generated: control-matrix -->")
     expect(begin).toBeGreaterThanOrEqual(0)

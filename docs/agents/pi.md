@@ -1,11 +1,11 @@
 # Pi
 
-Pi adapter for [DeepSeek Web Retrieval](../README.md).
+Pi adapter for [DeepSeek Web Retrieval](../../README.md).
 
 Integration mechanism: MCP server over stdio, launched from Pi's `mcp.json`. Pi 1.3.0
 negotiates MCP revision `2025-11-25`; the server also accepts clients from `2024-11-05`
 through `2026-07-28`, so the same build works for other MCP hosts (see
-[the compatibility research](mcp-compatibility.md)).
+[the compatibility research](../research/mcp-compatibility.md)).
 
 When registered, it adds:
 
@@ -16,7 +16,7 @@ The tools appear in Pi as `mcp__deepseek__deepseek_web_search` and
 `mcp__deepseek__deepseek_fetch`. Pi's built-in tools are not replaced.
 
 For shared search/fetch limits, retries, and privacy behavior, see
-[General behavior](../README.md#general-behavior).
+[General behavior](../../README.md#general-behavior).
 
 ## Requirements
 
@@ -161,7 +161,7 @@ Invalid values fall back to the shared default.
 
 | Component | Version |
 | --- | --- |
-| Pi | locked in [`docs/hosts.jsonc`](hosts.jsonc) |
+| Pi | locked in [`docs/hosts.jsonc`](../hosts.jsonc) |
 | MCP revision | `2025-11-25` negotiated; server accepts `2024-11-05`–`2026-07-28` |
 | MCP SDK | `@modelcontextprotocol/server` 2.3.1 |
 | Runtime | Node.js 20+ (stdio) |

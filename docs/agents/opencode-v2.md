@@ -1,6 +1,6 @@
 # OpenCode v2
 
-OpenCode v2 adapter for [DeepSeek Web Retrieval](../README.md).
+OpenCode v2 adapter for [DeepSeek Web Retrieval](../../README.md).
 
 Integration mechanism: OpenCode's native plugin API (`@opencode/plugin` 2.0.32+), not MCP.
 
@@ -14,7 +14,7 @@ The built-in `webfetch` is not replaced by default. Set `fetchOverrideWebfetch` 
 if you want all Markdown fetches to go through DeepSeek.
 
 For shared search/fetch limits, retries, and privacy behavior, see
-[General behavior](../README.md#general-behavior).
+[General behavior](../../README.md#general-behavior).
 
 ## Requirements
 
@@ -207,7 +207,7 @@ Set these in the plugin's `options` object.
 
 | Component | Version |
 | --- | --- |
-| OpenCode / plugin API | locked in [`docs/hosts.jsonc`](hosts.jsonc) |
+| OpenCode / plugin API | locked in [`docs/hosts.jsonc`](../hosts.jsonc) |
 | Runtime | Bun (provided by OpenCode) |
 | DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
 
