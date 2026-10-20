@@ -33,8 +33,6 @@ Rows are sorted with open-source hosts first, then by host name alphabetically.
 | --- | --- | --- | --- | --- | --- | --- |
 | Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP server or custom tool plugin | No adapter yet |
 | Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | Supported |
-| Continue | 1.5.47 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
-| Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | native websearch provider or native tool/fetch override | Supported |
 | Pi | 1.3.0 | Yes (MIT) | No | No | MCP server or extension API | Supported |
 | Claude Code | 2.1.303 | No | No | No | MCP server | No adapter yet |
@@ -45,8 +43,8 @@ Rows are sorted with open-source hosts first, then by host name alphabetically.
 <!-- /generated: host-matrix -->
 
 `Open source` refers to the CLI/client code at the checked version, verified from the
-project repositories on 2026-10-19. It does not cover the hosted model service. Cline,
-Codex, Continue, and Gemini CLI are Apache-2.0; OpenCode and Pi are MIT. Claude Code and
+project repositories on 2026-10-19. It does not cover the hosted model service. Cline and
+Codex are Apache-2.0; OpenCode and Pi are MIT. Claude Code and
 Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish installers and docs, not
 source code, under proprietary terms.
 
@@ -72,16 +70,12 @@ the details: built-in web tools and their kill switches, MCP registration, and r
   [Claude Code](research/control-matrix.md#claude-code).
 - **Codex** — Ships a built-in `web_search` tool. Supported through the MCP server; see
   [Codex](agents/codex.md) and [Codex in the per-host reference](research/control-matrix.md#codex).
-- **Gemini** — Ships built-in `google_web_search` and `web_fetch` tools. See
-  [Gemini](research/control-matrix.md#gemini).
 - **Cursor** — Uses the same `mcp.json` servers as the editor; ships built-in web search
   and `WebFetch` tools. See [Cursor](research/control-matrix.md#cursor).
 - **GitHub Copilot** — Ships a built-in `web_fetch` tool, and web search via the bundled
   GitHub MCP server. See [GitHub Copilot](research/control-matrix.md#github-copilot).
 - **Cline** — Ships a built-in `fetch_web_content` tool. See
   [Cline](research/control-matrix.md#cline).
-- **Continue** — The CLI's only built-in web tool is `Fetch`. See
-  [Continue](research/control-matrix.md#continue).
 - **Devin** — Ships built-in `web_search` and `webfetch` tools. See
   [Devin](research/control-matrix.md#devin).
 - **Pi** — No built-in web tools; MCP plus a TypeScript extension API. Supported through
@@ -102,16 +96,12 @@ the details: built-in web tools and their kill switches, MCP registration, and r
   [tools reference](https://code.claude.com/docs/en/tools-reference)
 - Codex: [MCP](https://developers.openai.com/codex/mcp),
   [CLI](https://developers.openai.com/codex/cli)
-- Gemini CLI: [tools reference](https://geminicli.com/docs/reference/tools/),
-  [MCP](https://geminicli.com/docs/tools/mcp-server/)
 - Cursor: [MCP](https://cursor.com/docs/mcp),
   [CLI changelog](https://cursor.com/docs/cli/changelog)
 - Copilot CLI: [repository](https://github.com/github/copilot-cli),
   [MCP docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers)
 - Cline: [MCP](https://docs.cline.bot/mcp/mcp-overview),
   [tools reference](https://docs.cline.bot/tools-reference/all-cline-tools)
-- Continue: [MCP](https://docs.continue.dev/customize/deep-dives/mcp),
-  [agent tools](https://docs.continue.dev/ide-extensions/agent/how-it-works)
 - Devin CLI: [extensibility](https://docs.devin.ai/cli/extensibility/index),
   [MCP](https://docs.devin.ai/cli/extensibility/mcp/overview)
 - Pi: [extensions](https://pi.dev/docs/latest/extensions),
@@ -121,9 +111,7 @@ Version sources:
 
 - npm: [Claude Code](https://www.npmjs.com/package/@anthropic-ai/claude-code),
   [Codex](https://www.npmjs.com/package/@openai/codex),
-  [Gemini CLI](https://www.npmjs.com/package/@google/gemini-cli),
   [Cline CLI](https://www.npmjs.com/package/@cline/cli),
-  [Continue CLI](https://www.npmjs.com/package/@continuedev/cli),
   [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
 - Releases: [Copilot CLI](https://github.com/github/copilot-cli/releases)
 - Changelogs: [Cursor CLI](https://cursor.com/docs/cli/changelog),

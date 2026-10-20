@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Drop Continue and Gemini from the host matrix — they will not be supported.
+  Both generated tables, the per-host reference, the protocol research, the
+  installer examples, and the host-count invariants shrink accordingly (the
+  MCP-capable host count is now seven)
 - Fix the critical code-review findings on the installer: a tier-change re-init now
   reverts the previous init's artifacts explicitly (shown in the plan, undone on
   apply) instead of orphaning them; the plan renders old values for every set op and

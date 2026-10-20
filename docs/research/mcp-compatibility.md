@@ -5,8 +5,8 @@ This note answers one question for the shipped MCP server: do the hosts in the
 speak MCP, but not the same revision. MCP has split into two eras, hosts negotiate different
 revisions, and one dual-era server covers them all.
 
-The nine MCP-capable hosts in the matrix span **four different negotiated revisions**:
-`2024-11-05` (Cline), `2025-06-18` (Codex, Gemini), `2025-11-25` (Continue, Pi), and
+The seven MCP-capable hosts in the matrix span **four different negotiated revisions**:
+`2024-11-05` (Cline), `2025-06-18` (Codex), `2025-11-25` (Pi), and
 `2026-07-28` (Claude Code, Devin, GitHub Copilot) — plus Cursor, whose revision no primary
 source pins. OpenCode is out of scope here: its shipped integration is the
 [native plugin adapter](../agents/opencode-v2.md), not MCP.
@@ -81,15 +81,13 @@ host facts; each row below was verified against that lock on the research baseli
 | --- | --- | --- | --- |
 | Cline | `2024-11-05` | stdio, Streamable HTTP, SSE | Custom client (no official SDK); `protocolVersion "2024-11-05"` extracted from the platform binary; source repo not public |
 | Codex | `2025-06-18`; `mcp_2026_07_28` feature flag opts into `2026-07-28` | stdio, Streamable HTTP (no SSE) | Git tag `rust-v0.163.0`: rmcp 3.5.1 pinned; initialize sends `V_2025_06_18` |
-| Continue | `2025-11-25` | stdio, Streamable HTTP, SSE | npm tarball: bundled TS SDK ≥ 1.24.1 (contains `2025-11-25` constants); no git tag exists |
-| Gemini | `2025-06-18` | stdio, Streamable HTTP, SSE | Git tag: `@modelcontextprotocol/sdk` 1.23.0 pinned in package.json |
 | Pi | `2025-11-25` | stdio, Streamable HTTP (SSE rejected) | Git tag: own `@earendil-works/pi-mcp` client, `LATEST_PROTOCOL_VERSION "2025-11-25"` |
 | Claude Code | `2026-07-28` by default (`MCP_PROTOCOL_NEGOTIATION=legacy` opt-out) | stdio, Streamable HTTP, SSE, ws | Changelog 2.1.296+: "negotiate MCP protocol version 2026-07-28 by default"; docs: TS SDK 2.0 runtime |
 | Cursor | Unpinnable from primary sources (docs show ≥ `2025-06-18` features) | stdio, Streamable HTTP, SSE | Docs feature set only; no revision stated in docs or changelog |
 | Devin | `2026-07-28` | stdio, Streamable HTTP (SSE fallback), SSE | Changelog for the locked release itself: "Support for MCP protocol revision 2026-07-28" |
 | GitHub Copilot | `2026-07-28` | stdio (`type: "local"`), Streamable HTTP, SSE | Changelog 1.0.81: "Ship MCP 2026-07-28 support to CLI, SDK, IDE, and in-memory clients" |
 
-All nine support stdio and Streamable HTTP; legacy SSE is never required (and Codex
+All seven support stdio and Streamable HTTP; legacy SSE is never required (and Codex
 and Pi reject it). Verification methodology and provenance follow the
 [per-host reference](control-matrix.md#per-host-reference); the Evidence column cites per-row
 sources and Sources lists the file-level links.
@@ -107,12 +105,12 @@ differences:
 
 1. **Tools only, text-first results.** Expose the retrieval as two tools via the `tools`
    capability; do not rely on resources, prompts, sampling, elicitation, or roots — the
-   hosts' client capabilities are inconsistent (Codex has elicitation only; Gemini and Pi
-   serve roots; Continue exposes nothing beyond tools and prompts). Always return readable
+   hosts' client capabilities are inconsistent (Codex has elicitation only; Pi serves
+   roots). Always return readable
    text in `content` blocks, and mirror the same data in `structuredContent` for
    `2025-06-18`+ clients — the spec's own backwards-compat SHOULD. This split matters in
-   practice: Codex *replaces* content with `structuredContent` when present; Gemini and
-   Continue *ignore* `structuredContent`; Cline reads text content only; Pi is
+   practice: Codex *replaces* content with `structuredContent` when present; Cline reads
+   text content only; Pi is
    content-first, falling back to `structuredContent` only when a result has no content
    blocks (verified in `tools.ts` at v1.3.0).
 2. **stdio is the universal transport.** Every host in the matrix launches stdio servers
@@ -156,20 +154,12 @@ differences:
 
 ### Hosts
 
-- Gemini CLI: [v0.64.0 tag](https://github.com/google-gemini/gemini-cli/tree/v0.64.0) —
-  [package.json (SDK 1.23.0 pin)](https://github.com/google-gemini/gemini-cli/blob/v0.64.0/packages/core/package.json),
-  [mcp-client.ts](https://github.com/google-gemini/gemini-cli/blob/v0.64.0/packages/core/src/tools/mcp-client.ts),
-  [mcp-tool.ts (name handling, result rendering)](https://github.com/google-gemini/gemini-cli/blob/v0.64.0/packages/core/src/tools/mcp-tool.ts),
-  [npm 0.64.0](https://registry.npmjs.org/@google/gemini-cli)
 - Codex: [rust-v0.163.0 tag](https://github.com/openai/codex/tree/rust-v0.163.0) —
   [Cargo.toml (rmcp pin)](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/Cargo.toml),
   [rmcp_client.rs (initialize params)](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs),
   [mcp_types.rs (config keys)](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/config/src/mcp_types.rs),
   [utils.rs (stdio env allowlist)](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/rmcp-client/src/utils.rs),
   [rust-sdk protocol constants at the pinned rev](https://github.com/modelcontextprotocol/rust-sdk/blob/4048ac40e958fb1a7d614617a2ae8d26666ee2fa/crates/rmcp/src/model.rs)
-- Continue: [1.5.47 npm tarball](https://registry.npmjs.org/@continuedev/cli/-/cli-1.5.47.tgz)
-  (MCPService.ts, mcpTransports.ts, bundled SDK protocol constants; no git tag exists),
-  [current docs](https://docs.continue.dev/customize/deep-dives/mcp)
 - Pi: [v1.3.0 tag](https://github.com/earendil-works/pi/tree/v1.3.0) —
   [pi-mcp protocol types](https://github.com/earendil-works/pi/blob/v1.3.0/packages/mcp/src/protocol/types.ts),
   [MCP docs at the tag](https://github.com/earendil-works/pi/blob/v1.3.0/packages/coding-agent/docs/mcp.md),

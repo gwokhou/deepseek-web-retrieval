@@ -35,10 +35,6 @@ hosts.jsonc, then run `bun run docs:matrix`.
 | Cline | Fetch | Yes | Yes | Yes | Exclusion — `disabledTools` in `~/.cline/data/settings/global-settings.json` |
 | Codex | Search | Yes | Yes | Yes | Exclusion — `web_search = "disabled"` (top-level config.toml) |
 | Codex | Fetch | Yes | Yes | Yes | De-facto — no built-in fetch tool at 0.163.0 |
-| Continue | Search | Yes | Yes | Yes | De-facto — no `search_web` in the CLI at 1.5.47 (IDE extension only) |
-| Continue | Fetch | Yes | Yes | Yes | Exclusion — `--exclude Fetch` / permissions.yaml `exclude` |
-| Gemini | Search | Yes | Yes | Yes | Exclusion — `tools.exclude` / `tools.core` in settings.json |
-| Gemini | Fetch | Yes | Yes | Yes | Exclusion — `tools.exclude` / `tools.core` in settings.json |
 | OpenCode | Search | n/a | n/a | Yes | Replacement — `websearch.provider: "deepseek"` or plugin `setDefaultWebsearch` |
 | OpenCode | Fetch | Yes | Yes | Yes | Replacement — `fetchOverrideWebfetch: true` |
 | Pi | Search | Yes | Yes | Yes | De-facto — no built-in web tool at 1.3.0 (source-verified) |
@@ -121,48 +117,6 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   every `AGENTS.md` from the project root down to the cwd, concatenated root→cwd.
   Extensible via `project_doc_fallback_filenames` and `developer_instructions`
   ([agents_md.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/core/src/agents_md.rs)).
-
-### Continue
-
-- **Positioning** — open-source customizable IDE/CLI assistant. Apache-2.0. MCP is the
-  CLI's integration path.
-- **Built-in web tools** — the CLI's only built-in web tool is `Fetch` (URL → markdown,
-  read-only, default permission `allow`); `search_web` exists in the shared core and the
-  IDE extension agent but not the CLI. Kill switch: `cn --exclude Fetch`,
-  `~/.continue/permissions.yaml` `exclude: ["Fetch"]` ("the model won't even know it
-  exists"), or `chatOptions.toolOverrides.Fetch.disabled: true` (schema-verified,
-  undocumented).
-- **MCP registration** — `~/.continue/config.yaml` `mcpServers` list: `name`, `type`
-  (`stdio` | `sse` | `streamable-http`), `command`/`args`/`env`/`cwd` or `url`;
-  `${{ secrets.NAME }}` interpolation; headless mode fails if any MCP server fails to
-  connect. Tool names are exposed raw, without a server prefix, and matching is
-  first-found across servers — hence the distinct `deepseek_*` naming.
-  `structuredContent` is never read; content blocks are JSON-stringified.
-- **Rules** — five channels at 1.5.47: the `--rule` flag, the `rules:` config key,
-  `.continue/rules/*.md` (project), `~/.continue/rules/*.md` (user), and
-  `AGENTS.md`/`AGENT.md`/`CLAUDE.md`/`CODEX.md` at the cwd (source-verified,
-  undocumented; no parent-directory walk)
-  ([systemMessage.ts at the 1.5.47 commit](https://github.com/continuedev/continue/blob/d3f60ba9dd3fb5bfd3c91d6fbb41ce1aa768db45/extensions/cli/src/systemMessage.ts)).
-
-### Gemini
-
-- **Positioning** — Google's official CLI. Apache-2.0. MCP and extensions add tools;
-  built-ins are not replaceable.
-- **Built-in web tools** — `google_web_search` and `web_fetch`. Kill switch:
-  `"tools": {"exclude": ["google_web_search", "web_fetch"]}` (denylist) or `tools.core`
-  (allowlist) in settings.json. At 0.64.0 the flat `excludeTools`/`coreTools` keys exist
-  only inside `mcpServers.<name>` and do not affect built-ins
-  ([tool-registry.ts at v0.64.0](https://github.com/google-gemini/gemini-cli/blob/v0.64.0/packages/core/src/tools/tool-registry.ts)).
-- **MCP registration** — `mcpServers` in `~/.gemini/settings.json` or
-  `.gemini/settings.json`: `command`/`args`/`env`/`cwd`, or `url` with
-  `type: "http" | "sse"` (a bare `url` defaults to Streamable HTTP at 0.64.0), `headers`,
-  `timeout`, `includeTools`/`excludeTools`; `env` values expand `$VAR`/`${VAR}`. Tools are
-  named `mcp_{server}_{tool}` truncated at 63 chars, and underscores in the server name
-  break its FQN parsing. Reads only `content` blocks; `structuredContent` is ignored.
-- **Rules** — `GEMINI.md`: user `~/.gemini/GEMINI.md` plus workspace files found upward
-  from the cwd (stopping at `.git` by default); the filename is configurable via
-  `context.fileName` (accepts an array, e.g. `AGENTS.md`)
-  ([docs](https://geminicli.com/docs/cli/gemini-md)).
 
 ### OpenCode
 
@@ -289,11 +243,10 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
 
 ## Cross-cutting observations
 
-- **AGENTS.md is the de-facto rules standard.** Eight of ten hosts read it natively
-  (Codex, Continue, Cline, Cursor, Devin, Copilot, Pi, OpenCode), Claude Code reads it as
-  a fallback, and Gemini can be pointed at it via `context.fileName`. One rules file works
-  nearly everywhere; the exceptions: OpenCode v2 has no CLAUDE.md fallback, and Continue
-  reads agent files at the cwd only, without walking parents.
+- **AGENTS.md is the de-facto rules standard.** Seven of the eight hosts read it
+  natively (Codex, Cline, Cursor, Devin, Copilot, Pi, OpenCode); Claude Code reads it as
+  a fallback. One rules file works nearly everywhere; the exception: OpenCode v2 has no
+  CLAUDE.md fallback.
 - **Replacement is exclusive to native extension points** — only OpenCode. Exclusion is
   the general forced path on MCP hosts. The two structural limits: OpenCode search has no
   middle tier, and Cursor search cannot be forced at all.

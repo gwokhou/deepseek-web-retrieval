@@ -73,7 +73,7 @@ describe("docs/hosts.jsonc", () => {
 
   test("the MCP server covers every host that lists mcp as a path", () => {
     const mcpHosts = hosts.hosts.filter((host) => host.paths.includes("mcp"))
-    expect(mcpHosts.length).toBeGreaterThanOrEqual(8)
+    expect(mcpHosts.length).toBeGreaterThanOrEqual(7)
     expect(findHost(hosts, "pi").paths[0]).toBe("mcp")
   })
 

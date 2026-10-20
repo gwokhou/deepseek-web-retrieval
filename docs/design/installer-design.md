@@ -40,7 +40,7 @@ already exists, and the installer runs three phases before anything is written:
    web-capable MCP servers already on the field; array-valued keys the plan must merge
    into rather than replace (`disabledTools`, `permissions.deny`, permissions
    `exclude`, `disabled_tools`); and higher layers (Claude Code managed policy, Devin
-   enterprise team settings, Gemini's system settings file) that would outrank what the
+   enterprise team settings) that would outrank what the
    installer writes.
 2. **Merge or snapshot.** Array keys merge with existing entries, recording exactly
    which entries the installer appended; single-value keys (`websearch.provider`, Pi's
@@ -78,14 +78,13 @@ already exists, and the installer runs three phases before anything is written:
 
 The effective scope is a first-class install-time choice, decided by the user alongside
 the tiers — not inferred from the artifacts. The installer maps the choice onto the
-host's scope pairs (Pi's agent dir versus `.pi/`, Gemini's `~/.gemini` versus
-`.gemini/`, Cursor's `cli-config.json` versus `.cursor/cli.json`, Claude Code's
+host's scope pairs (Pi's agent dir versus `.pi/`,
+Cursor's `cli-config.json` versus `.cursor/cli.json`, Claude Code's
 settings hierarchy, OpenCode's global versus project config) under three rules:
 
 - **Honor or report, never silently downgrade.** Some keys exist at only one scope:
   Devin's `disabled_tools` is user-level only (project config allows just
-  `permissions`, `read_config_from`, and `hooks`); Continue's MCP registration is
-  documented only at `~/.continue/config.yaml` (user) at 1.5.47; Cline's
+  `permissions`, `read_config_from`, and `hooks`); Cline's
   `global-settings.json` and MCP settings file are user-scope at 0.0.13. When the
   chosen scope cannot be honored for an artifact, the plan says so and offers the
   alternative — the global fallback for a kill switch, or a different tier that works
@@ -115,7 +114,7 @@ pointing at the removed plugin, and the user must clean up by hand.
 
 | Choice | Artifacts |
 | --- | --- |
-| Optional | Host config registering the server, plus host-side per-tool filtering where supported (Copilot `tools` whitelist, Gemini `includeTools`, Codex `enabled_tools`); Pi needs `"exposure": "direct"` |
+| Optional | Host config registering the server, plus host-side per-tool filtering where supported (Copilot `tools` whitelist, Codex `enabled_tools`); Pi needs `"exposure": "direct"` |
 | Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](../research/control-matrix.md#per-host-reference)) |
 | Forced (replacement) | OpenCode plugin options (`setDefaultWebsearch` / `fetchOverrideWebfetch`) |
 | Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found |
@@ -155,7 +154,7 @@ host-side tool filtering.
 
 ## Hosts without an installer story
 
-Claude Code, Cursor, Devin, GitHub Copilot, Cline, Continue, and Gemini still have no
+Claude Code, Cursor, Devin, GitHub Copilot, and Cline still have no
 host module; their artifacts (from the tier-to-artifact mapping) remain hand-edited
 config until a module lands here. OpenCode's `opencode plugin add` remains available but
 cannot pass options or manage snapshots; `init` supersedes it for tiered installs.
