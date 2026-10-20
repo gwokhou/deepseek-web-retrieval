@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Fix the critical code-review findings on the installer: a tier-change re-init now
+  reverts the previous init's artifacts explicitly (shown in the plan, undone on
+  apply) instead of orphaning them; the plan renders old values for every set op and
+  existing counts for appends; TOML comment-loss detection covers trailing comments
+  (string-aware); rules-block markers are per host so pi and codex can share one
+  AGENTS.md; install records are written 0600 with `.deepseek-web-retrieval/`
+  gitignored; replacing an entry that contains a literal credential-looking key is
+  refused instead of snapshotted; the CLI resolves `--cwd`, falls back to
+  `os.homedir()`, rejects unknown flags/positionals with targeted messages, and
+  apply refuses to clobber non-array/non-object config values before writing
+  anything; the e2e runner rejects stale flags (including `--local`) and forwards
+  empty env values as empty instead of passing host values through
+- Add the installer CLI (`deepseek-web-retrieval init` / `uninstall` / `list`) for
+  OpenCode, Pi, and Codex: plan-then-apply with per-capability tiers (optional /
+  preferred / forced / off) and a first-class project/global scope, JSON edits that
+  preserve comments (jsonc-parser), TOML support (smol-toml), snapshot-based surgical
+  rollback that never clobbers user edits, and detect notes for competitors, other
+  registered MCP servers, and Codex's `[tools] web_search` no-op trap
+- Add `DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH` (and the OpenCode
+  `searchEnabled` / `fetchEnabled` options) for per-capability control on every host;
+  the MCP server refuses to start when both tools are disabled
+- Promote Codex to supported: MCP-server adapter, the `docs/agents/codex.md` guide,
+  tier table with the top-level `web_search = "disabled"` kill switch, and
+  `env_vars`-based key forwarding that respects Codex's stdio env allowlist
+- Make the e2e suites Docker-only (remove `--local`) and add the billed `codex`
+  scenario: headless `codex exec` in an isolated HOME with DeepSeek as the Codex LLM
+  over the Responses wire (Codex 0.163.0 dropped `wire_api = "chat"`; DeepSeek serves
+  the Responses endpoint), one key paying for both legs
+- Replace the hand-written JSONC stripper with jsonc-parser (now also
+  `src/core/jsonc.ts`); drop `scripts/jsonc.ts`
+
 - Fix documentation review findings: resolve the Pi `structuredContent` contradiction
   against the v1.3.0 source (content-first, structuredContent as a no-content
   fallback), add the missing `extension` mechanism to the taxonomy and re-path

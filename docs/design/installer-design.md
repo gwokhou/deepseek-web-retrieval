@@ -1,10 +1,11 @@
 # Installer design
 
-Design note for a future install-time flow (for example a
-`deepseek-web-retrieval init` wizard). It is not shipped; it records how the
-[control tiers](../research/control-matrix.md) map to the artifacts an installer would
-emit, so the design survives between conversations. Research backing lives in
+Design note for the install-time flow, shipped as the `deepseek-web-retrieval init`,
+`uninstall`, and `list` subcommands for **OpenCode, Pi, and Codex**. It records how the
+[control tiers](../research/control-matrix.md) map to the artifacts the installer emits, so
+the design survives between conversations. Research backing lives in
 [control-matrix.md](../research/control-matrix.md); host facts in [hosts.jsonc](../hosts.jsonc).
+Remaining hosts get host modules here as their guides ship.
 
 ## Principles
 
@@ -131,18 +132,30 @@ pointing at the removed plugin, and the user must clean up by hand.
   (localhost/private-network URLs go to local fetch tools; the server blocks them by
   default).
 
-## Server-side gap
+## Implementation notes
 
-The MCP server registers both tools unconditionally
-([src/mcp/config.ts](../../src/mcp/config.ts) has no tool-level enable flags), so
-per-capability control on MCP hosts currently lives in host-side filtering only. A
-`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH` env pair would make the split uniform
-across hosts that lack per-tool filtering (Pi, Claude Code, Devin, Cursor, Cline,
-Continue).
+- JSON edits go through `jsonc-parser` (the library behind VS Code's JSON support), so
+  comments and formatting in `opencode.jsonc` and Pi's `mcp.json` survive apply and
+  uninstall; TOML edits go through `smol-toml` and drop comments, which the plan reports
+  as a note. The hand-written JSONC stripper that predated this lived in `scripts/jsonc.ts`.
+- Install state lives per host and scope (global under
+  `~/.config/deepseek-web-retrieval/`, project under `.deepseek-web-retrieval/`); it
+  records snapshots, appended entries, created files, and created path prefixes — never
+  full file contents, so other servers' secrets stay out of the state file.
+- Re-applying over a previous init inherits the original snapshots instead of recording
+  the installer's own output as the "previous" value.
+
+## Server-side gap (resolved)
+
+The MCP server now honors `DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`
+(false-only switches through the shared option pipeline) and refuses to start when both
+are disabled; the OpenCode plugin honors the matching `searchEnabled` / `fetchEnabled`
+options. Per-capability control is uniform across hosts, including those without
+host-side tool filtering.
 
 ## Hosts without an installer story
 
-OpenCode already has `opencode plugin add`; its object-form options cover the tiers. Every
-MCP host is hand-edited config today — the wizard's main value is emitting the config
-fragment, the rules file, and the kill-switch lines together, consistently, with the
-detect/merge/verify guarantees above.
+Claude Code, Cursor, Devin, GitHub Copilot, Cline, Continue, and Gemini still have no
+host module; their artifacts (from the tier-to-artifact mapping) remain hand-edited
+config until a module lands here. OpenCode's `opencode plugin add` remains available but
+cannot pass options or manage snapshots; `init` supersedes it for tiered installs.

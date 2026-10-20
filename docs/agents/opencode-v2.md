@@ -28,7 +28,22 @@ No build step is required. OpenCode loads the TypeScript entry point directly.
 
 ## Install
 
-The quickest option is the OpenCode CLI:
+The quickest option is the installer CLI:
+
+```bash
+npx deepseek-web-retrieval init --host opencode --scope <project|global> \
+  --search <optional|forced|off> --fetch <optional|preferred|forced|off>
+```
+
+It prints the full plan — every file, old value → new value — and writes nothing until
+you pass `--apply`. It snapshots the current `websearch.provider` before the forced tier
+replaces it, merges `permissions` without touching yours, preserves comments in
+`opencode.jsonc`, and `uninstall` restores everything. Search has no `preferred` tier on
+OpenCode (the provider is host-level config, never a model choice); the CLI rejects it.
+
+### OpenCode CLI install
+
+The next option is the OpenCode CLI:
 
 ```bash
 opencode plugin add github:gwokhou/deepseek-web-retrieval
@@ -156,6 +171,7 @@ Set these in the plugin's `options` object.
 
 | Option | Default | Description |
 | --- | --- | --- |
+| `searchEnabled` | `true` | Register the DeepSeek search provider at all. Only an explicit `false` disables it. |
 | `count` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
 | `maxResults` | `5` | Results returned to the model after filtering, 0–50. `0` returns no results. |
 | `minRerank` | `1.5` | Drop results below this relevance score. DeepSeek scores are 0–3. |
@@ -172,6 +188,7 @@ Set these in the plugin's `options` object.
 
 | Option | Default | Description |
 | --- | --- | --- |
+| `fetchEnabled` | `true` | Register any DeepSeek fetch tooling (the separate tool and the webfetch override). |
 | `fetchMaxChars` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
 | `fetchTimeoutMs` | `30000` | Fetch timeout, 1,000–120,000 ms. |
 | `fetchOverrideWebfetch` | `false` | Replace the built-in `webfetch`. |
@@ -215,6 +232,13 @@ OpenCode v1 and the v1 plugin API are not supported. Tested with OpenCode 2.0.32
 using both an OpenCode-stored DeepSeek credential and `DEEPSEEK_API_KEY`.
 
 ## Uninstall
+
+With the installer CLI (restores the snapshotted `websearch.provider`, removes only the
+appended permissions, and deletes files it created):
+
+```bash
+npx deepseek-web-retrieval uninstall --host opencode --scope <project|global>
+```
 
 For a CLI install, remove the config entry with:
 

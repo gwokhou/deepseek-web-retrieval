@@ -28,6 +28,22 @@ For shared search/fetch limits, retries, and privacy behavior, see
 
 ## Install
 
+The quickest option is the installer CLI:
+
+```bash
+npx deepseek-web-retrieval init --host pi --scope <project|global> \
+  --search <optional|preferred|forced|off> --fetch <optional|preferred|forced|off>
+```
+
+It prints the full plan — every file, old value → new value, and notes about existing
+MCP servers and the `exposure` requirement — and writes nothing until you pass `--apply`.
+JSON edits preserve comments. `uninstall` restores exactly what the plan applied. The
+tiers follow the [control matrix](../research/control-matrix.md): Pi ships no built-in web
+tool, so forced is de-facto for both capabilities and `off` writes
+`DEEPSEEK_ENABLE_SEARCH`/`DEEPSEEK_ENABLE_FETCH` into the server's env block.
+
+### Manual install
+
 Add the server to `~/.pi/agent/mcp.json` (user) or `.pi/mcp.json` (project):
 
 ```jsonc
@@ -111,6 +127,7 @@ defaults and clamping match the OpenCode adapter.
 
 | Env variable | Default | Description |
 | --- | --- | --- |
+| `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the search tool. Only an explicit `false`/`0`/`no`/`off` disables it; at least one tool must stay enabled. |
 | `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
 | `DEEPSEEK_SEARCH_MAX_RESULTS` | `5` | Results returned to the model after filtering, 0–50. `0` returns no results. |
 | `DEEPSEEK_SEARCH_MIN_RERANK` | `1.5` | Drop results below this relevance score. DeepSeek scores are 0–3. |
@@ -125,7 +142,8 @@ defaults and clamping match the OpenCode adapter.
 ### Fetch
 
 | Env variable | Default | Description |
-| --- | --- | --- |
+| --- | --- |
+| `DEEPSEEK_ENABLE_FETCH` | `true` | Register the fetch tool. Same false-only semantics as `DEEPSEEK_ENABLE_SEARCH`. |
 | `DEEPSEEK_FETCH_MAX_CHARS` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
 | `DEEPSEEK_FETCH_TIMEOUT_MS` | `30000` | Fetch timeout, 1,000–120,000 ms. |
 | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | unset | If set, only these hosts and subdomains may be fetched. |
@@ -173,7 +191,13 @@ test personas (`2024-11-05`, `2025-06-18`, `2025-11-25`, `2026-07-28`).
 
 ## Uninstall
 
-Remove the `deepseek` entry from `~/.pi/agent/mcp.json` or `.pi/mcp.json`, or run:
+With the installer CLI:
+
+```bash
+npx deepseek-web-retrieval uninstall --host pi --scope <project|global>
+```
+
+Or remove the `deepseek` entry from `~/.pi/agent/mcp.json` or `.pi/mcp.json`, or run:
 
 ```bash
 pi mcp remove deepseek
