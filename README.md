@@ -31,28 +31,32 @@ For shared search, fetch, retry, and privacy behavior, see below.
 
 ## General behavior
 
+What this adapter layer adds on top of the
+[DeepSeek Search and Fetch APIs](https://api-docs.deepseek.com/guides/search) — the APIs'
+own capabilities (Markdown-only output, no JavaScript rendering, no private networks or
+binary files, per-request billing) are documented there.
+
 ### Search
 
-- Sends `need_content: false` and returns DeepSeek's `summary`, falling back to `snippet`.
+- Requests summaries only (`need_content: false`, `summary` falling back to `snippet`);
+  full page content never enters the results.
 - Filters by `rerank_score` and `authority`, deduplicates URLs, and returns at most five
   results by default.
-- The final query, including `blockedDomains`, `includeDomains`, and `language` operators,
-  must be 128 characters or fewer. Longer queries are rejected locally.
+- Builds `blockedDomains`, `includeDomains`, and `language` into query operators and
+  rejects the final query locally when it exceeds the API's 128-character limit.
 - An empty result set is normal and is not an error.
 
 ### Fetch
 
-- DeepSeek Fetch returns Markdown only. `format: "text"` and `format: "html"` are rejected.
-- Output is capped at 16,000 characters by default, including the title. A
+- Output is capped at 16,000 characters by default, including the title; a
   `[content truncated]` marker is added when the limit leaves room for it.
-- If the page already starts with the same title as a top-level heading, no duplicate title
-  is added.
-- Responses larger than 5 MiB are rejected before parsing.
-- URLs must be absolute `http://` or `https://` URLs with a host, no embedded credentials,
-  and at most 8,192 characters.
-- The core supports allowed/blocked domain lists and private-host blocking. DeepSeek does
-  not render JavaScript and cannot reach private networks; PDFs, images, and other binary
-  files are unsupported.
+- A page that already opens with its title as a top-level heading does not get a
+  duplicate title.
+- Responses larger than 5 MiB are rejected before parsing; URLs must be absolute
+  `http://` or `https://`, credential-free, and at most 8,192 characters.
+- `format: "text"` and `format: "html"` are rejected rather than misrepresented.
+- Allowed/blocked domain lists and private-host blocking are enforced on the client,
+  before a request leaves the machine.
 
 ### Timeouts and retries
 
@@ -68,10 +72,9 @@ provider or fetch implementation.
 
 ### Privacy and cost
 
-Queries and URLs are sent to `https://api.deepseek.com`. The API key is sent only as a
-Bearer token to DeepSeek. Search and Fetch are billed per successful request; check current
-DeepSeek pricing and rate limits before enabling a team deployment. A 429 means you should
-wait, reduce concurrency, or increase retries.
+Queries and URLs are sent to `https://api.deepseek.com`; the API key is sent only as a
+Bearer token to DeepSeek and to nothing else. Retrieval is billed per successful request —
+see the official docs for pricing and rate limits before enabling a team deployment.
 
 ## Development
 
