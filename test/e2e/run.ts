@@ -11,6 +11,7 @@ import { runOpencodeScenario } from "./opencode"
 import { runPkgScenario } from "./pkg"
 import { runPiBilledScenario, runPiScenario } from "./pi"
 import { runPreferredScenario } from "./preferred"
+import { runReinitScenario } from "./reinit"
 import { createDockerRunner, ensureDockerImage } from "./runner"
 import type { Runner } from "./runner"
 
@@ -47,6 +48,11 @@ const SCENARIOS: readonly Scenario[] = [
     name: "installer",
     requiresApiKey: false,
     run: (runner) => runInstallerScenario(runner),
+  },
+  {
+    name: "reinit",
+    requiresApiKey: false,
+    run: (runner) => runReinitScenario(runner),
   },
   {
     name: "pkg",

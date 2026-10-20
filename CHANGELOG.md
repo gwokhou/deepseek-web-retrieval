@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Close the lifecycle gaps in the keyless e2e coverage with a `reinit` scenario: tier
+  downgrades revert orphaned artifacts through the real CLI (the Codex kill switch
+  restored inside the still-claimed config with the registration kept and the plan's
+  reverts section visible; the Pi preferred → optional downgrade deletes the orphaned,
+  installer-created rules file whole), a second Codex scope claiming the same config
+  file is refused with uninstall guidance, `list` reports the recorded installs, and
+  `XDG_CONFIG_HOME` routes the global config home with uninstall finding the record
+  there. The Codex project scope and OpenCode global scope path mappings are exercised
+  for the first time
 - Refuse drift between plan and apply (ADR-0001): apply now re-verifies that the value
   at every set-op path still equals what the plan previewed, and refuses with re-run
   guidance when the config changed since the plan was rendered — the preview, the secret

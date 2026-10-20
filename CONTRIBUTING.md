@@ -36,6 +36,15 @@ image contains no secrets; the key is passed at `docker run` time.
   verified by `codex mcp list` and the written config), and OpenCode (project,
   forced search + preferred fetch, verified at the file level), then `uninstall`
   and asserts everything it applied is gone.
+- `bun run test:e2e reinit` — keyless. The installer's lifecycle beyond the first
+  install: a Codex tier downgrade reverts the orphaned kill switch inside the
+  still-claimed config (snapshot restored, registration kept, the plan's reverts
+  section visible), a Pi preferred → optional downgrade deletes the orphaned,
+  installer-created rules file whole, a second Codex scope claiming the same
+  config file is refused with uninstall guidance, `list` reports the recorded
+  installs, and `XDG_CONFIG_HOME` routes the global config home (with uninstall
+  finding the record there). Also covers the Codex project scope and OpenCode
+  global scope path mappings.
 - `bun run test:e2e pkg` — keyless. Installs the `npm pack` tarball of this
   checkout with npm inside the container, executes its bin directly, and
   registers the installed binary as the Pi MCP server for a real handshake.
@@ -70,7 +79,7 @@ image contains no secrets; the key is passed at `docker run` time.
   because Codex is a static musl binary whose TLS stack reads the system CA
   store, which the slim Node base does not ship.
 - `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
-  Multiple names select a subset (`bun run test:e2e pi installer pkg
+  Multiple names select a subset (`bun run test:e2e pi installer reinit pkg
   capability-off` runs every keyless scenario); the harness packs the npm
   tarball before running, so the installer and pkg scenarios always exercise
   the current checkout's packaging.
