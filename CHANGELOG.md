@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 0.3.0
 
 - Close the lifecycle gaps in the keyless e2e coverage with a `reinit` scenario: tier
   downgrades revert orphaned artifacts through the real CLI (the Codex kill switch
