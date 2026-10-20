@@ -2,7 +2,7 @@ import {
   FETCH_TRUNCATION_MARKER,
   MAX_ERROR_BODY_CHARS,
 } from "./constants"
-import type { FormattedFetchContent } from "./types"
+import type { FormattedFetchContent, SearchResult } from "./types"
 
 /** Truncates by Unicode code points so emoji and surrogate pairs are not split. */
 export function truncate(value: string, maxChars: number): string {
@@ -94,4 +94,34 @@ export function formatApiError(operation: string, status: number, body: string):
 
 export function formatTimeoutError(operation: string, timeoutMs: number): string {
   return `${operation} timed out after ${timeoutMs} ms`
+}
+
+/**
+ * Renders processed search results as Markdown for a text content block.
+ * Hosts that ignore structured output read this text.
+ */
+export function formatSearchResults(results: readonly SearchResult[]): string {
+  if (results.length === 0) return "No results found."
+
+  return results
+    .map((result, index) => {
+      const title = result.title?.trim() || result.url
+      const lines = [`${index + 1}. [${escapeBrackets(title)}](${result.url})`]
+      if (result.content) {
+        lines.push(`   ${result.content.replaceAll("\n", " ")}`)
+      }
+      if (result.published !== undefined) {
+        lines.push(`   Published: ${formatPublished(result.published)}`)
+      }
+      return lines.join("\n")
+    })
+    .join("\n\n")
+}
+
+function escapeBrackets(value: string): string {
+  return value.replaceAll("[", "\\[").replaceAll("]", "\\]")
+}
+
+function formatPublished(epochMs: number): string {
+  return new Date(epochMs).toISOString().slice(0, 10)
 }

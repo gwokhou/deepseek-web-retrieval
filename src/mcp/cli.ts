@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import { serveStdio } from "@modelcontextprotocol/server/stdio"
 import { apiKeyFromEnv } from "../core/auth"
-import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
 import { MISSING_API_KEY_MESSAGE } from "./auth"
 import { resolveEnvOptions } from "./config"
-import { createDeepSeekServer } from "./server"
+import { createDeepSeekServer, servePrecheck } from "./server"
 
 // Installer subcommands run before the server path; MCP clients spawn this bin
 // with no arguments, so the default stdio behavior is unchanged.
@@ -22,11 +21,9 @@ if (!apiKeyFromEnv(env)) {
 }
 
 const config = resolveEnvOptions(env)
-if (!config.search.enabled && !config.fetch.enabled) {
-  console.error(
-    `Both tools are disabled (${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false); ` +
-      "at least one must stay enabled.",
-  )
+const precheck = servePrecheck(config)
+if (precheck) {
+  console.error(precheck)
   process.exit(1)
 }
 const handle = serveStdio(() => createDeepSeekServer(config, env))

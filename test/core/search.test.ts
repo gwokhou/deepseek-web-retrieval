@@ -56,7 +56,7 @@ describe("processResults", () => {
         url: "https://example.com/a",
         title: "Example",
         content: "A useful summary.",
-        time: { published: Date.parse("2026-06-01T00:00:00+00:00") },
+        published: Date.parse("2026-06-01T00:00:00+00:00"),
       },
     ])
   })
@@ -82,8 +82,8 @@ describe("processResults", () => {
       { url: "https://b", date: "not a date", rerank_score: 2, authority: 3 },
     ]
     expect(processResults(raw, options)).toEqual([
-      { url: "https://a/", content: "abcde", time: {} },
-      { url: "https://b/", time: {} },
+      { url: "https://a/", content: "abcde" },
+      { url: "https://b/" },
     ])
   })
 

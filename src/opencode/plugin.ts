@@ -1,11 +1,10 @@
 import { Plugin } from "@opencode/plugin"
 import type { Context } from "@opencode/plugin/promise/plugin"
 import type { ToolContext } from "@opencode/plugin/promise/tool"
-import { assertFetchHostPolicy } from "../core/domains"
+import { fetchDocument, inspectFetchTarget, searchWeb } from "../core/client"
+import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions"
 import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options"
-import { fetchDocument, searchWeb } from "../core/client"
-import type { ResolvedOptions } from "../core/types"
-import { parseFetchUrl } from "../core/url"
+import type { PluginOptions, ResolvedOptions, SearchResult } from "../core/types"
 import { resolveApiKey } from "./auth"
 
 type FetchInput = {
@@ -40,10 +39,48 @@ const FETCH_INPUT = {
 } as const
 
 const DEEPSEEK_FETCH_DESCRIPTION =
-  'Fetch one web page as clean Markdown through DeepSeek\'s Fetch API. This separate tool remains available when the built-in webfetch is replaced. Only format "markdown" is supported. Output is truncated to the configured size.'
+  "Fetch one web page as clean Markdown through DeepSeek's Fetch API. This separate tool remains " +
+    `available when the built-in webfetch is replaced. ${FETCH_MARKDOWN_ONLY} ${FETCH_OUTPUT_TRUNCATED}`
 
 const WEBFETCH_DESCRIPTION =
-  'Fetch content from an HTTP or HTTPS URL and return it as Markdown through DeepSeek\'s Fetch API. This is the built-in webfetch replacement enabled by fetchOverrideWebfetch. DeepSeek does not render JavaScript and some sites return 403/404. Only format "markdown" is supported. Output is truncated to the configured size.'
+  "Fetch content from an HTTP or HTTPS URL and return it as Markdown through DeepSeek's Fetch API. " +
+    "This is the built-in webfetch replacement enabled by fetchOverrideWebfetch. DeepSeek does not " +
+    `render JavaScript and some sites return 403/404. ${FETCH_MARKDOWN_ONLY} ${FETCH_OUTPUT_TRUNCATED}`
+
+/** OpenCode's WebSearch.Result shape, which wraps the published date in `time`. */
+interface OpenCodeSearchResult {
+  readonly url: string
+  readonly title?: string
+  readonly content?: string
+  readonly time: { readonly published?: number }
+}
+
+/** Maps the core's neutral SearchResult onto the shape OpenCode expects. */
+function toOpenCodeResult(result: SearchResult): OpenCodeSearchResult {
+  return {
+    url: result.url,
+    ...(result.title ? { title: result.title } : {}),
+    ...(result.content ? { content: result.content } : {}),
+    ...(result.published !== undefined
+      ? { time: { published: result.published } }
+      : { time: {} }),
+  }
+}
+
+/** How the plugin registers itself with OpenCode; resolved where it is consumed. */
+export interface Registration {
+  readonly setDefault: boolean
+  readonly overrideWebfetch: boolean
+  readonly registerTool: boolean
+}
+
+export function resolveRegistration(input?: PluginOptions): Registration {
+  return {
+    setDefault: input?.setDefaultWebsearch === true,
+    overrideWebfetch: input?.fetchOverrideWebfetch === true,
+    registerTool: input?.fetchRegisterTool !== false,
+  }
+}
 
 async function runFetch(
   ctx: Context,
@@ -63,10 +100,9 @@ async function runFetch(
   if (typeof input.url !== "string") {
     throw new Error('"url" must be a string')
   }
-  const target = parseFetchUrl(input.url)
-  // Fail before the permission prompt; fetchPage enforces this again for core
-  // consumers that skip the pre-check.
-  assertFetchHostPolicy(target, config.fetch)
+  // Inspect before the permission prompt so an invalid or blocked target fails
+  // without asking the user; fetchPage enforces the policy again.
+  const target = inspectFetchTarget(input.url, config.fetch)
   const timeoutMs = resolveFetchTimeoutMs(config.fetch.timeoutMs, input.timeout)
 
   // Resolved before the permission prompt so a missing key fails fast instead
@@ -83,11 +119,12 @@ async function runFetch(
     source: { type: "tool", messageID: context.messageID, id: context.id },
   })
 
-  const page = await fetchDocument(
-    input.url,
-    { ...config.fetch, timeoutMs },
-    { signal: context.signal, auth: { apiKey }, retry: config.retry },
-  )
+  const page = await fetchDocument(target, config.fetch, {
+    signal: context.signal,
+    auth: { apiKey },
+    retry: config.retry,
+    timeoutMs,
+  })
   return {
     content: page.content,
     metadata: {
@@ -102,6 +139,7 @@ export default Plugin.define({
   id: "deepseek-web-retrieval",
   async setup(ctx) {
     const config = resolvePluginOptions(ctx.options)
+    const registration = resolveRegistration(ctx.options)
 
     if (config.search.enabled) {
       await ctx.websearch.transform((editor) => {
@@ -110,22 +148,23 @@ export default Plugin.define({
           name: "DeepSeek",
           execute: async (input, { signal }) => {
             const apiKey = await resolveApiKey(ctx, config.auth.source)
-            return searchWeb(input.query, config.search, {
+            const results = await searchWeb(input.query, config.search, {
               signal,
               auth: { apiKey },
               retry: config.retry,
             })
+            return results.map(toOpenCodeResult)
           },
         })
-        if (config.search.setDefault) editor.default.set("deepseek")
+        if (registration.setDefault) editor.default.set("deepseek")
       })
     }
 
     if (config.fetch.enabled) {
       await ctx.tool.transform((editor) => {
-        if (config.fetch.overrideWebfetch) editor.remove("webfetch")
+        if (registration.overrideWebfetch) editor.remove("webfetch")
 
-        if (config.fetch.registerTool) {
+        if (registration.registerTool) {
           editor.add({
             name: "deepseek_fetch",
             description: DEEPSEEK_FETCH_DESCRIPTION,
@@ -136,7 +175,7 @@ export default Plugin.define({
           })
         }
 
-        if (config.fetch.overrideWebfetch) {
+        if (registration.overrideWebfetch) {
           editor.add({
             name: "webfetch",
             description: WEBFETCH_DESCRIPTION,

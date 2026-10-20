@@ -1,20 +1,8 @@
-import {
-  FETCH_ENDPOINT,
-  MAX_ERROR_BODY_CHARS,
-  MAX_QUERY_CHARS,
-  MAX_RESPONSE_BYTES,
-  MAX_RETRY_DELAY_MS,
-  SEARCH_ENDPOINT,
-} from "./constants"
+import { FETCH_ENDPOINT, MAX_QUERY_CHARS, SEARCH_ENDPOINT } from "./constants"
 import { assertFetchHostPolicy } from "./domains"
-import {
-  formatApiError,
-  formatFetchedContent,
-  formatTimeoutError,
-  redactSecrets,
-  truncate,
-} from "./format"
+import { formatFetchedContent } from "./format"
 import { buildQuery, processResults } from "./search"
+import { postJson } from "./transport"
 import { parseFetchUrl } from "./url"
 import type {
   DeepSeekSearchResult,
@@ -22,10 +10,12 @@ import type {
   FetchedPage,
   FetchOptions,
   RequestAuth,
-  RetryConfig,
+  RetryOptions,
   SearchOptions,
-  WebSearchResult,
+  SearchResult,
 } from "./types"
+
+export { DeepSeekApiError } from "./transport"
 
 interface SearchResponse {
   readonly results?: unknown
@@ -39,42 +29,16 @@ interface FetchResponse {
 export interface RequestOptions {
   readonly signal: AbortSignal
   readonly auth: RequestAuth
-  readonly retry: RetryConfig
-}
-
-export class DeepSeekApiError extends Error {
-  readonly operation: string
-  readonly status: number
-  readonly body: string
-  readonly retryable: boolean
-  readonly retryAfterMs?: number
-
-  constructor(input: {
-    operation: string
-    status: number
-    body: string
-    retryAfterMs?: number
-  }) {
-    const body = redactSecrets(input.body)
-    super(formatApiError(input.operation, input.status, body))
-    this.name = "DeepSeekApiError"
-    this.operation = input.operation
-    this.status = input.status
-    this.body = body
-    this.retryable =
-      input.status === 408 ||
-      input.status === 425 ||
-      input.status === 429 ||
-      (input.status >= 500 && input.status <= 599)
-    this.retryAfterMs = input.retryAfterMs
-  }
+  readonly retry: RetryOptions
+  /** Per-call cap in milliseconds; the shorter of this and the configured timeout wins. */
+  readonly timeoutMs?: number
 }
 
 export async function searchWeb(
   query: string,
   options: SearchOptions,
   request: RequestOptions,
-): Promise<WebSearchResult[]> {
+): Promise<SearchResult[]> {
   const trimmed = query.trim()
   if (!trimmed) throw new Error("DeepSeek search query must not be empty")
   if (Array.from(trimmed).length > MAX_QUERY_CHARS) {
@@ -91,6 +55,8 @@ export async function searchWeb(
     )
   }
 
+  const timeout =
+    request.timeoutMs === undefined ? options.timeoutMs : Math.min(options.timeoutMs, request.timeoutMs)
   const payload = await postJson<SearchResponse>(
     SEARCH_ENDPOINT,
     {
@@ -99,8 +65,7 @@ export async function searchWeb(
       need_content: false,
     },
     "DeepSeek Search",
-    request,
-    options.timeoutMs,
+    { signal: request.signal, auth: request.auth, retry: request.retry, timeoutMs: timeout },
   )
 
   if (!Array.isArray(payload.results)) {
@@ -117,12 +82,13 @@ export async function fetchPage(
   // Enforced here so direct core consumers cannot bypass the policy. Adapters
   // may also pre-check to reject before a permission prompt.
   assertFetchHostPolicy(url, options)
+  const timeout =
+    request.timeoutMs === undefined ? options.timeoutMs : Math.min(options.timeoutMs, request.timeoutMs)
   const payload = await postJson<FetchResponse>(
     FETCH_ENDPOINT,
     { url: url.href },
     "DeepSeek Fetch",
-    request,
-    options.timeoutMs,
+    { signal: request.signal, auth: request.auth, retry: request.retry, timeoutMs: timeout },
   )
   const title = typeof payload.title === "string" ? payload.title.trim() : ""
   const content = typeof payload.content === "string" ? payload.content : ""
@@ -132,17 +98,24 @@ export async function fetchPage(
   return { url: url.href, title, content }
 }
 
+/** Parses the URL and enforces the host policy in one call, returning the fetch target. */
+export function inspectFetchTarget(url: string, options: FetchOptions): URL {
+  const target = parseFetchUrl(url)
+  assertFetchHostPolicy(target, options)
+  return target
+}
+
 /**
- * The full fetch pipeline adapters share: parse the URL, enforce the host
- * policy, fetch the page, and format it for the model within its budget.
+ * The full fetch pipeline adapters share: fetch the page (a URL skips
+ * re-parsing) and format it for the model within its budget.
  */
 export async function fetchDocument(
-  url: string,
+  url: string | URL,
   options: FetchOptions,
   request: RequestOptions,
 ): Promise<FetchedDocument> {
-  if (typeof url !== "string") throw new Error('"url" must be a string')
-  const page = await fetchPage(parseFetchUrl(url), options, request)
+  if (typeof url !== "string" && !(url instanceof URL)) throw new Error('"url" must be a string')
+  const page = await fetchPage(url instanceof URL ? url : parseFetchUrl(url), options, request)
   const formatted = formatFetchedContent(page.title, page.content, options.maxChars)
   return {
     url: page.url,
@@ -150,215 +123,4 @@ export async function fetchDocument(
     content: formatted.content,
     truncated: formatted.truncated,
   }
-}
-
-async function postJson<T>(
-  endpoint: string,
-  body: unknown,
-  operation: string,
-  options: RequestOptions,
-  timeoutMs: number,
-): Promise<T> {
-  const attempts = options.retry.maxRetries + 1
-  let lastError: unknown
-
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    try {
-      return await requestOnce<T>(endpoint, body, operation, options, timeoutMs)
-    } catch (error) {
-      lastError = error
-      if (!(error instanceof DeepSeekApiError) || !error.retryable || attempt === attempts - 1) {
-        throw error
-      }
-      await sleep(retryDelay(error.retryAfterMs, options.retry.baseDelayMs, attempt), options.signal)
-    }
-  }
-
-  throw lastError
-}
-
-async function requestOnce<T>(
-  endpoint: string,
-  body: unknown,
-  operation: string,
-  options: RequestOptions,
-  timeoutMs: number,
-): Promise<T> {
-  return fetchWithTimeout(
-    endpoint,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${options.auth.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    },
-    options.signal,
-    timeoutMs,
-    operation,
-    async (response) => {
-      if (!response.ok) {
-        const text = await readBoundedText(response, MAX_ERROR_BODY_CHARS)
-        throw new DeepSeekApiError({
-          operation,
-          status: response.status,
-          body: text,
-          retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
-        })
-      }
-
-      const text = await readResponseText(response, MAX_RESPONSE_BYTES, operation)
-      if (!text.trim()) throw new Error(`${operation} returned an empty response body`)
-
-      try {
-        return JSON.parse(text) as T
-      } catch {
-        throw new Error(`${operation} returned invalid JSON: ${truncate(redactSecrets(text), 500)}`)
-      }
-    },
-  )
-}
-
-/**
- * Runs the request and the callback that consumes its body inside one
- * timeout/abort scope. The timer must stay active while the response body is
- * read, otherwise a slow or stalled body can outlive the configured timeout.
- */
-async function fetchWithTimeout<T>(
-  endpoint: string,
-  init: RequestInit,
-  signal: AbortSignal,
-  timeoutMs: number,
-  operation: string,
-  handleResponse: (response: Response) => Promise<T>,
-): Promise<T> {
-  const controller = new AbortController()
-  let timedOut = false
-  const forwardAbort = () => controller.abort(signal.reason)
-  if (signal.aborted) forwardAbort()
-  else signal.addEventListener("abort", forwardAbort, { once: true })
-
-  const timer = signal.aborted
-    ? undefined
-    : setTimeout(() => {
-        timedOut = true
-        controller.abort(new Error("timeout"))
-      }, timeoutMs)
-
-  try {
-    const response = await fetch(endpoint, { ...init, signal: controller.signal })
-    return await handleResponse(response)
-  } catch (error) {
-    if (timedOut) throw new Error(formatTimeoutError(operation, timeoutMs))
-    if (signal.aborted) throw abortReason(signal, operation)
-    throw error
-  } finally {
-    if (timer !== undefined) clearTimeout(timer)
-    signal.removeEventListener("abort", forwardAbort)
-  }
-}
-
-function parseRetryAfter(value: string | null): number | undefined {
-  if (!value) return undefined
-  const trimmed = value.trim()
-  if (!trimmed) return undefined
-
-  if (/^\d+$/.test(trimmed)) {
-    return Math.min(MAX_RETRY_DELAY_MS, Number(trimmed) * 1000)
-  }
-
-  const timestamp = Date.parse(trimmed)
-  if (!Number.isFinite(timestamp)) return undefined
-  return Math.min(MAX_RETRY_DELAY_MS, Math.max(0, timestamp - Date.now()))
-}
-
-function retryDelay(retryAfterMs: number | undefined, baseDelayMs: number, attempt: number): number {
-  if (retryAfterMs !== undefined) return retryAfterMs
-  return Math.min(MAX_RETRY_DELAY_MS, baseDelayMs * 2 ** attempt)
-}
-
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  if (ms <= 0) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      clearTimeout(timer)
-      reject(abortReason(signal, "DeepSeek request"))
-    }
-    if (signal.aborted) {
-      clearTimeout(timer)
-      reject(abortReason(signal, "DeepSeek request"))
-      return
-    }
-    signal.addEventListener("abort", onAbort, { once: true })
-  })
-}
-
-function abortReason(signal: AbortSignal, operation: string): unknown {
-  return signal.reason instanceof Error ? signal.reason : new Error(`${operation} request aborted`)
-}
-
-/** Reads at most `maxChars + 1` characters, enough for formatApiError to add its marker. */
-async function readBoundedText(response: Response, maxChars: number): Promise<string> {
-  if (!response.body) return truncate(await response.text(), maxChars + 1)
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  const limit = maxChars + 1
-  let text = ""
-  let chars = 0
-  try {
-    while (chars < limit) {
-      const { done, value } = await reader.read()
-      if (done) break
-      const chunk = decoder.decode(value, { stream: true })
-      text += chunk
-      chars += Array.from(chunk).length
-    }
-    text += decoder.decode()
-  } finally {
-    await reader.cancel().catch(() => undefined)
-    reader.releaseLock()
-  }
-  return truncate(text, limit)
-}
-
-/** Reads a successful response body, rejecting payloads above `maxBytes`. */
-async function readResponseText(
-  response: Response,
-  maxBytes: number,
-  operation: string,
-): Promise<string> {
-  if (!response.body) {
-    const text = await response.text()
-    if (new TextEncoder().encode(text).byteLength > maxBytes) {
-      throw new Error(`${operation} response exceeded ${maxBytes} bytes`)
-    }
-    return text
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let text = ""
-  let bytes = 0
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      bytes += value.byteLength
-      if (bytes > maxBytes) {
-        throw new Error(`${operation} response exceeded ${maxBytes} bytes`)
-      }
-      text += decoder.decode(value, { stream: true })
-    }
-    text += decoder.decode()
-  } finally {
-    await reader.cancel().catch(() => undefined)
-    reader.releaseLock()
-  }
-  return text
 }

@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client"
 import type { McpServer } from "@modelcontextprotocol/server"
-import { FETCH_ENDPOINT, SEARCH_ENDPOINT } from "../../src/core/constants"
+import {
+  ENABLE_FETCH_ENV,
+  ENABLE_SEARCH_ENV,
+  FETCH_ENDPOINT,
+  SEARCH_ENDPOINT,
+} from "../../src/core/constants"
+import {
+  FETCH_OUTPUT_TRUNCATED,
+  FETCH_SERVICE_LIMITS,
+  SEARCH_EMPTY_IS_NORMAL,
+  SEARCH_QUERY_OPERATORS,
+  SEARCH_RANKED_FILTERED,
+} from "../../src/core/descriptions"
 import { resolvePluginOptions } from "../../src/core/options"
 import type { ResolvedOptions } from "../../src/core/types"
-import { createDeepSeekServer } from "../../src/mcp/server"
+import { createDeepSeekServer, servePrecheck } from "../../src/mcp/server"
 
 const originalFetch = globalThis.fetch
 
@@ -77,8 +89,16 @@ describe("MCP server over the legacy protocol eras", () => {
         expect(listed.tools.map((tool) => tool.name).sort()).toEqual(["deepseek_fetch", "deepseek_web_search"])
         for (const tool of listed.tools) {
           expect(tool.annotations?.readOnlyHint).toBe(true)
-          expect((tool.description ?? "").length).toBeLessThan(4096)
         }
+        const searchDescription = listed.tools.find((tool) => tool.name === "deepseek_web_search")
+          ?.description
+        expect(searchDescription).toContain(SEARCH_RANKED_FILTERED)
+        expect(searchDescription).toContain(SEARCH_EMPTY_IS_NORMAL)
+        expect(searchDescription).toContain(SEARCH_QUERY_OPERATORS)
+        const fetchDescription = listed.tools.find((tool) => tool.name === "deepseek_fetch")
+          ?.description
+        expect(fetchDescription).toContain(FETCH_SERVICE_LIMITS)
+        expect(fetchDescription).toContain(FETCH_OUTPUT_TRUNCATED)
 
         const search = await persona.client.callTool({
           name: "deepseek_web_search",
@@ -312,5 +332,22 @@ describe("per-tool enable switches", () => {
     } finally {
       await persona.close()
     }
+  })
+})
+
+describe("servePrecheck", () => {
+  test("reports the both-disabled message composed from the env names", () => {
+    expect(
+      servePrecheck(resolvePluginOptions({ searchEnabled: false, fetchEnabled: false })),
+    ).toBe(
+      `Both tools are disabled (${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false); ` +
+        "at least one must stay enabled.",
+    )
+  })
+
+  test("returns undefined when either capability stays enabled", () => {
+    expect(servePrecheck(resolvePluginOptions())).toBeUndefined()
+    expect(servePrecheck(resolvePluginOptions({ searchEnabled: false }))).toBeUndefined()
+    expect(servePrecheck(resolvePluginOptions({ fetchEnabled: false }))).toBeUndefined()
   })
 })

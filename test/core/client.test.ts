@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { DeepSeekApiError, fetchPage, searchWeb } from "../../src/core/client"
 import { resolveFetchOptions, resolveRetryOptions, resolveSearchOptions } from "../../src/core/options"
-import type { RequestAuth, RetryConfig } from "../../src/core/types"
+import type { RequestAuth, RetryOptions } from "../../src/core/types"
 
 const originalFetch = globalThis.fetch
 const auth: RequestAuth = { apiKey: "sk-test" }
-const noRetry: RetryConfig = { maxRetries: 0, baseDelayMs: 0 }
+const noRetry: RetryOptions = { maxRetries: 0, baseDelayMs: 0 }
 
 afterEach(() => {
   globalThis.fetch = originalFetch
 })
 
-function request(signal = new AbortController().signal, retry: RetryConfig = noRetry) {
-  return { signal, auth, retry, timeoutMs: 1000 }
+function request(signal = new AbortController().signal, retry: RetryOptions = noRetry) {
+  return { signal, auth, retry }
 }
 
 /** A successful response whose body stalls until the fetch signal is aborted. */
@@ -52,9 +52,7 @@ describe("DeepSeek client", () => {
 
     const results = await searchWeb("bun", resolveSearchOptions({ count: 20 }), request())
 
-    expect(results).toEqual([
-      { url: "https://a/", title: "A", content: "summary", time: {} },
-    ])
+    expect(results).toEqual([{ url: "https://a/", title: "A", content: "summary" }])
     expect(captured!.url).toBe("https://api.deepseek.com/v1/tools/search")
     expect(JSON.parse(String(captured!.init.body))).toEqual({
       query: "bun",
