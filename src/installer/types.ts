@@ -1,0 +1,91 @@
+/** Hosts the installer supports. */
+export type HostName = "opencode" | "pi" | "codex"
+
+/** Install scope, a first-class user choice. */
+export type Scope = "project" | "global"
+
+/** Control tier per capability; "off" skips the tool entirely. */
+export type Tier = "optional" | "preferred" | "forced" | "off"
+
+/** Everything the installer needs to build a plan. */
+export interface InstallerInput {
+  readonly host: HostName
+  readonly scope: Scope
+  readonly search: Tier
+  readonly fetch: Tier
+  /** npm package reference written into host config; defaults to the published name. */
+  readonly packageRef: string
+  readonly home: string
+  readonly cwd: string
+}
+
+/** A mutation on a parsed config object, addressed by a dotted path. */
+export interface ConfigOp {
+  readonly op: "set" | "append-array"
+  readonly path: readonly string[]
+  readonly value?: unknown
+  readonly entries?: readonly unknown[]
+  /** Plan-preview metadata: the value the set replaces (undefined when absent). */
+  readonly previous?: unknown
+  /** Plan-preview metadata: entries already present at an append-array path. */
+  readonly existingCount?: number
+}
+
+/** One file the plan touches. */
+export interface FileEdit {
+  readonly file: string
+  readonly format: "json" | "toml" | "rules"
+  readonly ops: readonly ConfigOp[]
+  /** For "rules" edits: the marked block content to upsert. */
+  readonly block?: string
+}
+
+/** A plan that refuses to proceed (for example a structurally unavailable tier). */
+export interface PlanError {
+  readonly message: string
+}
+
+export interface InstallPlan {
+  readonly host: HostName
+  readonly scope: Scope
+  readonly tiers: { readonly search: Tier; readonly fetch: Tier }
+  readonly edits: readonly FileEdit[]
+  readonly notes: readonly string[]
+  readonly errors: readonly PlanError[]
+  /**
+   * Artifacts from a previous init that this plan no longer wants (for example the
+   * web_search kill switch after a forced → optional tier change). They are shown in
+   * the plan, reverted during apply, and then gone from the record — so uninstall
+   * still restores exactly what this install applied.
+   */
+  readonly reverts?: readonly RecordedFile[]
+}
+
+/** An op as it was actually applied, with the previous value for surgical undo. */
+export interface RecordedOp {
+  readonly op: "set" | "append-array"
+  readonly path: readonly string[]
+  readonly applied: unknown
+  readonly previous: unknown
+}
+
+/** A file as it was actually written, for surgical uninstall. */
+export interface RecordedFile {
+  readonly file: string
+  readonly format: "json" | "toml" | "rules"
+  readonly created: boolean
+  readonly ops: readonly RecordedOp[]
+  readonly blockApplied?: string
+  /** Path prefixes the apply step had to create; uninstall removes them when left empty. */
+  readonly createdParents?: readonly (readonly string[])[]
+}
+
+/** Persisted install state; one record per host and scope. */
+export interface InstallRecord {
+  readonly version: 1
+  readonly host: HostName
+  readonly scope: Scope
+  readonly tiers: { readonly search: Tier; readonly fetch: Tier }
+  readonly createdAt: string
+  readonly files: readonly RecordedFile[]
+}

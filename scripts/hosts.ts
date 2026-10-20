@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { parseJsonc } from "./jsonc"
+import { parseJsonc } from "../src/core/jsonc"
 
 /** Integration mechanisms, aligned with the Mechanisms table in docs/integration.md. */
 export const MECHANISMS = ["native-provider", "native-override", "plugin", "extension", "mcp", "wrapper"] as const

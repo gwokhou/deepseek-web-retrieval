@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
-import { parseJsonc } from "../scripts/jsonc"
+import { parseJsonc } from "../src/core/jsonc"
 import { findHost, FORCED_FLAVORS, MECHANISMS, readHosts } from "../scripts/hosts"
 import type { HostEntry } from "../scripts/hosts"
 import { renderControlTable, renderHostTable } from "../scripts/render-matrix"

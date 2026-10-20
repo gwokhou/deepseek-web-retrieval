@@ -5,6 +5,14 @@ import { MISSING_API_KEY_MESSAGE } from "./auth"
 import { resolveEnvOptions } from "./config"
 import { createDeepSeekServer } from "./server"
 
+// Installer subcommands run before the server path; MCP clients spawn this bin
+// with no arguments, so the default stdio behavior is unchanged.
+const subcommand = process.argv[2]
+if (subcommand === "init" || subcommand === "uninstall" || subcommand === "list") {
+  const { runInstallerCli } = await import("../installer/cli")
+  process.exit(await runInstallerCli(process.argv.slice(2)))
+}
+
 // stdout is the JSON-RPC channel; all diagnostics must go to stderr.
 const env = process.env
 if (!apiKeyFromEnv(env)) {
