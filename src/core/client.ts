@@ -17,6 +17,11 @@ import type {
 
 export { DeepSeekApiError } from "./transport"
 
+/** The shorter of the configured and per-call timeout always wins. */
+function effectiveTimeout(configuredMs: number, perCallMs: number | undefined): number {
+  return perCallMs === undefined ? configuredMs : Math.min(configuredMs, perCallMs)
+}
+
 interface SearchResponse {
   readonly results?: unknown
 }
@@ -55,8 +60,7 @@ export async function searchWeb(
     )
   }
 
-  const timeout =
-    request.timeoutMs === undefined ? options.timeoutMs : Math.min(options.timeoutMs, request.timeoutMs)
+  const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs)
   const payload = await postJson<SearchResponse>(
     SEARCH_ENDPOINT,
     {
@@ -82,8 +86,7 @@ export async function fetchPage(
   // Enforced here so direct core consumers cannot bypass the policy. Adapters
   // may also pre-check to reject before a permission prompt.
   assertFetchHostPolicy(url, options)
-  const timeout =
-    request.timeoutMs === undefined ? options.timeoutMs : Math.min(options.timeoutMs, request.timeoutMs)
+  const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs)
   const payload = await postJson<FetchResponse>(
     FETCH_ENDPOINT,
     { url: url.href },
@@ -114,7 +117,7 @@ export async function fetchDocument(
   options: FetchOptions,
   request: RequestOptions,
 ): Promise<FetchedDocument> {
-  if (typeof url !== "string" && !(url instanceof URL)) throw new Error('"url" must be a string')
+  if (typeof url !== "string" && !(url instanceof URL)) throw new Error('"url" must be a string or URL')
   const page = await fetchPage(url instanceof URL ? url : parseFetchUrl(url), options, request)
   const formatted = formatFetchedContent(page.title, page.content, options.maxChars)
   return {

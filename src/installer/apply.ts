@@ -87,24 +87,18 @@ function assertNoDrift(plan: InstallPlan): void {
 
 function prepareEdit(edit: FileEdit, host: InstallPlan["host"]): PreparedEdit {
   const codec = codecFor(edit.format, host)
-  if (edit.format === "rules") {
-    const existed = existsSync(edit.file)
-    const text = existed ? readFileSync(edit.file, "utf8") : ""
-    const updated = codec.apply(text, edit).text
-    return {
-      edit,
-      recorded: { file: edit.file, format: "rules", created: !existed, ops: [], blockApplied: edit.block },
-      write: () => writeConfig(edit.file, updated),
-    }
-  }
   const loaded = codec.load(edit.file)
   if (loaded.parseError) {
     throw new Error(`${edit.file} does not parse: ${loaded.parseError}`)
   }
   const applied = codec.apply(loaded.text, edit)
+  const recorded: RecordedFile =
+    edit.format === "rules"
+      ? { file: edit.file, format: "rules", created: !loaded.exists, ops: [], blockApplied: edit.block }
+      : { file: edit.file, format: edit.format, created: !loaded.exists, ops: applied.recorded, createdParents: applied.createdParents }
   return {
     edit,
-    recorded: { file: edit.file, format: edit.format, created: !loaded.exists, ops: applied.recorded, createdParents: applied.createdParents },
+    recorded,
     write: () => writeConfig(edit.file, applied.text),
   }
 }

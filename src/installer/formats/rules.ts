@@ -3,7 +3,7 @@ import type { HostName } from "../types"
 import type { AppliedText, FormatCodec } from "./index"
 
 /** Marked-block markers are per host, so multiple hosts can share one rules file. */
-export function rulesMarkers(host: HostName): { readonly begin: string; readonly end: string } {
+function rulesMarkers(host: HostName): { readonly begin: string; readonly end: string } {
   return {
     begin: `<!-- deepseek-web-retrieval:${host}:rules:begin -->`,
     end: `<!-- deepseek-web-retrieval:${host}:rules:end -->`,

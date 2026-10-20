@@ -1,5 +1,6 @@
 import type { Context } from "@opencode/plugin/promise/plugin"
-import { API_KEY_ENV, apiKeyFromEnv } from "../core/auth"
+import { API_KEY_ENV } from "../core/constants"
+import { apiKeyFromEnv } from "../core/auth"
 import type { ApiKeySource } from "../core/types"
 
 const DEEPSEEK_INTEGRATION_ID = "deepseek"

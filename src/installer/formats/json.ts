@@ -8,7 +8,7 @@ import { appendEntries, deepEqual, isPlainObject, valueAt } from "./value"
 const JSON_FORMATTING = { insertSpaces: true, tabSize: 2, insertFinalNewline: false } as const
 
 /** Reads a JSONC config file; a missing file starts empty, an unparsable one carries the error. */
-export function loadJson(file: string): LoadedConfig {
+function loadJson(file: string): LoadedConfig {
   if (!existsSync(file)) return { exists: false, text: "", value: {}, lossy: false }
   const text = readFileSync(file, "utf8")
   try {
@@ -19,12 +19,8 @@ export function loadJson(file: string): LoadedConfig {
   }
 }
 
-export function serializeJson(value: Record<string, unknown>): string {
-  return `${JSON.stringify(value, null, 2)}\n`
-}
-
 /** Reads the value at a dotted path from JSON text, or undefined when absent. */
-export function jsonGet(text: string, path: readonly string[]): unknown {
+function jsonGet(text: string, path: readonly string[]): unknown {
   const root = parse(text, undefined, { allowTrailingComma: true }) as Record<string, unknown>
   return valueAt(root, path)
 }

@@ -5,7 +5,7 @@ import type { AppliedText, FormatCodec, LoadedConfig } from "./index"
 import { appendEntries, deepEqual, isPlainObject, removeAt, valueAt } from "./value"
 
 /** Reads a TOML config file; a missing file starts empty, an unparsable one carries the error. */
-export function loadToml(file: string): LoadedConfig {
+function loadToml(file: string): LoadedConfig {
   if (!existsSync(file)) return { exists: false, text: "", value: {}, lossy: false }
   const text = readFileSync(file, "utf8")
   try {
@@ -41,7 +41,7 @@ export function hasTomlComment(text: string): boolean {
   return false
 }
 
-export function serializeToml(value: Record<string, unknown>): string {
+function serializeToml(value: Record<string, unknown>): string {
   return `${stringifyTomlValue(value)}\n`
 }
 
@@ -49,7 +49,7 @@ export function serializeToml(value: Record<string, unknown>): string {
  * Applies ops to a parsed TOML value, returning the mutated value plus one record
  * per op with the previous value for surgical undo, and the path prefixes created.
  */
-export function applyTomlOps(value: Record<string, unknown>, ops: readonly ConfigOp[]): { value: Record<string, unknown>; recorded: RecordedOp[]; createdParents: (readonly string[])[] } {
+function applyTomlOps(value: Record<string, unknown>, ops: readonly ConfigOp[]): { value: Record<string, unknown>; recorded: RecordedOp[]; createdParents: (readonly string[])[] } {
   const target: Record<string, unknown> = structuredClone(value)
   const recorded: RecordedOp[] = []
   const createdParents: (readonly string[])[] = []
@@ -90,7 +90,7 @@ function navigate(root: Record<string, unknown>, path: readonly string[], create
 }
 
 /** Surgical undo on a parsed TOML object; user edits made after install win. */
-export function revertTomlOps(value: Record<string, unknown>, ops: readonly RecordedOp[]): string[] {
+function revertTomlOps(value: Record<string, unknown>, ops: readonly RecordedOp[]): string[] {
   const notes: string[] = []
   for (const record of [...ops].reverse()) {
     if (record.op === "set") {
@@ -120,7 +120,7 @@ export function revertTomlOps(value: Record<string, unknown>, ops: readonly Reco
 }
 
 /** Removes path prefixes the installer created when they are left empty, newest first. */
-export function pruneCreatedParents(value: Record<string, unknown>, parents: readonly (readonly string[])[]): void {
+function pruneCreatedParents(value: Record<string, unknown>, parents: readonly (readonly string[])[]): void {
   for (const parent of [...parents].reverse()) {
     const current = valueAt(value, parent)
     if (isPlainObject(current) && Object.keys(current).length === 0) removeAt(value, parent)

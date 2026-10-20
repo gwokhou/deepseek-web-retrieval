@@ -556,6 +556,17 @@ describe("revert ownership", () => {
     for (const { files, expected } of cases) {
       expect(claimedByOtherScope(input, files)).toEqual(expected)
     }
+    // The mirror direction: a project-scope input against a global record.
+    const projectInput = makeInput("codex", "project", "optional", "optional")
+    writeRecord({ ...projectInput, scope: "global" }, {
+      version: 1,
+      host: "codex",
+      scope: "global",
+      tiers: { search: "optional", fetch: "optional" },
+      createdAt: new Date().toISOString(),
+      files: [{ file: fileA, format: "toml", created: false, ops: [] }],
+    })
+    expect(claimedByOtherScope(projectInput, [fileA, fileB])).toEqual([fileA])
     // Without a record at the other scope nothing is ever claimed.
     const fresh = makeInput("codex", "global", "optional", "optional")
     expect(claimedByOtherScope(fresh, [fileA, fileB])).toEqual([])
@@ -734,6 +745,34 @@ describe("drift refusal and CLI edges", () => {
     } finally {
       if (previousHome === undefined) delete process.env.HOME
       else process.env.HOME = previousHome
+    }
+  })
+  test("XDG_CONFIG_HOME routes the global config home when it belongs to the real home", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-xdg-home-"))
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-xdg-cwd-"))
+    const xdg = join(home, "xdg")
+    mkdirSync(xdg, { recursive: true })
+    const previousHome = process.env.HOME
+    const previousXdg = process.env.XDG_CONFIG_HOME
+    process.env.HOME = home
+    process.env.XDG_CONFIG_HOME = xdg
+    try {
+      const out: string[] = []
+      const code = await runInstallerCli(
+        [
+          "init", "--host", "opencode", "--scope", "global", "--search", "optional", "--fetch", "optional",
+          "--cwd", cwd, "--apply",
+        ],
+        { out: (line: string) => out.push(line), err: (line: string) => out.push(line) },
+      )
+      expect(code).toBe(0)
+      expect(existsSync(join(xdg, "opencode/opencode.jsonc"))).toBe(true)
+      expect(existsSync(join(home, ".config/opencode/opencode.jsonc"))).toBe(false)
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME
+      else process.env.HOME = previousHome
+      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME
+      else process.env.XDG_CONFIG_HOME = previousXdg
     }
   })
 })

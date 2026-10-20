@@ -34,7 +34,10 @@ export function revertRecordedFile(file: RecordedFile, host: HostName, opts: { l
       return lines
     }
     const updated = codec.revert(text, file).text
-    if (codec.isEffectivelyEmpty(updated)) {
+    // Empty after removal proves every line in the file was an installer block;
+    // the whole-file gate keeps a still-claimed file safe even if a future
+    // planner ever produced a partial rules revert.
+    if (opts.whole && codec.isEffectivelyEmpty(updated)) {
       unlinkSync(file.file)
       pruneEmptyDir(dirname(file.file))
       lines.push(`deleted ${file.file} (installer-created, now empty)`)

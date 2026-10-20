@@ -12,8 +12,10 @@ import type { HostName, InstallRecord, InstallerInput, InstallPlan, RecordedFile
 export type HostPlanner = (input: InstallerInput, previous: InstallRecord | undefined) => InstallPlan
 
 /**
- * The host registry. Key order feeds the CLI's usage string, and a new host is one
- * module plus one line here — everything else derives from the keys.
+ * The host registry. Key order feeds the CLI's usage string; a new host is one
+ * module, one line here, one HostName union member, and one hosts.jsonc row
+ * carrying the installer field — the two guards in test/hosts.test.ts hold all
+ * four in sync.
  */
 export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
   opencode: planOpenCode,

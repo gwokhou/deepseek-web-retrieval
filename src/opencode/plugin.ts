@@ -82,6 +82,11 @@ export function resolveRegistration(input?: PluginOptions): Registration {
   }
 }
 
+/** One place builds the per-request context the core expects. */
+function requestContext(config: ResolvedOptions, apiKey: string, signal: AbortSignal, timeoutMs?: number) {
+  return { signal, auth: { apiKey }, retry: config.retry, ...(timeoutMs === undefined ? {} : { timeoutMs }) }
+}
+
 async function runFetch(
   ctx: Context,
   config: ResolvedOptions,
@@ -119,12 +124,7 @@ async function runFetch(
     source: { type: "tool", messageID: context.messageID, id: context.id },
   })
 
-  const page = await fetchDocument(target, config.fetch, {
-    signal: context.signal,
-    auth: { apiKey },
-    retry: config.retry,
-    timeoutMs,
-  })
+  const page = await fetchDocument(target, config.fetch, requestContext(config, apiKey, context.signal, timeoutMs))
   return {
     content: page.content,
     metadata: {
@@ -148,11 +148,7 @@ export default Plugin.define({
           name: "DeepSeek",
           execute: async (input, { signal }) => {
             const apiKey = await resolveApiKey(ctx, config.auth.source)
-            const results = await searchWeb(input.query, config.search, {
-              signal,
-              auth: { apiKey },
-              retry: config.retry,
-            })
+            const results = await searchWeb(input.query, config.search, requestContext(config, apiKey, signal))
             return results.map(toOpenCodeResult)
           },
         })

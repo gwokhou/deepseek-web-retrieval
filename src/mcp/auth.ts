@@ -1,4 +1,5 @@
-import { API_KEY_ENV, apiKeyFromEnv } from "../core/auth"
+import { API_KEY_ENV } from "../core/constants"
+import { apiKeyFromEnv } from "../core/auth"
 import type { Env } from "./config"
 
 export const MISSING_API_KEY_MESSAGE =

@@ -188,6 +188,17 @@ describe("DeepSeek client", () => {
     ).rejects.toThrow("timed out after 5 ms")
   })
 
+  test("a per-call timeout caps the configured search timeout", async () => {
+    globalThis.fetch = ((_input: string | URL | Request, init: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true })
+      })) as typeof fetch
+
+    await expect(
+      searchWeb("bun", resolveSearchOptions(), { signal: new AbortController().signal, auth, retry: noRetry, timeoutMs: 5 }),
+    ).rejects.toThrow("timed out after 5 ms")
+  })
+
   test("times out while reading a stalled response body", async () => {
     globalThis.fetch = ((_input: string | URL | Request, init: RequestInit) =>
       Promise.resolve(stalledResponse(init.signal))) as typeof fetch

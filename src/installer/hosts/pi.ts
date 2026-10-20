@@ -32,7 +32,7 @@ export function planPi(input: InstallerInput, _previous: InstallRecord | undefin
   const errors = [...header.errors]
   const edits: FileEdit[] = []
 
-  const env: Record<string, string> = { [API_KEY_ENV]: "\${DEEPSEEK_API_KEY}" }
+  const env: Record<string, string> = { [API_KEY_ENV]: `\${${API_KEY_ENV}}` }
   if (input.search === "off") env[ENABLE_SEARCH_ENV] = "false"
   if (input.fetch === "off") env[ENABLE_FETCH_ENV] = "false"
   const entry = {
