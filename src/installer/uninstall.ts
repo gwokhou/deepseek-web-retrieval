@@ -19,6 +19,19 @@ export function uninstall(input: InstallerInput): string[] {
   if (record === undefined) {
     throw new Error(`No ${input.host} install is recorded for the ${input.scope} scope.`)
   }
+  const other = input.scope === "global" ? "project" : "global"
+  const otherRecord = readRecord({ ...input, scope: other })
+  if (otherRecord !== undefined) {
+    const overlap = record.files
+      .map((file) => file.file)
+      .filter((file) => otherRecord.files.some((candidate) => candidate.file === file))
+    if (overlap.length > 0) {
+      throw new Error(
+        `A ${input.host} install is also recorded at the ${other} scope and claims the same file(s): ${overlap.join(", ")}. ` +
+          `Uninstall the ${other}-scope install first so this rollback cannot clobber its entries.`,
+      )
+    }
+  }
   const lines: string[] = []
   for (const file of [...record.files].reverse()) {
     lines.push(...uninstallFile(file, record.host))

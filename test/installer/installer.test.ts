@@ -14,6 +14,7 @@ import { hasTomlComment } from "../../src/installer/configFile"
 import { renderPlan } from "../../src/installer/render"
 import { runInstallerCli } from "../../src/installer/cli"
 import { readFileSync as fsReadFileSync, statSync } from "node:fs"
+import { readRecord, writeRecord } from "../../src/installer/state"
 import { listRecords } from "../../src/installer/state"
 import { uninstall } from "../../src/installer/uninstall"
 import type { InstallerInput } from "../../src/installer/types"
@@ -416,3 +417,51 @@ describe("review fixes", () => {
 function relativePath(from: string, to: string): string {
   return to.startsWith(from) ? to.slice(from.length + 1) : to
 }
+
+describe("scope isolation", () => {
+  test("a codex install refuses a second scope that claims the same config file", () => {
+    const input = makeInput("codex", "global", "optional", "optional")
+    applyPlan(planForHost("codex", input), input)
+    const project = planForHost("codex", { ...input, scope: "project" })
+    expect(project.errors.length).toBe(1)
+    expect(project.errors[0]?.message).toContain("global scope")
+    expect(project.errors[0]?.message).toContain("uninstall --host codex --scope global")
+    expect(project.edits).toEqual([])
+  })
+
+  test("the refusal is symmetric when the project install came first", () => {
+    const input = makeInput("codex", "project", "optional", "optional")
+    applyPlan(planForHost("codex", input), input)
+    const global = planForHost("codex", { ...input, scope: "global" })
+    expect(global.errors.length).toBe(1)
+    expect(global.errors[0]?.message).toContain("project scope")
+  })
+
+  test("pi and opencode scope pairs map to disjoint files and install side by side", () => {
+    const piGlobal = makeInput("pi", "global", "optional", "optional")
+    applyPlan(planForHost("pi", piGlobal), piGlobal)
+    const piProject = planForHost("pi", { ...piGlobal, scope: "project" })
+    expect(piProject.errors).toEqual([])
+    applyPlan(piProject, { ...piGlobal, scope: "project" })
+    expect(listRecords(piGlobal.home, piGlobal.cwd).length).toBe(2)
+    uninstall({ ...piGlobal, scope: "project" })
+    expect(readRecord(piGlobal)).toBeDefined()
+    expect(existsSync(join(piGlobal.home, ".pi/agent/mcp.json"))).toBe(true)
+  })
+
+  test("uninstall refuses when a legacy record at the other scope claims the same file", () => {
+    const input = makeInput("codex", "global", "optional", "optional")
+    const file = join(input.home, ".codex/config.toml")
+    const record = {
+      version: 1 as const,
+      host: "codex" as const,
+      scope: "global" as const,
+      createdAt: new Date().toISOString(),
+      tiers: { search: "optional" as const, fetch: "optional" as const },
+      files: [{ file, format: "toml" as const, created: false, ops: [] }],
+    }
+    writeRecord(input, record)
+    writeRecord({ ...input, scope: "project" }, { ...record, scope: "project" as const })
+    expect(() => uninstall(input)).toThrow(/also recorded at the project scope/)
+  })
+})

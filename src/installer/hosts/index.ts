@@ -13,8 +13,38 @@ export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
 }
 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {
-  const planned = withOrphanReverts(HOST_PLANNERS[host](input), input)
-  return withSecretGuard(planned)
+  const planned = withCrossScopeGuard(HOST_PLANNERS[host](input), input)
+  return withSecretGuard(withOrphanReverts(planned, input))
+}
+
+/**
+ * One file must never be claimed by two scopes of the same host: Codex project-scope
+ * config falls back to ~/.codex/config.toml, so a project install beside a global one
+ * would let either uninstall clobber the other's registration. Refuse with guidance
+ * instead. Hosts whose scope pairs map to disjoint files (Pi, OpenCode) pass through.
+ */
+function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallPlan {
+  if (plan.errors.length > 0) return plan
+  const other = input.scope === "global" ? "project" : "global"
+  const record = readRecord({ ...input, scope: other })
+  if (record === undefined) return plan
+  const overlap = [...new Set([...record.files.map((file) => file.file), ...plan.edits.map((edit) => edit.file)])].filter(
+    (file) => record.files.some((recorded) => recorded.file === file) && plan.edits.some((edit) => edit.file === file),
+  )
+  if (overlap.length === 0) return plan
+  return {
+    ...plan,
+    edits: [],
+    reverts: undefined,
+    errors: [
+      {
+        message:
+          `A ${plan.host} install is already recorded at the ${other} scope and claims the same file(s): ${overlap.join(", ")}. ` +
+          `Uninstall it first (deepseek-web-retrieval uninstall --host ${plan.host} --scope ${other}), ` +
+          `or re-run with --scope ${other} to update it in place — two scopes must not edit one file.`,
+      },
+    ],
+  }
 }
 
 /**
