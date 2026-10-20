@@ -1,12 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
-import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
-import { applyJsonOps, jsonGet, loadConfig, revertJsonOps, serializeConfig, writeConfig } from "./configFile"
-import { applyTomlOps, deepEqual, pruneCreatedParents, revertTomlOps, valueAt } from "./configValue"
-import { hasBlock, removeBlock, upsertBlock } from "./rules"
+import { parse as parseToml } from "smol-toml"
+import { applyJsonOps, jsonGet, loadConfig, serializeConfig, writeConfig } from "./configFile"
+import { applyTomlOps, deepEqual, valueAt } from "./configValue"
+import { hasBlock, upsertBlock } from "./rules"
+import { revertRecordedFile } from "./revert"
 import { readRecord, writeRecord } from "./state"
 import type { ConfigOp, FileEdit, InstallPlan, InstallRecord, InstallerInput, RecordedFile } from "./types"
-import { pruneEmptyDir } from "./uninstall"
 
 export interface ApplyResult {
   readonly lines: string[]
@@ -38,7 +38,7 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
     lines.push(`${item.recorded.created ? "created" : "updated"} ${item.edit.file}`)
   }
   if ((plan.reverts ?? []).length > 0) {
-    lines.push(...applyReverts(plan.reverts ?? [], plan.host))
+    lines.push(...applyReverts(plan))
   }
   const record: InstallRecord = {
     version: 1,
@@ -90,44 +90,17 @@ function prepareEdit(edit: FileEdit, host: InstallPlan["host"]): PreparedEdit {
   }
 }
 
-/** Reverts artifacts from a superseded init: shown in the plan, undone here, gone from the record. */
-function applyReverts(reverts: readonly RecordedFile[], host: InstallPlan["host"]): string[] {
+/**
+ * Reverts artifacts from a superseded init: shown in the plan, undone here, gone
+ * from the record. Files the new plan still claims revert partially (never
+ * deleted); files it no longer wants revert wholly and are deleted when the
+ * installer created them and they are left empty.
+ */
+function applyReverts(plan: InstallPlan): string[] {
   const lines: string[] = []
-  for (const revert of reverts) {
-    if (!existsSync(revert.file)) {
-      lines.push(`already absent: ${revert.file} (previous init)`)
-      continue
-    }
-    if (revert.format === "rules") {
-      const text = readFileSync(revert.file, "utf8")
-      if (!hasBlock(host, text)) {
-        lines.push(`no rules block from the previous init in ${revert.file}`)
-        continue
-      }
-      const updated = removeBlock(host, text)
-      if (updated.trim().length === 0) {
-        unlinkSync(revert.file)
-        pruneEmptyDir(dirname(revert.file))
-      } else {
-        writeFileSync(revert.file, updated)
-      }
-      lines.push(`removed the previous init's rules block from ${revert.file}`)
-      continue
-    }
-    const text = readFileSync(revert.file, "utf8")
-    if (revert.format === "json") {
-      const result = revertJsonOps(text, revert.ops, revert.createdParents ?? [])
-      writeFileSync(revert.file, result.text)
-      lines.push(`reverted the previous init's artifacts in ${revert.file}`)
-      lines.push(...result.notes.map((note) => `  note: ${note}`))
-      continue
-    }
-    const value = parseToml(text) as Record<string, unknown>
-    const notes = revertTomlOps(value, revert.ops)
-    pruneCreatedParents(value, revert.createdParents ?? [])
-    writeFileSync(revert.file, `${stringifyToml(value)}\n`)
-    lines.push(`reverted the previous init's artifacts in ${revert.file}`)
-    lines.push(...notes.map((note) => `  note: ${note}`))
+  for (const revert of plan.reverts ?? []) {
+    const whole = !plan.edits.some((edit) => edit.file === revert.file)
+    lines.push(...revertRecordedFile(revert, plan.host, { label: " (previous init)", whole }))
   }
   return lines
 }

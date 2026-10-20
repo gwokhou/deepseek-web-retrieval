@@ -2,7 +2,7 @@ import { planCodex } from "./codex"
 import { planOpenCode } from "./opencode"
 import { planPi } from "./pi"
 import { API_KEY_ENV } from "../../core/constants"
-import { readRecord } from "../state"
+import { claimedByOtherScope, readRecord } from "../state"
 import type { HostName, InstallerInput, InstallPlan, RecordedFile } from "../types"
 
 export type HostPlanner = (input: InstallerInput) => InstallPlan
@@ -27,11 +27,7 @@ export function planForHost(host: HostName, input: InstallerInput): InstallPlan 
 function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallPlan {
   if (plan.errors.length > 0) return plan
   const other = input.scope === "global" ? "project" : "global"
-  const record = readRecord({ ...input, scope: other })
-  if (record === undefined) return plan
-  const overlap = [...new Set([...record.files.map((file) => file.file), ...plan.edits.map((edit) => edit.file)])].filter(
-    (file) => record.files.some((recorded) => recorded.file === file) && plan.edits.some((edit) => edit.file === file),
-  )
+  const overlap = claimedByOtherScope(input, plan.edits.map((edit) => edit.file))
   if (overlap.length === 0) return plan
   return {
     ...plan,

@@ -18,6 +18,17 @@ export function readRecord(input: InstallerInput): InstallRecord | undefined {
 }
 
 /**
+ * The one place that knows a file must never be claimed by two scopes of the
+ * same host: returns the subset of `files` the record at the other scope claims.
+ */
+export function claimedByOtherScope(input: InstallerInput, files: readonly string[]): string[] {
+  const other = input.scope === "global" ? "project" : "global"
+  const record = readRecord({ ...input, scope: other })
+  if (record === undefined) return []
+  return files.filter((file) => record.files.some((candidate) => candidate.file === file))
+}
+
+/**
  * Install records carry snapshots of replaced values, so they are written with
  * owner-only permissions regardless of umask.
  */

@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
 import { applyPlan } from "../../src/installer/apply"
 import { applyJsonOps, revertJsonOps } from "../../src/installer/configFile"
@@ -14,7 +14,7 @@ import { hasTomlComment } from "../../src/installer/configFile"
 import { renderPlan } from "../../src/installer/render"
 import { runInstallerCli } from "../../src/installer/cli"
 import { readFileSync as fsReadFileSync, statSync } from "node:fs"
-import { readRecord, writeRecord } from "../../src/installer/state"
+import { claimedByOtherScope, readRecord, writeRecord } from "../../src/installer/state"
 import { listRecords } from "../../src/installer/state"
 import { uninstall } from "../../src/installer/uninstall"
 import type { InstallerInput } from "../../src/installer/types"
@@ -316,6 +316,9 @@ describe("apply and uninstall round-trips", () => {
     expect(downgraded.reverts?.length).toBe(1)
     expect(downgraded.reverts?.[0]?.ops.some((op: { op: string; path: readonly string[] }) => op.op === "set" && op.path[0] === "web_search")).toBe(true)
     applyPlan(downgraded, input)
+    // The revert is partial (the new plan still claims config.toml), so the file
+    // must survive the revert even though the installer created it.
+    expect(existsSync(join(dir, "config.toml"))).toBe(true)
     expect(readFileSync(join(dir, "config.toml"), "utf8")).toContain('web_search = "live"')
     // Uninstall is complete: nothing from either install remains.
     uninstall(input)
@@ -520,6 +523,60 @@ describe("scope isolation", () => {
     writeRecord(input, record)
     writeRecord({ ...input, scope: "project" }, { ...record, scope: "project" as const })
     expect(() => uninstall(input)).toThrow(/also recorded at the project scope/)
+  })
+})
+
+describe("revert ownership", () => {
+  test("claimedByOtherScope returns only files the other scope's record also claims", () => {
+    const input = makeInput("codex", "global", "optional", "optional")
+    const fileA = join(input.home, ".codex/config.toml")
+    const fileB = join(input.cwd, "AGENTS.md")
+    writeRecord({ ...input, scope: "project" }, {
+      version: 1,
+      host: "codex",
+      scope: "project",
+      tiers: { search: "optional", fetch: "optional" },
+      createdAt: new Date().toISOString(),
+      files: [
+        { file: fileA, format: "toml", created: false, ops: [] },
+        { file: fileB, format: "rules", created: true, ops: [] },
+      ],
+    })
+    const cases: readonly { readonly files: readonly string[]; readonly expected: string[] }[] = [
+      { files: [fileB, join(input.cwd, "other.toml")], expected: [fileB] },
+      { files: [fileA, fileB], expected: [fileA, fileB] },
+      { files: [join(input.cwd, "unrelated.json")], expected: [] },
+      { files: [], expected: [] },
+    ]
+    for (const { files, expected } of cases) {
+      expect(claimedByOtherScope(input, files)).toEqual(expected)
+    }
+    // Without a record at the other scope nothing is ever claimed.
+    const fresh = makeInput("codex", "global", "optional", "optional")
+    expect(claimedByOtherScope(fresh, [fileA, fileB])).toEqual([])
+  })
+
+  test("a whole-file orphan revert deletes a created file it leaves empty", () => {
+    const input = makeInput("pi", "project", "optional", "optional")
+    const extra = join(input.cwd, ".pi/extra.json")
+    mkdirSync(dirname(extra), { recursive: true })
+    writeFileSync(extra, '{"a":1}\n')
+    writeRecord(input, {
+      version: 1,
+      host: "pi",
+      scope: "project",
+      tiers: { search: "optional", fetch: "optional" },
+      createdAt: new Date().toISOString(),
+      files: [
+        { file: extra, format: "json", created: true, ops: [{ op: "set", path: ["a"], applied: 1, previous: undefined }] },
+      ],
+    })
+    // The new plan does not claim the extra file, so it reverts wholly; reverting
+    // its only op empties it, and a created file left empty is deleted.
+    const applied = applyPlan(planForHost("pi", input), input)
+    expect(applied.ok).toBe(true)
+    expect(existsSync(extra)).toBe(false)
+    expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(true)
   })
 })
 
