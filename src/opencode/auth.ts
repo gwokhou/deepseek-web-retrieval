@@ -61,7 +61,7 @@ export async function resolveApiKey(ctx: Context, source: ApiKeySource): Promise
   if (storedError) {
     throw new Error(
       `DeepSeek API key is not configured, and the OpenCode credential could not be read. ` +
-        `Set DEEPSEEK_API_KEY or run "opencode auth login".`,
+        `Set ${API_KEY_ENV} or run "opencode auth login".`,
       { cause: storedError },
     )
   }

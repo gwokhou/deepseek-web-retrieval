@@ -10,6 +10,7 @@ import {
   splitCompetitors,
 } from "../detect"
 import { hostPaths } from "../paths"
+import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../rules"
 import { rulesLines } from "../rulesContent"
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
@@ -62,13 +63,13 @@ export function planCodex(input: InstallerInput): InstallPlan {
   }
 
   const env: Record<string, string> = {}
-  if (input.search === "off") env.DEEPSEEK_ENABLE_SEARCH = "false"
-  if (input.fetch === "off") env.DEEPSEEK_ENABLE_FETCH = "false"
+  if (input.search === "off") env[ENABLE_SEARCH_ENV] = "false"
+  if (input.fetch === "off") env[ENABLE_FETCH_ENV] = "false"
   const entry = {
     command: "npx",
     args: ["-y", input.packageRef],
     ...(Object.keys(env).length > 0 ? { env } : {}),
-    env_vars: ["DEEPSEEK_API_KEY"],
+    env_vars: [API_KEY_ENV],
   }
 
   const existingEntry = isPlainObject(servers) ? servers.deepseek : undefined
@@ -87,7 +88,7 @@ export function planCodex(input: InstallerInput): InstallPlan {
   edits.push({ file: paths.config, format: "toml", ops })
 
   notes.push(
-    "Codex stdio children do not inherit the parent environment, so the entry forwards DEEPSEEK_API_KEY explicitly " +
+    `Codex stdio children do not inherit the parent environment, so the entry forwards ${API_KEY_ENV} explicitly ` +
       "via env_vars; the key must be set in the shell that launches Codex.",
   )
   if (input.scope === "project") {

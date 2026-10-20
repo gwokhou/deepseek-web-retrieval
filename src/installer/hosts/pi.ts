@@ -10,11 +10,10 @@ import {
   splitCompetitors,
 } from "../detect"
 import { hostPaths } from "../paths"
+import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../rules"
 import { rulesLines } from "../rulesContent"
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
-
-const ENV_KEY = "DEEPSEEK_API_KEY"
 
 export function planPi(input: InstallerInput): InstallPlan {
   const paths = hostPaths("pi", input)
@@ -35,9 +34,9 @@ export function planPi(input: InstallerInput): InstallPlan {
   const steering = findCompetitorSteering("pi", paths.rules)
   if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering))
 
-  const env: Record<string, string> = { [ENV_KEY]: "\${DEEPSEEK_API_KEY}" }
-  if (input.search === "off") env.DEEPSEEK_ENABLE_SEARCH = "false"
-  if (input.fetch === "off") env.DEEPSEEK_ENABLE_FETCH = "false"
+  const env: Record<string, string> = { [API_KEY_ENV]: "\${DEEPSEEK_API_KEY}" }
+  if (input.search === "off") env[ENABLE_SEARCH_ENV] = "false"
+  if (input.fetch === "off") env[ENABLE_FETCH_ENV] = "false"
   const entry = {
     command: "npx",
     args: ["-y", input.packageRef],
@@ -92,7 +91,7 @@ export function planPi(input: InstallerInput): InstallPlan {
   }
   notes.push('"exposure": "direct" is required: Pi 1.3.0 defaults MCP tools to codemode, which hides them from the model.')
   notes.push(
-    `\`${ENV_KEY}\` is written as "\${${ENV_KEY}}" so the key expands from the shell that launches Pi and stays out of the file.`,
+    `\`${API_KEY_ENV}\` is written as "\${${API_KEY_ENV}}" so the key expands from the shell that launches Pi and stays out of the file.`,
   )
   if (loaded.lossy) {
     notes.push(`${paths.config} contains comments; the JSON edit preserves them.`)

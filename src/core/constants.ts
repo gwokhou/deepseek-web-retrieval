@@ -23,3 +23,8 @@ export const DEFAULT_MAX_RETRIES = 0
 export const MAX_RETRIES = 5
 export const DEFAULT_RETRY_BASE_DELAY_MS = 250
 export const MAX_RETRY_DELAY_MS = 10000
+
+/** The single source for every DEEPSEEK_* environment variable name. */
+export const API_KEY_ENV = "DEEPSEEK_API_KEY"
+export const ENABLE_SEARCH_ENV = "DEEPSEEK_ENABLE_SEARCH"
+export const ENABLE_FETCH_ENV = "DEEPSEEK_ENABLE_FETCH"

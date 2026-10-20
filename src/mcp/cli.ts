@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { serveStdio } from "@modelcontextprotocol/server/stdio"
 import { apiKeyFromEnv } from "../core/auth"
+import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
 import { MISSING_API_KEY_MESSAGE } from "./auth"
 import { resolveEnvOptions } from "./config"
 import { createDeepSeekServer } from "./server"
@@ -23,7 +24,7 @@ if (!apiKeyFromEnv(env)) {
 const config = resolveEnvOptions(env)
 if (!config.search.enabled && !config.fetch.enabled) {
   console.error(
-    "Both tools are disabled (DEEPSEEK_ENABLE_SEARCH and DEEPSEEK_ENABLE_FETCH are false); " +
+    `Both tools are disabled (${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false); ` +
       "at least one must stay enabled.",
   )
   process.exit(1)

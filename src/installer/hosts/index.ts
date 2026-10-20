@@ -1,6 +1,7 @@
 import { planCodex } from "./codex"
 import { planOpenCode } from "./opencode"
 import { planPi } from "./pi"
+import { API_KEY_ENV } from "../../core/constants"
 import { readRecord } from "../state"
 import type { HostName, InstallerInput, InstallPlan, RecordedFile } from "../types"
 
@@ -69,7 +70,7 @@ function withSecretGuard(plan: InstallPlan): InstallPlan {
               message:
                 `${edit.file}: the existing value at ${op.path.join(".")} contains a credential-looking key ` +
                 `(${offender}). The installer refuses to snapshot secrets into its state file. Move the key to ` +
-                `environment indirection ("${"$"}{DEEPSEEK_API_KEY}" expansion or env_vars) and re-run.`,
+                `environment indirection ("\${${API_KEY_ENV}}" expansion or env_vars) and re-run.`,
             },
           ],
         }

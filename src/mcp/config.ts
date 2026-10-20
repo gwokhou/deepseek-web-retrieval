@@ -1,3 +1,4 @@
+import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
 import { resolvePluginOptions } from "../core/options"
 import type { PluginOptions, ResolvedOptions } from "../core/types"
 
@@ -36,8 +37,8 @@ const FLAG_ENV = {
 /** Shared defaults are true; only an explicit false value disables them. */
 const FALSE_ONLY_ENV = {
   fetchBlockPrivateHosts: "DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS",
-  searchEnabled: "DEEPSEEK_ENABLE_SEARCH",
-  fetchEnabled: "DEEPSEEK_ENABLE_FETCH",
+  searchEnabled: ENABLE_SEARCH_ENV,
+  fetchEnabled: ENABLE_FETCH_ENV,
 } as const
 
 /**
