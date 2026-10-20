@@ -94,70 +94,10 @@ analysis); proprietary rows are verified from official docs and changelogs at th
 versions. All nine support stdio and Streamable HTTP; legacy SSE is never required (and Codex
 and Pi reject it).
 
-### Open-source hosts
-
-- **Cline** — Custom MCP client, no official SDK. Config at 0.0.13:
-  `~/.cline/settings/cline_mcp_settings.json` (override with `CLINE_MCP_SETTINGS_PATH`),
-  written by the `clite mcp` wizard in a nested form: `mcpServers.<name>.transport` with
-  `type` (`stdio` | `sse` | `streamableHttp`), `command`/`args`/`env` or `url`/`headers`, plus
-  `disabled` and `autoApprove`. Current docs describe a newer, flatter layout than the locked
-  binary. The client declares no capabilities and requests `2024-11-05` — the protocol floor
-  of the whole matrix; treat it as text-content-blocks-only.
-- **Codex** — Rust client on the official rmcp crate. Config: `~/.codex/config.toml`
-  `[mcp_servers.<name>]` — stdio `command`/`args`/`env`/`env_vars`; HTTP `url`,
-  `bearer_token_env_var`, `http_headers`; `startup_timeout_sec` (10s), `tool_timeout_sec`
-  (60s), `enabled_tools`/`disabled_tools`, per-tool approval modes and output limits.
-  **stdio children do not inherit the parent environment** — only `HOME`, `PATH`, and a few
-  system vars plus explicitly configured `env`, so `DEEPSEEK_API_KEY` must be passed
-  explicitly. When a tool result has `structuredContent`, Codex replaces the content blocks
-  with the serialized JSON. No SSE support.
-- **Continue** — Config: `~/.continue/config.yaml` `mcpServers` list — `name`, `type`
-  (`stdio` | `sse` | `streamable-http`), `command`/`args`/`env`/`cwd` or `url`/`apiKey`/
-  `requestOptions`; `${{ secrets.NAME }}` interpolation; headless mode fails if any MCP
-  server fails to connect. **Tool names are exposed raw, without a server prefix**, and
-  matching is first-found across servers — avoid generic names like `search`.
-  `structuredContent` is never read; content blocks are JSON-stringified for the model.
-- **Gemini** — Config: `mcpServers` in `~/.gemini/settings.json` or `.gemini/settings.json` —
-  `command`/`args`/`env`/`cwd`, or `url` with `type: "http" | "sse"` (at 0.64.0 a bare `url`
-  defaults to Streamable HTTP), `headers`, `timeout`, `includeTools`/`excludeTools`; `env`
-  values expand `$VAR`/`${VAR}`. Tools get an `mcp_{server}_{tool}` name truncated at 63
-  chars, and underscores in the server name break its FQN parsing — keep the server name
-  short and underscore-free. Reads only `content` blocks; `structuredContent` is ignored.
-- **Pi** — Config: `~/.pi/agent/mcp.json` or `.pi/mcp.json` — stdio `command`/`args`/`env`/
-  `cwd`, HTTP `url`/`headers`, plus `timeout`, `enabled`, `exposure`. **MCP tools are hidden
-  from the model by default (`exposure: "codemode"`) — set `exposure: "direct"`** so the
-  search/fetch tools are declared. SSE is explicitly rejected. Text results over 20 KB are
-  middle-truncated with the full text saved to a file. Pi is the one open-source host that
-  uses `structuredContent` and tool `outputSchema`.
-
-### Proprietary hosts
-
-All four locked versions happen to be the latest stable releases at the research date, so
-current docs and changelogs apply to them directly. Notes relevant to a two-tool DeepSeek
-search/fetch server:
-
-- **Claude Code** — [MCP docs](https://code.claude.com/docs/en/mcp),
-  [changelog](https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md).
-  Config: `.mcp.json` (`mcpServers` with `command`/`args`/`env`, or `type: "http"` + `url`).
-  Env expansion `${VAR}` works in `command`/`args`/`env`/`url`/`headers`. Tool permission
-  rules `mcp__<server>__<tool>`; tool descriptions capped at 4,096 chars (2.1.296+); tool
-  output capped at 25k tokens by default (`MAX_MCP_OUTPUT_TOKENS`), oversized text saved to a
-  file; 16 MiB message cap on HTTP transports.
-- **Cursor** — [MCP docs](https://cursor.com/docs/mcp),
-  [CLI MCP](https://cursor.com/docs/cli/mcp). Config: `.cursor/mcp.json` or
-  `~/.cursor/mcp.json`; `command`/`args`/`env` for stdio (docs mark `type` as required),
-  `url`/`headers` for remote; `${env:NAME}` interpolation. MCP tools need approval; the CLI
-  has `--approve-mcps`, global-scope servers have been auto-approved since April 2026.
-- **Devin** — [MCP config](https://docs.devin.ai/cli/extensibility/mcp/configuration),
-  [changelog](https://docs.devin.ai/cli/changelog). Config: `.devin/mcp_config.local.json`
-  (default), `.devin/mcp_config.json`, or `~/.config/devin/mcp_config.json`; same
-  `mcpServers` shape; `devin mcp add <name> -- <cmd>` / `<URL>`. MCP tools prompt for
-  approval by default, with `mcp__server__tool` allow/deny patterns in `permissions`.
-- **GitHub Copilot** — [MCP docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers),
-  [repo](https://github.com/github/copilot-cli). Config: `~/.copilot/mcp-config.json` or
-  project `.mcp.json`; stdio entries use `"type": "local"` plus `command`/`args`/`env`; a
-  per-server `tools` list gates which tools are exposed; runtime flags
-  `--allow-tool`/`--deny-tool` accept `MCP_SERVER_NAME(tool)`.
+Registration paths, config shapes, approval surfaces, and per-host quirks live in the
+[per-host reference](control-matrix.md#per-host-reference) of the control-matrix note; they
+are setup facts, not protocol facts. The table above carries the protocol evidence, and
+source-level links follow in Sources.
 
 ## One server for all hosts
 
@@ -188,15 +128,13 @@ differences:
    different `type` strings: `http`, `streamable-http`, `streamableHttp`), and OAuth 2.1
    resource-server behavior (RFC 9728 metadata) then applies; prefer pre-registered clients
    over the now-deprecated Dynamic Client Registration.
-5. **Host quirks to design around.** Name tools distinctly (`deepseek_web_search`,
-   `deepseek_fetch`): Continue exposes raw names with cross-server collisions, and Gemini
-   truncates the `mcp_{server}_{tool}` name at 63 chars. Pass the API key explicitly in
-   config — Codex's stdio children do not inherit the parent environment, while other hosts
-   expand `${VAR}`-style references. Keep tool descriptions under Claude Code's 4,096-char
-   cap and fetch output bounded (Claude Code caps tool output at 25k tokens by default; Pi
-   truncates text over 20 KB). Document per-host approval: `mcp__deepseek__*` rules (Claude
-   Code, Devin), `tools` lists and `--allow-tool` (Copilot), `--approve-mcps` (Cursor),
-   `autoApprove` (Cline), `exposure: "direct"` (Pi).
+5. **Host quirks to design around.** Tool naming (`deepseek_web_search`,
+   `deepseek_fetch`) already reflects the quirk catalog in the
+   [per-host reference](control-matrix.md#per-host-reference): raw, colliding tool names
+   (Continue) and 63-char name truncation (Gemini); Codex's stdio env allowlist versus
+   `${VAR}`-style expansion elsewhere; output caps (Claude Code's 25k-token default, Pi's
+   20 KB truncation); and per-host approval surfaces (`mcp__deepseek__*` rules, `tools`
+   lists, `--approve-mcps`, `autoApprove`, `exposure: "direct"`).
 
 ## Sources
 

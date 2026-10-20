@@ -55,35 +55,35 @@ listed as supported only after an adapter and guide exist; for the remaining hos
 `No adapter yet` means the shipped MCP server already provides the path, but no guide for
 that host exists yet. All version locks live in [hosts.jsonc](hosts.jsonc), the single
 source of truth for this table; OpenCode is pinned to the adapter's tested target, not
-necessarily the latest OpenCode release.
+necessarily the latest OpenCode release. Control tiers per host and capability — optional,
+preferred, or forced routing — are researched in [control-matrix.md](control-matrix.md),
+whose per-host reference also carries MCP registration and rules files.
 
 ## Host notes
+
+One line per host. The [per-host reference](control-matrix.md#per-host-reference) carries
+the details: built-in web tools and their kill switches, MCP registration, and rules files.
 
 - **OpenCode v2** — The only shipped adapter. It uses OpenCode's native plugin API and
   exposes both a websearch provider and a fetch tool/override. See
   [OpenCode v2](opencode-v2.md).
-- **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. No documented native
-  provider or override; MCP servers can add tools, and hooks can block calls but do not
-  replace the fetch implementation.
-- **Codex** — MCP servers can add tools. No documented native websearch provider or fetch
-  override.
-- **Gemini** — Gemini CLI ships built-in `google_web_search` and `web_fetch` tools. No
-  documented native provider or override; MCP servers and extensions can add tools.
-- **Cursor** — Cursor CLI uses the same `mcp.json` servers as the editor. No documented
-  native provider or fetch override.
-- **GitHub Copilot** — Copilot CLI supports MCP servers; plugins can bundle MCP servers.
-  No documented native provider or fetch override.
-- **Cline** — Cline CLI supports MCP. CLI/SDK plugins can add custom tools, but the built-in
-  `fetch_web_content` tool is not replaced.
-- **Continue** — Continue CLI supports MCP servers. A built-in `search_web` tool exists, but
-  it is not a custom provider, and there is no documented fetch override.
-- **Devin** — Devin CLI supports MCP servers. Plugins bundle skills, rules, hooks, and MCP
-  servers, not arbitrary custom tools. Windsurf Desktop/Cascade is a separate IDE surface
-  and is not included in this row.
-- **Pi** — Pi 1.3.0 has native MCP support and a TypeScript extension API that can add
-  custom tools. The core ships read/bash/edit/write tools; web search/fetch are added by
-  extensions or MCP. No native websearch provider or fetch override. Supported through the
-  MCP server; see [Pi](pi.md).
+- **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. See
+  [Claude Code](control-matrix.md#claude-code).
+- **Codex** — Ships a built-in `web_search` tool. See [Codex](control-matrix.md#codex).
+- **Gemini** — Ships built-in `google_web_search` and `web_fetch` tools. See
+  [Gemini](control-matrix.md#gemini).
+- **Cursor** — Uses the same `mcp.json` servers as the editor; ships built-in web search
+  and `WebFetch` tools. See [Cursor](control-matrix.md#cursor).
+- **GitHub Copilot** — Ships a built-in `web_fetch` tool, and web search via the bundled
+  GitHub MCP server. See [GitHub Copilot](control-matrix.md#github-copilot).
+- **Cline** — Ships a built-in `fetch_web_content` tool. See
+  [Cline](control-matrix.md#cline).
+- **Continue** — The CLI's only built-in web tool is `Fetch`. See
+  [Continue](control-matrix.md#continue).
+- **Devin** — Ships built-in `web_search` and `webfetch` tools. See
+  [Devin](control-matrix.md#devin).
+- **Pi** — No built-in web tools; MCP plus a TypeScript extension API. Supported through
+  the MCP server; see [Pi](pi.md) and [Pi in the per-host reference](control-matrix.md#pi).
 
 ## Roadmap
 
@@ -137,6 +137,8 @@ Check the host's documentation for these questions:
 2. Can a plugin add a custom tool, or replace the built-in fetch tool?
 3. Does the host support MCP servers?
 4. Can the host call an external CLI or HTTP tool?
+5. Which rules or instruction files does the host read, and can they steer tool preference?
+6. Which built-in web tools does it ship, and can each be disabled or denied?
 
 Record the answers in `docs/<agent>.md`. Add a link from the README Usage section only after
 the adapter ships. To request evaluation for another host,

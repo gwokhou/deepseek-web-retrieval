@@ -9,6 +9,26 @@ export type Mechanism = (typeof MECHANISMS)[number]
 
 export type HostStatus = "supported" | "no-adapter-yet"
 
+/** How deterministically a capability can be routed to this project; aligned with docs/control-matrix.md. */
+export const FORCED_FLAVORS = ["replacement", "exclusion", "de-facto", "none"] as const
+export type ForcedFlavor = (typeof FORCED_FLAVORS)[number]
+
+/** Tier availability: "yes", or "n/a" when the tier is structurally unreachable. */
+export type TierAvailability = "yes" | "n/a"
+
+export interface CapabilityControl {
+  readonly optional: TierAvailability
+  readonly preferred: TierAvailability
+  readonly forced: ForcedFlavor
+  /** Config key or fact that realizes the forced tier; empty when forced is "none". */
+  readonly key: string
+}
+
+export interface ControlEntry {
+  readonly search: CapabilityControl
+  readonly fetch: CapabilityControl
+}
+
 export interface HostEntry {
   readonly name: string
   readonly display: string
@@ -24,6 +44,8 @@ export interface HostEntry {
   readonly adapter?: string
   readonly guide?: string
   readonly e2eScenario?: string
+  /** Control-tier facts for the generated matrix in docs/control-matrix.md. */
+  readonly control: ControlEntry
 }
 
 export interface HostsFile {

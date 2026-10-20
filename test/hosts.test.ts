@@ -2,9 +2,9 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
 import { parseJsonc } from "../scripts/jsonc"
-import { findHost, MECHANISMS, readHosts } from "../scripts/hosts"
+import { findHost, FORCED_FLAVORS, MECHANISMS, readHosts } from "../scripts/hosts"
 import type { HostEntry } from "../scripts/hosts"
-import { renderHostTable } from "../scripts/render-matrix"
+import { renderControlTable, renderHostTable } from "../scripts/render-matrix"
 
 const repoRoot = join(import.meta.dir, "..")
 
@@ -76,6 +76,29 @@ describe("docs/hosts.jsonc", () => {
     expect(mcpHosts.length).toBeGreaterThanOrEqual(8)
     expect(findHost(hosts, "pi").paths[0]).toBe("mcp")
   })
+
+  test("every host declares control tiers for search and fetch", () => {
+    for (const host of hosts.hosts) {
+      for (const capability of ["search", "fetch"] as const) {
+        const control = host.control[capability]
+        expect(["yes", "n/a"]).toContain(control.optional)
+        expect(["yes", "n/a"]).toContain(control.preferred)
+        expect(FORCED_FLAVORS).toContain(control.forced)
+        if (control.forced === "none") {
+          expect(control.key).toBe("")
+        } else {
+          expect(control.key.trim().length).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  test("replacement flavor implies the matching native extension point", () => {
+    for (const host of hosts.hosts) {
+      if (host.control.search.forced === "replacement") expect(host.nativeSearchProvider).toBe(true)
+      if (host.control.fetch.forced === "replacement") expect(host.nativeFetchOverride).toBe(true)
+    }
+  })
 })
 
 describe("docs/integration.md stays in sync with docs/hosts.jsonc", () => {
@@ -88,6 +111,20 @@ describe("docs/integration.md stays in sync with docs/hosts.jsonc", () => {
     const block = doc.slice(begin, end + "<!-- /generated: host-matrix -->".length)
     expect(block).toBe(
       `<!-- generated: host-matrix — edit docs/hosts.jsonc, then run \`bun run docs:matrix\` -->\n\n${renderHostTable(readHosts(repoRoot))}\n\n<!-- /generated: host-matrix -->`,
+    )
+  })
+})
+
+describe("docs/control-matrix.md stays in sync with docs/hosts.jsonc", () => {
+  test("the generated control matrix matches the rendered table", () => {
+    const doc = readFileSync(join(repoRoot, "docs", "control-matrix.md"), "utf8")
+    const begin = doc.indexOf("<!-- generated: control-matrix")
+    const end = doc.indexOf("<!-- /generated: control-matrix -->")
+    expect(begin).toBeGreaterThanOrEqual(0)
+    expect(end).toBeGreaterThan(begin)
+    const block = doc.slice(begin, end + "<!-- /generated: control-matrix -->".length)
+    expect(block).toBe(
+      `<!-- generated: control-matrix — edit docs/hosts.jsonc, then run \`bun run docs:matrix\` -->\n\n${renderControlTable(readHosts(repoRoot))}\n\n<!-- /generated: control-matrix -->`,
     )
   })
 })
