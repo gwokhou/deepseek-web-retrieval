@@ -4,7 +4,7 @@ import { findHost, readHosts } from "../../scripts/hosts"
 import { ScenarioError } from "./assert"
 import { runCodexScenario } from "./codex"
 import { runOpencodeScenario } from "./opencode"
-import { runPiScenario } from "./pi"
+import { runPiBilledScenario, runPiScenario } from "./pi"
 import { createDockerRunner, ensureDockerImage } from "./runner"
 import type { Runner } from "./runner"
 
@@ -21,6 +21,11 @@ const SCENARIOS: readonly Scenario[] = [
     name: "pi",
     requiresApiKey: false,
     run: (runner) => runPiScenario(runner),
+  },
+  {
+    name: "pi-billed",
+    requiresApiKey: true,
+    run: (runner) => runPiBilledScenario(runner),
   },
   {
     name: "opencode",

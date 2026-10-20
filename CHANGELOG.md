@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Add the billed `pi-billed` e2e scenario, bringing Pi to the same invocation-level
+  coverage as the opencode and codex scenarios: headless `pi --print` prompts whose
+  LLM is Pi's native DeepSeek provider (`deepseek/deepseek-flash`), so one key pays
+  for both legs and the model really calls `deepseek_fetch` / `deepseek_web_search`
+  through Pi's own MCP client. The keyless `pi` handshake scenario stays
 - Drop Continue and Gemini from the host matrix — they will not be supported.
   Both generated tables, the per-host reference, the protocol research, the
   installer examples, and the host-count invariants shrink accordingly (the

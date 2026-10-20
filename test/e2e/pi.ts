@@ -1,7 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { check, excerpt } from "./assert"
+import { check, excerpt, requireEnv } from "./assert"
 import type { Runner } from "./runner"
+
+const RUN_TIMEOUT_MS = 240_000
+const MODEL = "deepseek/deepseek-flash"
 
 interface PiServerEntry {
   readonly name?: unknown
@@ -75,4 +78,79 @@ export async function runPiScenario(runner: Runner): Promise<string[]> {
 
   log.push("pi: deepseek connected with tools deepseek_web_search, deepseek_fetch")
   return log
+}
+
+/**
+ * Billed, invocation-level Pi scenario, at the same depth as the opencode and
+ * codex scenarios. Pi 1.3.0 ships DeepSeek as a native provider that reads
+ * DEEPSEEK_API_KEY, so one key pays for both legs: the LLM is
+ * `deepseek/deepseek-flash` and the MCP server is the same built cli.js. The
+ * config keeps the key out of the file (`${DEEPSEEK_API_KEY}` expands from the
+ * shell that launches Pi). Runs in an isolated HOME, so the user-level mcp.json
+ * never touches a real one, and the working folder has no `.pi` directory, so
+ * print mode never needs a project-trust decision.
+ */
+export async function runPiBilledScenario(runner: Runner): Promise<string[]> {
+  const apiKey = requireEnv("DEEPSEEK_API_KEY", "the pi billed scenario makes real billed DeepSeek requests")
+  const log: string[] = []
+  const env = { HOME: runner.homeDir.guest, DEEPSEEK_API_KEY: apiKey }
+
+  const configDir = join(runner.homeDir.host, ".pi", "agent")
+  mkdirSync(configDir, { recursive: true })
+  writeFileSync(
+    join(configDir, "mcp.json"),
+    JSON.stringify(
+      {
+        mcpServers: {
+          deepseek: {
+            command: "node",
+            args: [join(runner.repoDir, "dist", "cli.js")],
+            env: { DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY}" },
+            exposure: "direct",
+            enabled: true,
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  )
+
+  const version = await runner.run(["pi", "--version"], { cwd: runner.projectDir.guest, env })
+  log.push(`pi version: ${excerpt(version.stdout.trim(), 80)}`)
+
+  const fetchReply = await runPrompt(
+    runner,
+    env,
+    "Use the mcp__deepseek__deepseek_fetch tool to fetch https://example.com and reply with only the page's H1 heading.",
+  )
+  check(
+    /Example Domain/i.test(fetchReply),
+    "fetch prompt did not return the example heading",
+    excerpt(fetchReply),
+  )
+  log.push("pi: model fetched example.com through deepseek_fetch (billed)")
+
+  const searchReply = await runPrompt(
+    runner,
+    env,
+    'Use the mcp__deepseek__deepseek_web_search tool to search the web for "pi coding agent" and reply with exactly one source URL and nothing else.',
+  )
+  check(/https?:\/\/\S+/i.test(searchReply), "search prompt did not return a URL", excerpt(searchReply))
+  log.push("pi: model searched through deepseek_web_search (billed)")
+
+  log.push("note: real DeepSeek requests were billed by this scenario (LLM + retrieval)")
+  return log
+}
+
+async function runPrompt(runner: Runner, env: Record<string, string | undefined>, prompt: string): Promise<string> {
+  const result = await runner.run(["pi", "--print", "--model", MODEL, prompt], {
+    cwd: runner.projectDir.guest,
+    env,
+    timeoutMs: RUN_TIMEOUT_MS,
+  })
+  // Print mode writes the final assistant text to stdout and exits nonzero on
+  // error or aborted stop reasons.
+  check(result.exitCode === 0, "`pi --print` failed", excerpt(result.stderr || result.stdout))
+  return result.stdout
 }

@@ -23,6 +23,13 @@ image contains no secrets; the key is passed at `docker run` time.
 
 - `bun run test:e2e pi` — keyless. Registers the built MCP server in an isolated
   Pi config and asserts a real `pi mcp list` handshake.
+- `bun run test:e2e pi-billed` — requires `DEEPSEEK_API_KEY`. Runs headless
+  `pi --print` prompts against the same MCP registration, with Pi's native
+  DeepSeek provider (`deepseek/deepseek-flash`) as the LLM from the same key.
+  This covers the invocation level the keyless scenario cannot: the model
+  actually calling `mcp__deepseek__deepseek_fetch` and
+  `mcp__deepseek__deepseek_web_search` through Pi's own MCP client. Real billed
+  requests (LLM + retrieval).
 - `bun run test:e2e opencode` — requires `DEEPSEEK_API_KEY`. Runs headless
   `opencode run` prompts in an isolated project
   that loads the plugin from this checkout. The LLM is a DeepSeek custom
