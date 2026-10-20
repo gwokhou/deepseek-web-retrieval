@@ -32,7 +32,7 @@ Rows are sorted with open-source hosts first, then by host name alphabetically.
 | Host | Version checked | Open source | Native search provider | Native fetch override | Best path | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP server or custom tool plugin | No adapter yet |
-| Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
+| Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | Supported |
 | Continue | 1.5.47 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | Gemini | 0.64.0 | Yes (Apache-2.0) | No | No | MCP server | No adapter yet |
 | OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | native websearch provider or native tool/fetch override | Supported |
@@ -70,7 +70,8 @@ the details: built-in web tools and their kill switches, MCP registration, and r
   [OpenCode v2](agents/opencode-v2.md).
 - **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. See
   [Claude Code](research/control-matrix.md#claude-code).
-- **Codex** — Ships a built-in `web_search` tool. See [Codex](research/control-matrix.md#codex).
+- **Codex** — Ships a built-in `web_search` tool. Supported through the MCP server; see
+  [Codex](agents/codex.md) and [Codex in the per-host reference](research/control-matrix.md#codex).
 - **Gemini** — Ships built-in `google_web_search` and `web_fetch` tools. See
   [Gemini](research/control-matrix.md#gemini).
 - **Cursor** — Uses the same `mcp.json` servers as the editor; ships built-in web search

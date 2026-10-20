@@ -74,8 +74,10 @@ Reading notes:
 
 One section per host, in hosts.jsonc order. Each carries what an install needs beyond the
 matrix: the built-in competitors, their kill switches, how the MCP server is registered,
-and which rules files steer preference. Config paths imply the available scopes; keys
-locked to a single scope are enumerated in the [installer design](../design/installer-design.md#scope).
+and which rules files steer preference. The `init` CLI implements these tiers for
+OpenCode, Pi, and Codex (see [installer design](../design/installer-design.md)). Config
+paths imply the available scopes; keys locked to a single scope are enumerated in the
+[installer design](../design/installer-design.md#scope).
 
 ### Cline
 

@@ -45,7 +45,10 @@
       "nativeSearchProvider": false,
       "nativeFetchOverride": false,
       "paths": ["mcp"],
-      "status": "no-adapter-yet",
+      "status": "supported",
+      "adapter": "src/mcp",
+      "guide": "docs/agents/codex.md",
+      "e2eScenario": "codex",
       "control": {
         "search": { "optional": "yes", "preferred": "yes", "forced": "exclusion", "key": "`web_search = \"disabled\"` (top-level config.toml)" },
         "fetch": { "optional": "yes", "preferred": "yes", "forced": "de-facto", "key": "no built-in fetch tool at 0.163.0" }

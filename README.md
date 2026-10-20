@@ -15,12 +15,16 @@ Shipped adapters:
 
 - [OpenCode v2 setup and usage](docs/agents/opencode-v2.md) — native plugin API
 - [Pi setup and usage](docs/agents/pi.md) — MCP server over stdio
+- [Codex setup and usage](docs/agents/codex.md) — MCP server over stdio
 
-The MCP server works with any host that supports MCP tools over stdio; Pi is the first
-host with a shipped guide. For how other coding agents integrate—native websearch
-providers, native fetch tools, MCP, or wrappers—see the
-[integration model](docs/integration.md) with its version-locked host support matrix, and
-the [MCP compatibility research](docs/research/mcp-compatibility.md). A host is listed as supported
+The MCP server works with any host that supports MCP tools over stdio. The
+`deepseek-web-retrieval init` CLI installs it with plan-then-apply semantics — search and
+fetch tiers chosen per capability, project or global scope, snapshots for rollback. For
+how coding agents integrate—native websearch providers, native fetch tools, MCP, or
+wrappers—see the
+[integration model](docs/integration.md) with its version-locked host support matrix, the
+[control-level research](docs/research/control-matrix.md), and the
+[MCP compatibility research](docs/research/mcp-compatibility.md). A host is listed as supported
 only after an adapter and guide exist.
 
 For shared search, fetch, retry, and privacy behavior, see below.
