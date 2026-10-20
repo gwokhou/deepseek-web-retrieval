@@ -60,56 +60,60 @@ const FETCH_DESCRIPTION =
 export function createDeepSeekServer(config: ResolvedOptions, env: Env = process.env): McpServer {
   const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version })
 
-  server.registerTool(
-    "deepseek_web_search",
-    {
-      title: "DeepSeek Web Search",
-      description: SEARCH_DESCRIPTION,
-      inputSchema: SEARCH_INPUT,
-      outputSchema: SEARCH_OUTPUT,
-      annotations: { readOnlyHint: true },
-    },
-    async ({ query }, ctx) => {
-      try {
-        const request = requestContext(config, env, ctx.mcpReq.signal)
-        const results = await searchWeb(query, config.search, request)
-        return {
-          content: [{ type: "text", text: formatSearchResults(results) }],
-          structuredContent: { results: results.map(toStructuredResult) },
+  if (config.search.enabled) {
+    server.registerTool(
+      "deepseek_web_search",
+      {
+        title: "DeepSeek Web Search",
+        description: SEARCH_DESCRIPTION,
+        inputSchema: SEARCH_INPUT,
+        outputSchema: SEARCH_OUTPUT,
+        annotations: { readOnlyHint: true },
+      },
+      async ({ query }, ctx) => {
+        try {
+          const request = requestContext(config, env, ctx.mcpReq.signal)
+          const results = await searchWeb(query, config.search, request)
+          return {
+            content: [{ type: "text", text: formatSearchResults(results) }],
+            structuredContent: { results: results.map(toStructuredResult) },
+          }
+        } catch (error) {
+          return toErrorResult(error)
         }
-      } catch (error) {
-        return toErrorResult(error)
-      }
-    },
-  )
+      },
+    )
+  }
 
-  server.registerTool(
-    "deepseek_fetch",
-    {
-      title: "DeepSeek Fetch",
-      description: FETCH_DESCRIPTION,
-      inputSchema: FETCH_INPUT,
-      outputSchema: FETCH_OUTPUT,
-      annotations: { readOnlyHint: true },
-    },
-    async ({ url }, ctx) => {
-      try {
-        const request = requestContext(config, env, ctx.mcpReq.signal)
-        const page = await fetchDocument(url, config.fetch, request)
-        return {
-          content: [{ type: "text", text: page.content }],
-          structuredContent: {
-            url: page.url,
-            title: page.title,
-            content: page.content,
-            truncated: page.truncated,
-          },
+  if (config.fetch.enabled) {
+    server.registerTool(
+      "deepseek_fetch",
+      {
+        title: "DeepSeek Fetch",
+        description: FETCH_DESCRIPTION,
+        inputSchema: FETCH_INPUT,
+        outputSchema: FETCH_OUTPUT,
+        annotations: { readOnlyHint: true },
+      },
+      async ({ url }, ctx) => {
+        try {
+          const request = requestContext(config, env, ctx.mcpReq.signal)
+          const page = await fetchDocument(url, config.fetch, request)
+          return {
+            content: [{ type: "text", text: page.content }],
+            structuredContent: {
+              url: page.url,
+              title: page.title,
+              content: page.content,
+              truncated: page.truncated,
+            },
+          }
+        } catch (error) {
+          return toErrorResult(error)
         }
-      } catch (error) {
-        return toErrorResult(error)
-      }
-    },
-  )
+      },
+    )
+  }
 
   return server
 }

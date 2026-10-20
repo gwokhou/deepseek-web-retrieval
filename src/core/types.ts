@@ -16,6 +16,7 @@ export interface SearchOptions {
   readonly maxSummaryChars: number
   readonly timeoutMs: number
   readonly setDefault: boolean
+  readonly enabled: boolean
 }
 
 export interface FetchOptions {
@@ -26,6 +27,7 @@ export interface FetchOptions {
   readonly overrideWebfetch: boolean
   readonly registerTool: boolean
   readonly blockPrivateHosts: boolean
+  readonly enabled: boolean
 }
 
 export interface AuthOptions {

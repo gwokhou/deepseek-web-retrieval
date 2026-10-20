@@ -69,6 +69,18 @@ describe("pluginOptionsFromEnv", () => {
     })
   })
 
+  test("maps DEEPSEEK_ENABLE_SEARCH/FETCH as false-only tool switches", () => {
+    expect(pluginOptionsFromEnv({ DEEPSEEK_ENABLE_SEARCH: "true", DEEPSEEK_ENABLE_FETCH: "1" })).toEqual({})
+    expect(pluginOptionsFromEnv({ DEEPSEEK_ENABLE_SEARCH: "false" })).toEqual({ searchEnabled: false })
+    expect(pluginOptionsFromEnv({ DEEPSEEK_ENABLE_FETCH: "0" })).toEqual({ fetchEnabled: false })
+    expect(pluginOptionsFromEnv({ DEEPSEEK_ENABLE_SEARCH: "no", DEEPSEEK_ENABLE_FETCH: "off" })).toEqual({
+      searchEnabled: false,
+      fetchEnabled: false,
+    })
+    expect(resolveEnvOptions({ DEEPSEEK_ENABLE_SEARCH: "false" }).search.enabled).toBe(false)
+    expect(resolveEnvOptions({}).fetch.enabled).toBe(true)
+  })
+
   test("passes language text through", () => {
     expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_LANGUAGE: "zh" })).toEqual({ language: "zh" })
   })

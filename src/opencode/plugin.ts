@@ -103,46 +103,50 @@ export default Plugin.define({
   async setup(ctx) {
     const config = resolvePluginOptions(ctx.options)
 
-    await ctx.websearch.transform((editor) => {
-      editor.add({
-        id: "deepseek",
-        name: "DeepSeek",
-        execute: async (input, { signal }) => {
-          const apiKey = await resolveApiKey(ctx, config.auth.source)
-          return searchWeb(input.query, config.search, {
-            signal,
-            auth: { apiKey },
-            retry: config.retry,
-          })
-        },
+    if (config.search.enabled) {
+      await ctx.websearch.transform((editor) => {
+        editor.add({
+          id: "deepseek",
+          name: "DeepSeek",
+          execute: async (input, { signal }) => {
+            const apiKey = await resolveApiKey(ctx, config.auth.source)
+            return searchWeb(input.query, config.search, {
+              signal,
+              auth: { apiKey },
+              retry: config.retry,
+            })
+          },
+        })
+        if (config.search.setDefault) editor.default.set("deepseek")
       })
-      if (config.search.setDefault) editor.default.set("deepseek")
-    })
+    }
 
-    await ctx.tool.transform((editor) => {
-      if (config.fetch.overrideWebfetch) editor.remove("webfetch")
+    if (config.fetch.enabled) {
+      await ctx.tool.transform((editor) => {
+        if (config.fetch.overrideWebfetch) editor.remove("webfetch")
 
-      if (config.fetch.registerTool) {
-        editor.add({
-          name: "deepseek_fetch",
-          description: DEEPSEEK_FETCH_DESCRIPTION,
-          input: FETCH_INPUT,
-          options: { codemode: false, permission: "deepseek_fetch" },
-          execute: (input, context) =>
-            runFetch(ctx, config, input as FetchInput, context, "deepseek_fetch", false),
-        })
-      }
+        if (config.fetch.registerTool) {
+          editor.add({
+            name: "deepseek_fetch",
+            description: DEEPSEEK_FETCH_DESCRIPTION,
+            input: FETCH_INPUT,
+            options: { codemode: false, permission: "deepseek_fetch" },
+            execute: (input, context) =>
+              runFetch(ctx, config, input as FetchInput, context, "deepseek_fetch", false),
+          })
+        }
 
-      if (config.fetch.overrideWebfetch) {
-        editor.add({
-          name: "webfetch",
-          description: WEBFETCH_DESCRIPTION,
-          input: FETCH_INPUT,
-          options: { codemode: false, permission: "webfetch" },
-          execute: (input, context) =>
-            runFetch(ctx, config, input as FetchInput, context, "webfetch", true),
-        })
-      }
-    })
+        if (config.fetch.overrideWebfetch) {
+          editor.add({
+            name: "webfetch",
+            description: WEBFETCH_DESCRIPTION,
+            input: FETCH_INPUT,
+            options: { codemode: false, permission: "webfetch" },
+            execute: (input, context) =>
+              runFetch(ctx, config, input as FetchInput, context, "webfetch", true),
+          })
+        }
+      })
+    }
   },
 })

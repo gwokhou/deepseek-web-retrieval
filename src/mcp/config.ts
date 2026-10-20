@@ -36,6 +36,8 @@ const FLAG_ENV = {
 /** Shared defaults are true; only an explicit false value disables them. */
 const FALSE_ONLY_ENV = {
   fetchBlockPrivateHosts: "DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS",
+  searchEnabled: "DEEPSEEK_ENABLE_SEARCH",
+  fetchEnabled: "DEEPSEEK_ENABLE_FETCH",
 } as const
 
 /**
@@ -67,6 +69,8 @@ export function pluginOptionsFromEnv(env: Env): PluginOptions {
   putDomains(options, "fetchBlockedDomains", env)
   putNumber(options, "fetchTimeoutMs", env)
   putFalseOnly(options, "fetchBlockPrivateHosts", env)
+  putFalseOnly(options, "searchEnabled", env)
+  putFalseOnly(options, "fetchEnabled", env)
 
   putNumber(options, "maxRetries", env)
   putNumber(options, "retryBaseDelayMs", env)

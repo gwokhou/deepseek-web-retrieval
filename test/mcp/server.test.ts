@@ -282,3 +282,35 @@ describe("MCP server over the legacy protocol eras", () => {
     }
   })
 })
+
+describe("per-tool enable switches", () => {
+  test("registers only the search tool when fetch is disabled", async () => {
+    const persona = await connectPersona(undefined, undefined, resolvePluginOptions({ fetchEnabled: false }))
+    try {
+      const listed = await persona.client.listTools()
+      expect(listed.tools.map((tool) => tool.name)).toEqual(["deepseek_web_search"])
+    } finally {
+      await persona.close()
+    }
+  })
+
+  test("registers only the fetch tool when search is disabled", async () => {
+    const persona = await connectPersona(undefined, undefined, resolvePluginOptions({ searchEnabled: false }))
+    try {
+      const listed = await persona.client.listTools()
+      expect(listed.tools.map((tool) => tool.name)).toEqual(["deepseek_fetch"])
+    } finally {
+      await persona.close()
+    }
+  })
+
+  test("registers neither tool when both are disabled", async () => {
+    const persona = await connectPersona(undefined, undefined, resolvePluginOptions({ searchEnabled: false, fetchEnabled: false }))
+    try {
+      const listed = await persona.client.listTools()
+      expect(listed.tools).toEqual([])
+    } finally {
+      await persona.close()
+    }
+  })
+})

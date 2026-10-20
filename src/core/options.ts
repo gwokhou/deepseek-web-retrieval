@@ -47,6 +47,7 @@ export function resolveSearchOptions(input?: PluginOptions): SearchOptions {
     maxSummaryChars: clampInt(input?.maxSummaryChars, DEFAULT_MAX_SUMMARY_CHARS, 0, 1_000_000),
     timeoutMs: clampInt(input?.searchTimeoutMs, DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS),
     setDefault: input?.setDefaultWebsearch === true,
+    enabled: input?.searchEnabled !== false,
   }
 }
 
@@ -59,6 +60,7 @@ export function resolveFetchOptions(input?: PluginOptions): FetchOptions {
     overrideWebfetch: input?.fetchOverrideWebfetch === true,
     registerTool: input?.fetchRegisterTool !== false,
     blockPrivateHosts: input?.fetchBlockPrivateHosts !== false,
+    enabled: input?.fetchEnabled !== false,
   }
 }
 

@@ -52,4 +52,30 @@ describe("built CLI smoke test", () => {
     expect(exitCode).toBe(1)
     expect(stderr).toContain("DEEPSEEK_API_KEY")
   })
+
+  test("lists only the search tool when DEEPSEEK_ENABLE_FETCH is false", async () => {
+    const client = await spawnCli({ DEEPSEEK_API_KEY: "sk-test", DEEPSEEK_ENABLE_FETCH: "false" })
+    try {
+      const listed = await client.listTools()
+      expect(listed.tools.map((tool) => tool.name)).toEqual(["deepseek_web_search"])
+    } finally {
+      await client.close()
+    }
+  })
+
+  test("exits with an error when both tools are disabled", async () => {
+    const proc = Bun.spawn(["node", CLI], {
+      env: {
+        PATH: process.env.PATH ?? "",
+        DEEPSEEK_API_KEY: "sk-test",
+        DEEPSEEK_ENABLE_SEARCH: "false",
+        DEEPSEEK_ENABLE_FETCH: "false",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [exitCode, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()])
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain("DEEPSEEK_ENABLE_SEARCH")
+  })
 })

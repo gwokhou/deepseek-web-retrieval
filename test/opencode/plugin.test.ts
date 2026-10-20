@@ -121,6 +121,21 @@ describe("OpenCode plugin wiring", () => {
     expect(captured.defaultProvider).toBeUndefined()
   })
 
+  test("registers nothing search-related when searchEnabled is false", async () => {
+    const captured = await setup({ searchEnabled: false })
+    expect(captured.provider).toBeUndefined()
+    expect(captured.defaultProvider).toBeUndefined()
+    // The fetch side is unaffected.
+    expect(captured.tool?.name).toBe("deepseek_fetch")
+  })
+
+  test("registers nothing fetch-related when fetchEnabled is false", async () => {
+    const captured = await setup({ fetchEnabled: false, fetchOverrideWebfetch: true })
+    expect(captured.provider?.id).toBe("deepseek")
+    expect(captured.added).toEqual([])
+    expect(captured.tools.has("webfetch")).toBe(true)
+  })
+
   test("can set DeepSeek as the default websearch provider", async () => {
     const captured = await setup({ setDefaultWebsearch: true })
     expect(captured.defaultProvider).toBe("deepseek")

@@ -23,6 +23,7 @@ describe("resolve options", () => {
         maxSummaryChars: 1200,
         timeoutMs: 30000,
         setDefault: false,
+        enabled: true,
       },
       fetch: {
         maxChars: 16000,
@@ -32,6 +33,7 @@ describe("resolve options", () => {
         overrideWebfetch: false,
         registerTool: true,
         blockPrivateHosts: true,
+        enabled: true,
       },
       auth: { source: "auto" },
       retry: { maxRetries: 0, baseDelayMs: 250 },
@@ -75,6 +77,14 @@ describe("resolve options", () => {
     expect(resolveFetchOptions({ fetchBlockPrivateHosts: false }).blockPrivateHosts).toBe(false)
     expect(resolveFetchOptions({ fetchMaxChars: -1 }).maxChars).toBe(0)
     expect(resolveFetchOptions({ fetchTimeoutMs: 999_999 }).timeoutMs).toBe(120000)
+  })
+
+  test("keeps capabilities enabled by default and disables them explicitly", () => {
+    expect(resolveSearchOptions({}).enabled).toBe(true)
+    expect(resolveSearchOptions({ searchEnabled: false }).enabled).toBe(false)
+    expect(resolveSearchOptions({ searchEnabled: "false" }).enabled).toBe(true)
+    expect(resolveFetchOptions({}).enabled).toBe(true)
+    expect(resolveFetchOptions({ fetchEnabled: false }).enabled).toBe(false)
   })
 
   test("validates auth source and retry settings", () => {
