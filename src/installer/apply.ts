@@ -1,9 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { dirname } from "node:path"
-import { parse as parseToml } from "smol-toml"
-import { applyJsonOps, jsonGet, loadConfig, serializeConfig, writeConfig } from "./configFile"
-import { applyTomlOps, deepEqual, valueAt } from "./configValue"
-import { hasBlock, upsertBlock } from "./rules"
+import { existsSync, readFileSync } from "node:fs"
+import { codecFor, writeConfig } from "./formats"
+import { deepEqual } from "./formats/value"
 import { revertRecordedFile } from "./revert"
 import { readRecord, writeRecord } from "./state"
 import type { ConfigOp, FileEdit, InstallPlan, InstallRecord, InstallerInput, RecordedFile } from "./types"
@@ -55,38 +52,26 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
 }
 
 function prepareEdit(edit: FileEdit, host: InstallPlan["host"]): PreparedEdit {
+  const codec = codecFor(edit.format, host)
   if (edit.format === "rules") {
     const existed = existsSync(edit.file)
     const text = existed ? readFileSync(edit.file, "utf8") : ""
-    const updated = upsertBlock(host, text, edit.block ?? "")
+    const updated = codec.apply(text, edit).text
     return {
       edit,
       recorded: { file: edit.file, format: "rules", created: !existed, ops: [], blockApplied: edit.block },
-      write: () => {
-        mkdirSync(dirname(edit.file), { recursive: true })
-        writeFileSync(edit.file, updated)
-      },
+      write: () => writeConfig(edit.file, updated),
     }
   }
-  const loaded = loadConfig(edit.file, edit.format)
+  const loaded = codec.load(edit.file)
   if (loaded.parseError) {
     throw new Error(`${edit.file} does not parse: ${loaded.parseError}`)
   }
-  if (edit.format === "json") {
-    const base = loaded.exists && loaded.text.trim().length > 0 ? loaded.text : "{}\n"
-    const result = applyJsonOps(base, edit.ops)
-    return {
-      edit,
-      recorded: { file: edit.file, format: "json", created: !loaded.exists, ops: result.recorded, createdParents: result.createdParents },
-      write: () => writeConfig(edit.file, result.text),
-    }
-  }
-  const result = applyTomlOps(loaded.value, edit.ops)
-  const serialized = serializeConfig(result.value, "toml")
+  const applied = codec.apply(loaded.text, edit)
   return {
     edit,
-    recorded: { file: edit.file, format: "toml", created: !loaded.exists, ops: result.recorded, createdParents: result.createdParents },
-    write: () => writeConfig(edit.file, serialized),
+    recorded: { file: edit.file, format: edit.format, created: !loaded.exists, ops: applied.recorded, createdParents: applied.createdParents },
+    write: () => writeConfig(edit.file, applied.text),
   }
 }
 
@@ -140,32 +125,21 @@ function verifyEdits(edits: readonly FileEdit[], host: InstallPlan["host"]): { l
       ok = false
       continue
     }
+    const codec = codecFor(edit.format, host)
+    const text = readFileSync(edit.file, "utf8")
     if (edit.format === "rules") {
-      const good = hasBlock(host, readFileSync(edit.file, "utf8"))
+      const good = codec.verify(text, edit)
       lines.push(`${good ? "pass" : "FAIL"} ${edit.file}: rules block ${good ? "present" : "missing"}`)
       ok = ok && good
       continue
     }
-    const text = readFileSync(edit.file, "utf8")
     for (const op of edit.ops) {
-      const good = opHolds(edit.format, text, op)
+      const good = codec.verify(text, edit, op)
       lines.push(`${good ? "pass" : "FAIL"} ${edit.file}: ${describeOp(op)} ${good ? "holds" : "missing"}`)
       ok = ok && good
     }
   }
   return { lines, ok }
-}
-
-function opHolds(format: "json" | "toml", text: string, op: ConfigOp): boolean {
-  if (format === "json") {
-    if (op.op === "set") return deepEqual(jsonGet(text, op.path), op.value)
-    const list = jsonGet(text, op.path)
-    return Array.isArray(list) && (op.entries ?? []).every((entry) => list.some((item) => deepEqual(item, entry)))
-  }
-  const value = parseToml(text) as Record<string, unknown>
-  const current = valueAt(value, op.path)
-  if (op.op === "set") return deepEqual(current, op.value)
-  return Array.isArray(current) && (op.entries ?? []).every((entry) => current.some((item) => deepEqual(item, entry)))
 }
 
 function describeOp(op: ConfigOp): string {

@@ -53,6 +53,7 @@ function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallP
  */
 function withSecretGuard(plan: InstallPlan): InstallPlan {
   for (const edit of plan.edits) {
+    if (edit.format === "rules") continue // rules edits carry no values to snapshot
     for (const op of edit.ops) {
       if (op.op !== "set" || op.previous === undefined) continue
       const offender = findSecretLike(op.previous, op.path.join("."))
@@ -112,7 +113,7 @@ function withOrphanReverts(plan: InstallPlan, input: InstallerInput): InstallPla
       reverts.push(file)
       continue
     }
-    if (file.format === "rules") continue // the new plan's block supersedes ours
+    if (edit.format === "rules" || file.format === "rules") continue // the new plan's block supersedes ours
     const orphanOps = file.ops.filter(
       (op) => !edit.ops.some((candidate) => candidate.op === op.op && candidate.path.join("\u0000") === op.path.join("\u0000")),
     )

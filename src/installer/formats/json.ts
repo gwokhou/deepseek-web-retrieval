@@ -1,69 +1,26 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
-import { dirname } from "node:path"
+import { existsSync, readFileSync } from "node:fs"
 import { applyEdits, modify, parse, type JSONPath } from "jsonc-parser/lib/esm/main.js"
-import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
-import { parseJsonc } from "../core/jsonc"
-import { appendEntries, deepEqual, isPlainObject, valueAt } from "./configValue"
-import type { ConfigOp, RecordedOp } from "./types"
-
-export type ConfigFormat = "json" | "toml"
+import { parseJsonc } from "../../core/jsonc"
+import type { ConfigOp, RecordedOp } from "../types"
+import type { AppliedText, FormatCodec, LoadedConfig } from "./index"
+import { appendEntries, deepEqual, isPlainObject, valueAt } from "./value"
 
 const JSON_FORMATTING = { insertSpaces: true, tabSize: 2, insertFinalNewline: false } as const
 
-export interface LoadedConfig {
-  readonly exists: boolean
-  readonly text: string
-  readonly value: Record<string, unknown>
-  /** True when serializing the parsed value would drop comments (TOML only; JSON edits preserve them). */
-  readonly lossy: boolean
-  readonly parseError?: string
-}
-
-/** Reads and parses a config file; a missing or unparsable file starts from `{}`. */
-export function loadConfig(file: string, format: ConfigFormat): LoadedConfig {
+/** Reads a JSONC config file; a missing file starts empty, an unparsable one carries the error. */
+export function loadJson(file: string): LoadedConfig {
   if (!existsSync(file)) return { exists: false, text: "", value: {}, lossy: false }
   const text = readFileSync(file, "utf8")
   try {
-    const value = (format === "json" ? parseJsonc(text) : parseToml(text)) as Record<string, unknown>
-    return { exists: true, text, value, lossy: format === "toml" && hasTomlComment(text) }
+    return { exists: true, text, value: parseJsonc(text) as Record<string, unknown>, lossy: false }
   } catch (error) {
     const parseError = error instanceof Error ? error.message : String(error)
     return { exists: true, text, value: {}, lossy: false, parseError }
   }
 }
 
-/**
- * String-aware TOML comment detection: any `#` outside basic ("") or literal ('')
- * strings counts, including trailing comments like `key = "x" # note`.
- */
-export function hasTomlComment(text: string): boolean {
-  let inBasic = false
-  let inLiteral = false
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i] as string
-    if (inBasic) {
-      if (ch === "\\") i += 1
-      else if (ch === '"') inBasic = false
-      continue
-    }
-    if (inLiteral) {
-      if (ch === "'") inLiteral = false
-      continue
-    }
-    if (ch === '"') inBasic = true
-    else if (ch === "'") inLiteral = true
-    else if (ch === "#") return true
-  }
-  return false
-}
-
-export function serializeConfig(value: Record<string, unknown>, format: ConfigFormat): string {
-  return format === "json" ? `${JSON.stringify(value, null, 2)}\n` : `${stringifyToml(value)}\n`
-}
-
-export function writeConfig(file: string, serialized: string): void {
-  mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, serialized)
+export function serializeJson(value: Record<string, unknown>): string {
+  return `${JSON.stringify(value, null, 2)}\n`
 }
 
 /** Reads the value at a dotted path from JSON text, or undefined when absent. */
@@ -86,7 +43,7 @@ export interface JsonOpsResult {
  * for surgical undo.
  */
 export function applyJsonOps(text: string, ops: readonly ConfigOp[]): JsonOpsResult {
-  let current = text.trim().length > 0 ? text : "{}"
+  let current = text.trim().length > 0 ? text : "{}\n"
   const recorded: RecordedOp[] = []
   const createdParents: (readonly string[])[] = []
   for (const op of ops) {
@@ -171,4 +128,28 @@ function ensureParents(text: string, path: readonly string[], created: (readonly
     created.push(prefix)
   }
   return current
+}
+
+function jsonOpHolds(text: string, op: ConfigOp): boolean {
+  if (op.op === "set") return deepEqual(jsonGet(text, op.path), op.value)
+  const list = jsonGet(text, op.path)
+  return Array.isArray(list) && (op.entries ?? []).every((entry) => list.some((item) => deepEqual(item, entry)))
+}
+
+/** The JSON codec: comment-preserving edits on JSONC text. */
+export const jsonCodec: FormatCodec = {
+  format: "json",
+  load: loadJson,
+  apply: (text, edit): AppliedText => {
+    if (edit.format !== "json") throw new Error(`json codec cannot apply a ${edit.format} edit`)
+    const result = applyJsonOps(text, edit.ops)
+    return { text: result.text, recorded: result.recorded, createdParents: result.createdParents }
+  },
+  verify: (text, edit, op) => {
+    if (edit.format !== "json") throw new Error(`json codec cannot verify a ${edit.format} edit`)
+    const ops = op === undefined ? edit.ops : [op]
+    return ops.every((candidate) => jsonOpHolds(text, candidate))
+  },
+  revert: (text, recorded) => revertJsonOps(text, recorded.ops, recorded.createdParents ?? []),
+  isEffectivelyEmpty: (text) => text.replace(/[{}\s]/g, "").length === 0,
 }

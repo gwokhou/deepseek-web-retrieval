@@ -1,5 +1,5 @@
-import { loadConfig } from "../configFile"
-import { isPlainObject } from "../configValue"
+import { codecFor } from "../formats"
+import { isPlainObject } from "../formats/value"
 import {
   BOTH_CAPABILITIES_OFF,
   FORCED_COST_NOTE,
@@ -11,13 +11,13 @@ import {
 } from "../detect"
 import { hostPaths } from "../paths"
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
-import { buildRulesBlock } from "../rules"
+import { buildRulesBlock } from "../formats/rules"
 import { rulesLines } from "../rulesContent"
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
 
 export function planPi(input: InstallerInput): InstallPlan {
   const paths = hostPaths("pi", input)
-  const loaded = loadConfig(paths.config, "json")
+  const loaded = codecFor("json", input.host).load(paths.config)
   const notes: string[] = []
   const errors: { message: string }[] = []
   const edits: FileEdit[] = []
@@ -101,7 +101,6 @@ export function planPi(input: InstallerInput): InstallPlan {
     edits.push({
       file: paths.rules,
       format: "rules",
-      ops: [],
       block: buildRulesBlock(input.host, rulesLines("pi", input.search, input.fetch)),
     })
     notes.push(`Rules block upserted in ${paths.rules}; Pi loads AGENTS.md context files from the working directory and its parents.`)

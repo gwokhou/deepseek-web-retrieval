@@ -1,5 +1,5 @@
-import { loadConfig } from "../configFile"
-import { isPlainObject } from "../configValue"
+import { codecFor } from "../formats"
+import { isPlainObject } from "../formats/value"
 import {
   BOTH_CAPABILITIES_OFF,
   FORCED_COST_NOTE,
@@ -11,13 +11,13 @@ import {
 } from "../detect"
 import { hostPaths } from "../paths"
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
-import { buildRulesBlock } from "../rules"
+import { buildRulesBlock } from "../formats/rules"
 import { rulesLines } from "../rulesContent"
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
 
 export function planCodex(input: InstallerInput): InstallPlan {
   const paths = hostPaths("codex", input)
-  const loaded = loadConfig(paths.config, "toml")
+  const loaded = codecFor("toml", input.host).load(paths.config)
   const notes: string[] = []
   const errors: { message: string }[] = []
   const edits: FileEdit[] = []
@@ -116,7 +116,6 @@ export function planCodex(input: InstallerInput): InstallPlan {
     edits.push({
       file: paths.rules,
       format: "rules",
-      ops: [],
       block: buildRulesBlock(input.host, rulesLines("codex", input.search, input.fetch)),
     })
     notes.push(

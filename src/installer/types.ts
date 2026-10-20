@@ -31,14 +31,29 @@ export interface ConfigOp {
   readonly existingCount?: number
 }
 
-/** One file the plan touches. */
-export interface FileEdit {
+/** A JSON file edit: comment-preserving ops on JSONC text. */
+export interface JsonEdit {
   readonly file: string
-  readonly format: "json" | "toml" | "rules"
+  readonly format: "json"
   readonly ops: readonly ConfigOp[]
-  /** For "rules" edits: the marked block content to upsert. */
-  readonly block?: string
 }
+
+/** A TOML file edit: ops on the parsed value, serialized on write. */
+export interface TomlEdit {
+  readonly file: string
+  readonly format: "toml"
+  readonly ops: readonly ConfigOp[]
+}
+
+/** A rules file edit: upserts the host's marked block; it carries no ops. */
+export interface RulesEdit {
+  readonly file: string
+  readonly format: "rules"
+  readonly block: string
+}
+
+/** One file the plan touches, discriminated by config format. */
+export type FileEdit = JsonEdit | TomlEdit | RulesEdit
 
 /** A plan that refuses to proceed (for example a structurally unavailable tier). */
 export interface PlanError {

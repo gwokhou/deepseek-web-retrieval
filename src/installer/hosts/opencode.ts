@@ -1,15 +1,15 @@
-import { loadConfig } from "../configFile"
-import { isPlainObject } from "../configValue"
+import { codecFor } from "../formats"
+import { isPlainObject } from "../formats/value"
 import { BOTH_CAPABILITIES_OFF, FORCED_COST_NOTE, competitorSteeringNote, findCompetitorSteering } from "../detect"
 import { hostPaths } from "../paths"
-import { buildRulesBlock } from "../rules"
+import { buildRulesBlock } from "../formats/rules"
 import { rulesLines } from "../rulesContent"
 import { readRecord } from "../state"
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan } from "../types"
 
 export function planOpenCode(input: InstallerInput): InstallPlan {
   const paths = hostPaths("opencode", input)
-  const loaded = loadConfig(paths.config, "json")
+  const loaded = codecFor("json", input.host).load(paths.config)
   const notes: string[] = []
   const errors: { message: string }[] = []
   const edits: FileEdit[] = []
@@ -106,7 +106,6 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
     edits.push({
       file: paths.rules,
       format: "rules",
-      ops: [],
       block: buildRulesBlock(input.host, rulesLines("opencode", input.search, input.fetch)),
     })
     notes.push(`Rules block upserted in ${paths.rules}; OpenCode loads AGENTS.md only (no CLAUDE.md fallback in v2).`)

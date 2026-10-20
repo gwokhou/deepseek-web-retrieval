@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs"
-import { isPlainObject } from "./configValue"
-import { removeBlock } from "./rules"
+import { removeBlock } from "./formats/rules"
+import { isPlainObject } from "./formats/value"
 import type { HostName } from "./types"
 
 /** Shared plan error: both capabilities off leaves nothing to install. */

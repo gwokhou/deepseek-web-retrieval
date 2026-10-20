@@ -3,21 +3,22 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
 import { applyPlan } from "../../src/installer/apply"
-import { applyJsonOps, revertJsonOps } from "../../src/installer/configFile"
+import { applyJsonOps, revertJsonOps } from "../../src/installer/formats/json"
 import { parseJsonc } from "../../src/core/jsonc"
 import { planForHost } from "../../src/installer/hosts"
 import { planCodex } from "../../src/installer/hosts/codex"
 import { planOpenCode } from "../../src/installer/hosts/opencode"
 import { planPi } from "../../src/installer/hosts/pi"
-import { buildRulesBlock, hasBlock, removeBlock, upsertBlock } from "../../src/installer/rules"
-import { hasTomlComment } from "../../src/installer/configFile"
+import { buildRulesBlock, hasBlock, removeBlock, upsertBlock } from "../../src/installer/formats/rules"
+import { hasTomlComment } from "../../src/installer/formats/toml"
 import { renderPlan } from "../../src/installer/render"
 import { runInstallerCli } from "../../src/installer/cli"
 import { readFileSync as fsReadFileSync, statSync } from "node:fs"
 import { claimedByOtherScope, readRecord, writeRecord } from "../../src/installer/state"
 import { listRecords } from "../../src/installer/state"
 import { uninstall } from "../../src/installer/uninstall"
-import type { InstallerInput } from "../../src/installer/types"
+import { codecFor } from "../../src/installer/formats"
+import type { InstallerInput, JsonEdit, RecordedFile, RulesEdit, TomlEdit } from "../../src/installer/types"
 
 const homes: string[] = []
 const cwds: string[] = []
@@ -102,7 +103,7 @@ describe("plans", () => {
   test("pi: off tiers write DEEPSEEK_ENABLE flags into the env block", () => {
     const input = makeInput("pi", "global", "off", "optional")
     const plan = planPi(input)
-    const setOp = plan.edits[0]?.ops[0]
+    const setOp = plan.edits.find((edit) => edit.format === "json")?.ops[0]
     const env = setOp && "value" in setOp ? ((setOp.value as { env: Record<string, string> }).env ?? {}) : {}
     expect(env.DEEPSEEK_ENABLE_SEARCH).toBe("false")
     expect(env.DEEPSEEK_ENABLE_FETCH).toBeUndefined()
@@ -137,7 +138,9 @@ describe("plans", () => {
     const plan = planOpenCode(input)
     expect(plan.errors).toEqual([])
     expect(plan.notes.join(" ")).toContain("tavily")
-    const permissions = plan.edits[0]?.ops.find((op) => op.op === "append-array" && op.path[0] === "permissions")
+    const permissions = plan.edits
+      .find((edit) => edit.format === "json")
+      ?.ops.find((op) => op.op === "append-array" && op.path[0] === "permissions")
     expect(permissions && "entries" in permissions ? (permissions.entries ?? []).map((entry) => (entry as { action: string }).action) : []).toEqual(["websearch", "deepseek_fetch", "webfetch"])
   })
 
@@ -154,7 +157,7 @@ describe("plans", () => {
     writeFileSync(join(dir2, "config.toml"), 'model = "gpt-5.2"\nweb_search = "live"\n')
     const plan = planCodex(input)
     expect(plan.errors).toEqual([])
-    const ops = plan.edits[0]?.ops ?? []
+    const ops = plan.edits.find((edit) => edit.format === "toml")?.ops ?? []
     expect(ops.some((op) => op.op === "set" && op.path.join(".") === "web_search" && op.value === "disabled")).toBe(true)
     expect(plan.notes.join(" ")).toContain('"live"')
     expect(plan.notes.join(" ")).toContain("env_vars")
@@ -257,7 +260,9 @@ describe("apply and uninstall round-trips", () => {
     )
     const plan = planForHost("pi", input)
     expect(plan.errors).toEqual([])
-    const exclusion = plan.edits[0]?.ops.find((op) => op.op === "set" && op.path.join(".") === "mcpServers.tavily.enabled")
+    const exclusion = plan.edits
+      .find((edit) => edit.format === "json")
+      ?.ops.find((op) => op.op === "set" && op.path.join(".") === "mcpServers.tavily.enabled")
     expect(exclusion && "value" in exclusion ? exclusion.value : undefined).toBe(false)
     expect(exclusion && "previous" in exclusion ? exclusion.previous : undefined).toBe(true)
     expect(plan.notes.join(" ")).toContain("tavily")
@@ -577,6 +582,58 @@ describe("revert ownership", () => {
     expect(applied.ok).toBe(true)
     expect(existsSync(extra)).toBe(false)
     expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(true)
+  })
+})
+
+describe("format codecs", () => {
+  test("toml: revert keeps user keys and drops the installer's entries", () => {
+    const codec = codecFor("toml", "codex")
+    const edit: TomlEdit = {
+      file: "config.toml",
+      format: "toml",
+      ops: [
+        { op: "set", path: ["mcp_servers", "deepseek", "command"], value: "npx" },
+        { op: "append-array", path: ["favorites"], entries: ["deepseek"] },
+      ],
+    }
+    const applied = codec.apply('model = "gpt-5.2"\nfavorites = ["tavily"]\n', edit)
+    expect(applied.text).toContain("[mcp_servers.deepseek]")
+    // The user edits another key after the install.
+    const userEdited = codec.apply(applied.text, { file: edit.file, format: "toml", ops: [{ op: "set", path: ["model"], value: "o4-mini" }] })
+    const recorded: RecordedFile = { file: edit.file, format: "toml", created: false, ops: applied.recorded, createdParents: applied.createdParents }
+    const reverted = codec.revert(userEdited.text, recorded)
+    expect(reverted.text).toContain('model = "o4-mini"')
+    expect(reverted.text).toContain("tavily")
+    expect(reverted.text).not.toContain("deepseek")
+    expect(reverted.notes).toEqual([])
+  })
+
+  test("rules: upsert keeps surrounding content and revert removes only the block", () => {
+    const codec = codecFor("rules", "pi")
+    const edit: RulesEdit = { file: "AGENTS.md", format: "rules", block: buildRulesBlock("pi", ["prefer the deepseek tools"]) }
+    const applied = codec.apply("# house rules\n", edit)
+    expect(applied.text).toContain("# house rules")
+    expect(applied.recorded).toEqual([])
+    const recorded: RecordedFile = { file: edit.file, format: "rules", created: false, ops: [] }
+    expect(codec.revert(applied.text, recorded).text).toBe("# house rules\n")
+    expect(codec.isEffectivelyEmpty(codec.revert(`${edit.block}\n`, { ...recorded, created: true }).text)).toBe(true)
+  })
+
+  test("verify: one positive and one negative case per format", () => {
+    const json = codecFor("json", "pi")
+    const jsonEdit: JsonEdit = { file: "x.jsonc", format: "json", ops: [{ op: "set", path: ["a"], value: 1 }] }
+    expect(json.verify(json.apply("", jsonEdit).text, jsonEdit)).toBe(true)
+    expect(json.verify("{}", jsonEdit)).toBe(false)
+
+    const toml = codecFor("toml", "codex")
+    const tomlEdit: TomlEdit = { file: "x.toml", format: "toml", ops: [{ op: "set", path: ["web_search"], value: "disabled" }] }
+    expect(toml.verify(toml.apply("", tomlEdit).text, tomlEdit)).toBe(true)
+    expect(toml.verify('web_search = "live"\n', tomlEdit)).toBe(false)
+
+    const rules = codecFor("rules", "pi")
+    const rulesEdit: RulesEdit = { file: "AGENTS.md", format: "rules", block: buildRulesBlock("pi", ["line"]) }
+    expect(rules.verify(rules.apply("", rulesEdit).text, rulesEdit)).toBe(true)
+    expect(rules.verify("# nothing to see\n", rulesEdit)).toBe(false)
   })
 })
 

@@ -1,66 +1,48 @@
-import type { ConfigOp, RecordedOp } from "./types"
+import { existsSync, readFileSync } from "node:fs"
+import { parse as parseToml, stringify as stringifyTomlValue } from "smol-toml"
+import type { ConfigOp, RecordedOp } from "../types"
+import type { AppliedText, FormatCodec, LoadedConfig } from "./index"
+import { appendEntries, deepEqual, isPlainObject, removeAt, valueAt } from "./value"
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-export function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false
-  const aArray = Array.isArray(a)
-  const bArray = Array.isArray(b)
-  if (aArray !== bArray) return false
-  if (aArray && bArray) {
-    const x = a as unknown[]
-    const y = b as unknown[]
-    return x.length === y.length && x.every((item, index) => deepEqual(item, y[index]))
+/** Reads a TOML config file; a missing file starts empty, an unparsable one carries the error. */
+export function loadToml(file: string): LoadedConfig {
+  if (!existsSync(file)) return { exists: false, text: "", value: {}, lossy: false }
+  const text = readFileSync(file, "utf8")
+  try {
+    return { exists: true, text, value: parseToml(text) as Record<string, unknown>, lossy: hasTomlComment(text) }
+  } catch (error) {
+    const parseError = error instanceof Error ? error.message : String(error)
+    return { exists: true, text, value: {}, lossy: false, parseError }
   }
-  const x = a as Record<string, unknown>
-  const y = b as Record<string, unknown>
-  const xKeys = Object.keys(x)
-  const yKeys = Object.keys(y)
-  return xKeys.length === yKeys.length && xKeys.every((key) => deepEqual(x[key], y[key]))
-}
-
-/** Reads the value at a dotted path from a parsed object, or undefined when absent. */
-export function valueAt(value: Record<string, unknown>, path: readonly string[]): unknown {
-  let node: unknown = value
-  for (const key of path) {
-    if (Array.isArray(node)) {
-      const index = Number(key)
-      node = Number.isInteger(index) ? node[index] : undefined
-    } else if (isPlainObject(node)) {
-      node = node[key]
-    } else {
-      return undefined
-    }
-    if (node === undefined) return undefined
-  }
-  return node
-}
-
-export function removeAt(value: Record<string, unknown>, path: readonly string[]): void {
-  const parent = valueAt(value, path.slice(0, -1))
-  if (isPlainObject(parent)) delete parent[path[path.length - 1] as string]
-}
-
-function setValueAt(value: Record<string, unknown>, path: readonly string[], replacement: unknown): void {
-  const parent = valueAt(value, path.slice(0, -1))
-  if (isPlainObject(parent)) parent[path[path.length - 1] as string] = replacement
 }
 
 /**
- * Shared append-array step for both config formats: rejects a non-array at the
- * path and dedupes entries already present, so applied records list only what
- * was actually appended.
+ * String-aware TOML comment detection: any `#` outside basic ("") or literal ('')
+ * strings counts, including trailing comments like `key = "x" # note`.
  */
-export function appendEntries(existing: unknown, entries: readonly unknown[], path: readonly string[]): { readonly list: readonly unknown[]; readonly appended: readonly unknown[] } {
-  if (existing !== undefined && !Array.isArray(existing)) {
-    throw new Error(`cannot append to ${path.join(".")}: it is a ${typeof existing}, not an array`)
+export function hasTomlComment(text: string): boolean {
+  let inBasic = false
+  let inLiteral = false
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i] as string
+    if (inBasic) {
+      if (ch === "\\") i += 1
+      else if (ch === '"') inBasic = false
+      continue
+    }
+    if (inLiteral) {
+      if (ch === "'") inLiteral = false
+      continue
+    }
+    if (ch === '"') inBasic = true
+    else if (ch === "'") inLiteral = true
+    else if (ch === "#") return true
   }
-  const list = Array.isArray(existing) ? existing : []
-  const appended = entries.filter((entry) => !list.some((item) => deepEqual(item, entry)))
-  return { list, appended }
+  return false
+}
+
+export function serializeToml(value: Record<string, unknown>): string {
+  return `${stringifyTomlValue(value)}\n`
 }
 
 /**
@@ -143,4 +125,39 @@ export function pruneCreatedParents(value: Record<string, unknown>, parents: rea
     const current = valueAt(value, parent)
     if (isPlainObject(current) && Object.keys(current).length === 0) removeAt(value, parent)
   }
+}
+
+function setValueAt(value: Record<string, unknown>, path: readonly string[], replacement: unknown): void {
+  const parent = valueAt(value, path.slice(0, -1))
+  if (isPlainObject(parent)) parent[path[path.length - 1] as string] = replacement
+}
+
+function tomlOpHolds(text: string, op: ConfigOp): boolean {
+  const value = parseToml(text) as Record<string, unknown>
+  const current = valueAt(value, op.path)
+  if (op.op === "set") return deepEqual(current, op.value)
+  return Array.isArray(current) && (op.entries ?? []).every((entry) => current.some((item) => deepEqual(item, entry)))
+}
+
+/** The TOML codec: ops on a parsed value, serialized lossily (comments drop on rewrite). */
+export const tomlCodec: FormatCodec = {
+  format: "toml",
+  load: loadToml,
+  apply: (text, edit): AppliedText => {
+    if (edit.format !== "toml") throw new Error(`toml codec cannot apply a ${edit.format} edit`)
+    const result = applyTomlOps(parseToml(text) as Record<string, unknown>, edit.ops)
+    return { text: serializeToml(result.value), recorded: result.recorded, createdParents: result.createdParents }
+  },
+  verify: (text, edit, op) => {
+    if (edit.format !== "toml") throw new Error(`toml codec cannot verify a ${edit.format} edit`)
+    const ops = op === undefined ? edit.ops : [op]
+    return ops.every((candidate) => tomlOpHolds(text, candidate))
+  },
+  revert: (text, recorded) => {
+    const value = parseToml(text) as Record<string, unknown>
+    const notes = revertTomlOps(value, recorded.ops)
+    pruneCreatedParents(value, recorded.createdParents ?? [])
+    return { text: serializeToml(value), notes }
+  },
+  isEffectivelyEmpty: (text) => Object.keys(parseToml(text) as Record<string, unknown>).length === 0,
 }

@@ -1,4 +1,6 @@
-import type { HostName } from "./types"
+import { existsSync, readFileSync } from "node:fs"
+import type { HostName } from "../types"
+import type { AppliedText, FormatCodec } from "./index"
 
 /** Marked-block markers are per host, so multiple hosts can share one rules file. */
 export function rulesMarkers(host: HostName): { readonly begin: string; readonly end: string } {
@@ -38,4 +40,23 @@ export function removeBlock(host: HostName, text: string): string {
 export function hasBlock(host: HostName, text: string): boolean {
   const markers = rulesMarkers(host)
   return text.includes(markers.begin) && text.includes(markers.end)
+}
+
+/** A rules codec is per host: its markers decide which block upsert, verify, and revert touch. */
+export function rulesCodec(host: HostName): FormatCodec {
+  return {
+    format: "rules",
+    load: (file) =>
+      existsSync(file)
+        ? { exists: true, text: readFileSync(file, "utf8"), value: {}, lossy: false }
+        : { exists: false, text: "", value: {}, lossy: false },
+    apply: (text, edit): AppliedText => {
+      if (edit.format !== "rules") throw new Error(`rules codec cannot apply a ${edit.format} edit`)
+      return { text: upsertBlock(host, text, edit.block), recorded: [], createdParents: [] }
+    },
+    // Rules files are markdown: the block's presence is the only postcondition.
+    verify: (text) => hasBlock(host, text),
+    revert: (text) => ({ text: removeBlock(host, text), notes: [] }),
+    isEffectivelyEmpty: (text) => text.trim().length === 0,
+  }
 }
