@@ -90,7 +90,7 @@ describe("plans", () => {
       join(input.cwd, ".pi/mcp.json"),
       JSON.stringify({ mcpServers: { tavily: { command: "npx" } } }, null, 2),
     )
-    const plan = planPi(input)
+    const plan = planPi(input, readRecord(input))
     expect(plan.errors).toEqual([])
     const configEdit = plan.edits.find((edit) => edit.format === "json")
     expect(configEdit?.file).toBe(join(input.cwd, ".pi/mcp.json"))
@@ -102,7 +102,7 @@ describe("plans", () => {
 
   test("pi: off tiers write DEEPSEEK_ENABLE flags into the env block", () => {
     const input = makeInput("pi", "global", "off", "optional")
-    const plan = planPi(input)
+    const plan = planPi(input, readRecord(input))
     const setOp = plan.edits.find((edit) => edit.format === "json")?.ops[0]
     const env = setOp && "value" in setOp ? ((setOp.value as { env: Record<string, string> }).env ?? {}) : {}
     expect(env.DEEPSEEK_ENABLE_SEARCH).toBe("false")
@@ -111,7 +111,7 @@ describe("plans", () => {
 
   test("opencode: rejects the structurally unavailable search tier and duplicate plugin entries", () => {
     const preferred = makeInput("opencode", "global", "preferred", "optional")
-    const preferredPlan = planOpenCode(preferred)
+    const preferredPlan = planOpenCode(preferred, readRecord(preferred))
     expect(preferredPlan.errors.length).toBe(1)
     expect(preferredPlan.errors[0]?.message).toContain("no preferred tier")
 
@@ -122,7 +122,7 @@ describe("plans", () => {
       join(config, "opencode.jsonc"),
       JSON.stringify({ plugins: [{ package: "github:gwokhou/deepseek-web-retrieval" }] }, null, 2),
     )
-    const plan = planOpenCode(input)
+    const plan = planOpenCode(input, readRecord(input))
     expect(plan.errors.length).toBe(1)
     expect(plan.errors[0]?.message).toContain("already has a plugins entry")
   })
@@ -135,7 +135,7 @@ describe("plans", () => {
       join(config, "opencode.jsonc"),
       `// comment\n{ "websearch": { "provider": "tavily" }, "permissions": [{ "action": "bash", "resource": "*", "effect": "allow" }] }\n`,
     )
-    const plan = planOpenCode(input)
+    const plan = planOpenCode(input, readRecord(input))
     expect(plan.errors).toEqual([])
     expect(plan.notes.join(" ")).toContain("tavily")
     const permissions = plan.edits
@@ -149,13 +149,13 @@ describe("plans", () => {
     const dir = join(trapped.home, ".codex")
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, "config.toml"), '[tools]\nweb_search = false\n')
-    expect(planCodex(trapped).errors[0]?.message).toContain("no-op")
+    expect(planCodex(trapped, readRecord(trapped)).errors[0]?.message).toContain("no-op")
 
     const input = makeInput("codex", "global", "forced", "optional")
     const dir2 = join(input.home, ".codex")
     mkdirSync(dir2, { recursive: true })
     writeFileSync(join(dir2, "config.toml"), 'model = "gpt-5.2"\nweb_search = "live"\n')
-    const plan = planCodex(input)
+    const plan = planCodex(input, readRecord(input))
     expect(plan.errors).toEqual([])
     const ops = plan.edits.find((edit) => edit.format === "toml")?.ops ?? []
     expect(ops.some((op) => op.op === "set" && op.path.join(".") === "web_search" && op.value === "disabled")).toBe(true)
@@ -165,7 +165,7 @@ describe("plans", () => {
 
   test("codex: project scope reports the global fallback for config.toml", () => {
     const input = makeInput("codex", "project", "preferred", "optional")
-    const plan = planCodex(input)
+    const plan = planCodex(input, readRecord(input))
     expect(plan.notes.join(" ")).toContain("user level")
     expect(plan.edits.find((edit) => edit.format === "rules")?.file).toBe(join(input.cwd, "AGENTS.md"))
     expect(plan.edits.find((edit) => edit.format === "toml")?.file).toBe(join(input.home, ".codex/config.toml"))
@@ -175,14 +175,14 @@ describe("plans", () => {
 describe("apply and uninstall round-trips", () => {
   test("pi project: creates, verifies, and fully removes on uninstall", () => {
     const input = makeInput("pi", "project", "optional", "optional")
-    const plan = planPi(input)
+    const plan = planPi(input, readRecord(input))
     const applied = applyPlan(plan, input)
     expect(applied.ok).toBe(true)
     expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(true)
-    expect(listRecords(input.home, input.cwd).map((record) => record.host)).toContain("pi")
+    expect(listRecords(input).map((record) => record.host)).toContain("pi")
     uninstall(input)
     expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(false)
-    expect(listRecords(input.home, input.cwd)).toEqual([])
+    expect(listRecords(input)).toEqual([])
   })
 
   test("opencode global: snapshot restores the competitor, comments survive, re-apply is a no-op", () => {
@@ -191,14 +191,14 @@ describe("apply and uninstall round-trips", () => {
     mkdirSync(config, { recursive: true })
     const original = `{\n  // keep me\n  "websearch": { "provider": "tavily" },\n  "permissions": [{ "action": "bash", "resource": "*", "effect": "allow" }],\n}\n`
     writeFileSync(join(config, "opencode.jsonc"), original)
-    const plan = planOpenCode(input)
+    const plan = planOpenCode(input, readRecord(input))
     const first = applyPlan(plan, input)
     expect(first.ok).toBe(true)
     const afterFirst = readFileSync(join(config, "opencode.jsonc"), "utf8")
     expect(afterFirst).toContain("// keep me")
     expect(afterFirst).toContain('"deepseek"')
     // Re-apply dedupes: nothing new appended.
-    const second = applyPlan(planOpenCode(input), input)
+    const second = applyPlan(planOpenCode(input, readRecord(input)), input)
     expect(second.ok).toBe(true)
     const afterSecond = readFileSync(join(config, "opencode.jsonc"), "utf8")
     expect((afterSecond.match(/deepseek-web-retrieval/g) ?? []).length).toBe((afterFirst.match(/deepseek-web-retrieval/g) ?? []).length)
@@ -217,7 +217,7 @@ describe("apply and uninstall round-trips", () => {
     const dir = join(input.home, ".codex")
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, "config.toml"), '# my comment\nmodel = "gpt-5.2"\nweb_search = "live"\n\n[mcp_servers.github]\ncommand = "npx"\n')
-    const plan = planCodex(input)
+    const plan = planCodex(input, readRecord(input))
     expect(plan.notes.join(" ")).toContain("comments")
     const applied = applyPlan(plan, input)
     expect(applied.ok).toBe(true)
@@ -303,7 +303,7 @@ describe("apply and uninstall round-trips", () => {
 
   test("pi rejects installing with both capabilities off", () => {
     const input = makeInput("pi", "global", "off", "off")
-    const plan = planPi(input)
+    const plan = planPi(input, readRecord(input))
     expect(plan.errors.length).toBe(1)
     expect(plan.errors[0]?.message).toContain("Both capabilities are off")
   })
@@ -508,7 +508,7 @@ describe("scope isolation", () => {
     const piProject = planForHost("pi", { ...piGlobal, scope: "project" })
     expect(piProject.errors).toEqual([])
     applyPlan(piProject, { ...piGlobal, scope: "project" })
-    expect(listRecords(piGlobal.home, piGlobal.cwd).length).toBe(2)
+    expect(listRecords(piGlobal).length).toBe(2)
     uninstall({ ...piGlobal, scope: "project" })
     expect(readRecord(piGlobal)).toBeDefined()
     expect(existsSync(join(piGlobal.home, ".pi/agent/mcp.json"))).toBe(true)
@@ -634,6 +634,107 @@ describe("format codecs", () => {
     const rulesEdit: RulesEdit = { file: "AGENTS.md", format: "rules", block: buildRulesBlock("pi", ["line"]) }
     expect(rules.verify(rules.apply("", rulesEdit).text, rulesEdit)).toBe(true)
     expect(rules.verify("# nothing to see\n", rulesEdit)).toBe(false)
+  })
+})
+
+describe("drift refusal and CLI edges", () => {
+  test("apply refuses when a set-op path changed since the plan was rendered", () => {
+    const input = makeInput("pi", "project", "optional", "optional")
+    mkdirSync(join(input.cwd, ".pi"), { recursive: true })
+    writeFileSync(
+      join(input.cwd, ".pi/mcp.json"),
+      JSON.stringify({ mcpServers: { deepseek: { command: "node", args: ["/old/cli.js"] } } }, null, 2),
+    )
+    const plan = planForHost("pi", input)
+    // The user edits the file after reviewing the plan, before --apply.
+    writeFileSync(
+      join(input.cwd, ".pi/mcp.json"),
+      JSON.stringify({ mcpServers: { deepseek: { command: "changed", args: ["/old/cli.js"] } } }, null, 2),
+    )
+    expect(() => applyPlan(plan, input)).toThrow(/changed since the plan was rendered/)
+    expect(JSON.parse(readFileSync(join(input.cwd, ".pi/mcp.json"), "utf8")).mcpServers.deepseek.command).toBe("changed")
+    expect(readRecord(input)).toBeUndefined()
+  })
+
+  test("an explicit config home routes global config and the install record", () => {
+    const input = makeInput("opencode", "global", "optional", "optional")
+    const xdg = join(input.home, "xdg-config")
+    const rooted = { ...input, configHome: xdg }
+    applyPlan(planForHost("opencode", rooted), rooted)
+    expect(existsSync(join(xdg, "opencode/opencode.jsonc"))).toBe(true)
+    expect(readRecord(rooted)).toBeDefined()
+    uninstall(rooted)
+    expect(existsSync(join(xdg, "opencode/opencode.jsonc"))).toBe(false)
+    expect(existsSync(join(input.home, ".config/opencode/opencode.jsonc"))).toBe(false)
+  })
+
+  test("the rendered plan shows the reverts section for a downgrade", () => {
+    const input = makeInput("codex", "global", "forced", "optional")
+    const dir = join(input.home, ".codex")
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, "config.toml"), 'model = "gpt-5.2"\nweb_search = "live"\n')
+    applyPlan(planForHost("codex", input), input)
+    const downgraded = planForHost("codex", { ...input, search: "optional" })
+    const rendered = renderPlan(downgraded)
+    expect(rendered).toContain("Reverts")
+    expect(rendered).toContain("config.toml")
+    expect(rendered).toContain("web_search")
+  })
+
+  test("re-init with changed entries still uninstalls every accumulated entry", () => {
+    const input = makeInput("opencode", "global", "off", "forced")
+    const config = join(input.home, ".config/opencode")
+    mkdirSync(config, { recursive: true })
+    writeFileSync(
+      join(config, "opencode.jsonc"),
+      JSON.stringify({ permissions: [{ action: "bash", resource: "*", effect: "allow" }] }, null, 2),
+    )
+    applyPlan(planForHost("opencode", input), input)
+    const afterFirst = parseJsonc(readFileSync(join(config, "opencode.jsonc"), "utf8")) as { permissions: { action: string }[] }
+    expect(afterFirst.permissions.map((entry) => entry.action)).toEqual(["bash", "deepseek_fetch", "webfetch"])
+    // fetch downgrades to optional: webfetch drops out of the plan's entries and
+    // dedup appends nothing new — the record must still remember both.
+    applyPlan(planForHost("opencode", { ...input, fetch: "optional" }), input)
+    uninstall(input)
+    const restored = parseJsonc(readFileSync(join(config, "opencode.jsonc"), "utf8")) as { permissions: { action: string; resource?: string; effect?: string }[] }
+    expect(restored.permissions).toEqual([{ action: "bash", resource: "*", effect: "allow" }])
+  })
+
+  test("list and uninstall run end to end through the CLI with injectable output", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-cli2-home-"))
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-cli2-cwd-"))
+    const previousHome = process.env.HOME
+    process.env.HOME = home
+    try {
+      const out: string[] = []
+      const io = { out: (line: string) => out.push(line), err: (line: string) => out.push(line) }
+      expect(await runInstallerCli(["list", "--cwd", cwd], io)).toBe(0)
+      expect(out.join("\n")).toContain("No installs recorded.")
+
+      out.length = 0
+      const code = await runInstallerCli(
+        [
+          "init", "--host", "pi", "--scope", "project", "--search", "optional", "--fetch", "optional",
+          "--package", "deepseek-web-retrieval@canary", "--cwd", cwd, "--apply",
+        ],
+        io,
+      )
+      expect(code).toBe(0)
+      const registered = JSON.parse(readFileSync(join(cwd, ".pi/mcp.json"), "utf8")) as { mcpServers: { deepseek: { args: string[] } } }
+      expect(registered.mcpServers.deepseek.args).toContain("deepseek-web-retrieval@canary")
+
+      out.length = 0
+      expect(await runInstallerCli(["list", "--cwd", cwd], io)).toBe(0)
+      expect(out.join("\n")).toContain("pi (project)")
+
+      out.length = 0
+      expect(await runInstallerCli(["uninstall", "--host", "pi", "--scope", "project", "--cwd", cwd], io)).toBe(0)
+      expect(out.join("\n")).toContain("removed install record")
+      expect(existsSync(join(cwd, ".pi/mcp.json"))).toBe(false)
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME
+      else process.env.HOME = previousHome
+    }
   })
 })
 

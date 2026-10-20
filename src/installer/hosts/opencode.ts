@@ -4,9 +4,8 @@ import { FORCED_COST_NOTE } from "../detect"
 import { configHome, join } from "../paths"
 import { buildRulesBlock } from "../formats/rules"
 import { rulesLines } from "../rulesContent"
-import { readRecord } from "../state"
 import { planHeader } from "./shared"
-import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan } from "../types"
+import type { ConfigOp, FileEdit, HostPaths, InstallRecord, InstallerInput, InstallPlan } from "../types"
 
 /** OpenCode's tools are named differently from the raw MCP ids. */
 const OPENCODE_TOOL_IDS = { search: "websearch (provider deepseek)", fetch: "deepseek_fetch" } as const
@@ -18,7 +17,7 @@ function opencodePaths(input: InstallerInput): HostPaths {
     : { config: join(input.cwd, "opencode.jsonc"), rules: join(input.cwd, "AGENTS.md") }
 }
 
-export function planOpenCode(input: InstallerInput): InstallPlan {
+export function planOpenCode(input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
   const paths = opencodePaths(input)
   const loaded = codecFor("json", input.host).load(paths.config)
   const tiers = { search: input.search, fetch: input.fetch }
@@ -43,7 +42,7 @@ export function planOpenCode(input: InstallerInput): InstallPlan {
   const alreadyInstalled = plugins.some(
     (entry) => isPlainObject(entry) && typeof entry.package === "string" && entry.package.includes("deepseek-web-retrieval"),
   )
-  if (alreadyInstalled && readRecord(input) === undefined) {
+  if (alreadyInstalled && previous === undefined) {
     errors.push({
       message:
         `${paths.config} already has a plugins entry referencing deepseek-web-retrieval that this installer did not ` +

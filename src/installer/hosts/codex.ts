@@ -11,7 +11,7 @@ import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/con
 import { buildRulesBlock } from "../formats/rules"
 import { MCP_TOOL_IDS, rulesLines } from "../rulesContent"
 import { planHeader } from "./shared"
-import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan } from "../types"
+import type { ConfigOp, FileEdit, HostPaths, InstallRecord, InstallerInput, InstallPlan } from "../types"
 
 /** Codex config is user-level only; project scope keeps the rules file project-local. */
 function codexPaths(input: InstallerInput): HostPaths {
@@ -21,7 +21,7 @@ function codexPaths(input: InstallerInput): HostPaths {
   }
 }
 
-export function planCodex(input: InstallerInput): InstallPlan {
+export function planCodex(input: InstallerInput, _previous: InstallRecord | undefined): InstallPlan {
   const paths = codexPaths(input)
   const loaded = codecFor("toml", input.host).load(paths.config)
   const tiers = { search: input.search, fetch: input.fetch }

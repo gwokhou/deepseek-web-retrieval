@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { stateDir } from "./paths"
-import type { InstallerInput, InstallRecord } from "./types"
+import type { FsRoots, InstallerInput, InstallRecord } from "./types"
 
 export function statePathFor(input: InstallerInput): string {
   return join(stateDir(input, input.scope), `install.${input.host}.json`)
@@ -44,11 +44,11 @@ export function deleteRecord(input: InstallerInput): void {
   if (existsSync(file)) rmSync(file)
 }
 
-/** Lists install records found in both scope locations for the given home and cwd. */
-export function listRecords(home: string, cwd: string): InstallRecord[] {
+/** Lists install records found in both scope locations for the given roots. */
+export function listRecords(roots: FsRoots): InstallRecord[] {
   const records: InstallRecord[] = []
   for (const scope of ["global", "project"] as const) {
-    const dir = stateDir({ home, cwd }, scope)
+    const dir = stateDir(roots, scope)
     if (!existsSync(dir)) continue
     for (const name of readdirSync(dir)) {
       if (!name.startsWith("install.") || !name.endsWith(".json")) continue

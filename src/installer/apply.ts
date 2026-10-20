@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs"
 import { codecFor, writeConfig } from "./formats"
-import { deepEqual } from "./formats/value"
+import { deepEqual, valueAt } from "./formats/value"
 import { revertRecordedFile } from "./revert"
 import { readRecord, writeRecord } from "./state"
 import type { ConfigOp, FileEdit, InstallPlan, InstallRecord, InstallerInput, RecordedFile } from "./types"
@@ -17,14 +17,17 @@ interface PreparedEdit {
 }
 
 /**
- * Applies a plan: prepares every edit in memory first (a malformed existing config
- * fails before any file is written), writes the files, reverts artifacts orphaned
- * by a tier change, records surgical-undo state, and verifies the result.
+ * Applies a plan: refuses first when the config drifted since the plan was
+ * rendered (the plan and the record must describe one plan-time snapshot —
+ * ADR-0001), prepares every edit in memory (a malformed existing config fails
+ * before any file is written), writes the files, reverts artifacts orphaned by
+ * a tier change, records surgical-undo state, and verifies the result.
  */
 export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult {
   if (plan.errors.length > 0) {
     throw new Error(`refusing to apply a plan with errors: ${plan.errors.map((error) => error.message).join("; ")}`)
   }
+  assertNoDrift(plan)
   const previous = readRecord(input)
   const prepared = plan.edits.map((edit) => prepareEdit(edit, plan.host))
   const files: RecordedFile[] = []
@@ -49,6 +52,37 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
   const verification = verifyEdits(plan.edits, plan.host)
   lines.push(...verification.lines)
   return { lines, ok: verification.ok }
+}
+
+/**
+ * ADR-0001: every set op the plan previewed must still find the value it showed.
+ * A file that changed between plan review and apply refuses the whole apply with
+ * re-run guidance, so an interim user edit is never silently overwritten and the
+ * record's snapshots stay provably equal to what the user approved.
+ */
+function assertNoDrift(plan: InstallPlan): void {
+  const drifts: string[] = []
+  for (const edit of plan.edits) {
+    if (edit.format === "rules") continue
+    const loaded = codecFor(edit.format, plan.host).load(edit.file)
+    if (loaded.parseError) {
+      drifts.push(`${edit.file} no longer parses (${loaded.parseError})`)
+      continue
+    }
+    for (const op of edit.ops) {
+      if (op.op !== "set") continue
+      const current = valueAt(loaded.value, op.path)
+      if (!deepEqual(current, op.previous)) {
+        drifts.push(`${edit.file}: ${op.path.join(".")} changed since the plan was rendered`)
+      }
+    }
+  }
+  if (drifts.length > 0) {
+    throw new Error(
+      `refusing to apply — the config changed since the plan was rendered: ${drifts.join("; ")}. ` +
+        "Re-run init to re-plan against the current files.",
+    )
+  }
 }
 
 function prepareEdit(edit: FileEdit, host: InstallPlan["host"]): PreparedEdit {

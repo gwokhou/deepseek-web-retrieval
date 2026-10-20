@@ -3,9 +3,13 @@ import { planOpenCode } from "./opencode"
 import { planPi } from "./pi"
 import { API_KEY_ENV } from "../../core/constants"
 import { claimedByOtherScope, readRecord } from "../state"
-import type { HostName, InstallerInput, InstallPlan, RecordedFile } from "../types"
+import type { HostName, InstallRecord, InstallerInput, InstallPlan, RecordedFile } from "../types"
 
-export type HostPlanner = (input: InstallerInput) => InstallPlan
+/**
+ * A host planner sees the previous install record for its scope, so it never reads
+ * install state itself; planForHost is the one place a record read happens per plan.
+ */
+export type HostPlanner = (input: InstallerInput, previous: InstallRecord | undefined) => InstallPlan
 
 /**
  * The host registry. Key order feeds the CLI's usage string, and a new host is one
@@ -18,8 +22,9 @@ export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
 }
 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {
-  const planned = withCrossScopeGuard(HOST_PLANNERS[host](input), input)
-  return withSecretGuard(withOrphanReverts(planned, input))
+  const previous = readRecord(input)
+  const planned = withCrossScopeGuard(HOST_PLANNERS[host](input, previous), input)
+  return withSecretGuard(withOrphanReverts(planned, input, previous))
 }
 
 /**
@@ -106,9 +111,8 @@ function findSecretLike(value: unknown, at: string): string | undefined {
  * from the new plan revert entirely; files shared with the new plan revert only
  * the ops whose paths the new plan does not touch.
  */
-function withOrphanReverts(plan: InstallPlan, input: InstallerInput): InstallPlan {
+function withOrphanReverts(plan: InstallPlan, input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
   if (plan.errors.length > 0) return plan
-  const previous = readRecord(input)
   if (previous === undefined) return plan
   const reverts: RecordedFile[] = []
   for (const file of previous.files) {

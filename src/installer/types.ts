@@ -11,6 +11,8 @@ export type Scope = "project" | "global"
 export interface FsRoots {
   readonly home: string
   readonly cwd: string
+  /** Explicit config home; the CLI edge resolves XDG once and passes it down. */
+  readonly configHome?: string
 }
 
 /** The files a host edit touches for a given scope. */
@@ -34,6 +36,7 @@ export interface InstallerInput {
   readonly packageRef: string
   readonly home: string
   readonly cwd: string
+  readonly configHome?: string
 }
 
 /** A mutation on a parsed config object, addressed by a dotted path. */

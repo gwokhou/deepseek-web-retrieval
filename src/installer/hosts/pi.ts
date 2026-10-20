@@ -11,7 +11,7 @@ import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/con
 import { buildRulesBlock } from "../formats/rules"
 import { MCP_TOOL_IDS, rulesLines } from "../rulesContent"
 import { planHeader } from "./shared"
-import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan } from "../types"
+import type { ConfigOp, FileEdit, HostPaths, InstallRecord, InstallerInput, InstallPlan } from "../types"
 
 /** Pi config and rules files per scope; the host module owns this mapping. */
 function piPaths(input: InstallerInput): HostPaths {
@@ -20,7 +20,7 @@ function piPaths(input: InstallerInput): HostPaths {
     : { config: join(input.cwd, ".pi/mcp.json"), rules: join(input.cwd, "AGENTS.md") }
 }
 
-export function planPi(input: InstallerInput): InstallPlan {
+export function planPi(input: InstallerInput, _previous: InstallRecord | undefined): InstallPlan {
   const paths = piPaths(input)
   const loaded = codecFor("json", input.host).load(paths.config)
   const tiers = { search: input.search, fetch: input.fetch }

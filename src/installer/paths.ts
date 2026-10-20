@@ -5,11 +5,9 @@ export function join(...parts: readonly string[]): string {
   return parts.filter((part) => part.length > 0).join("/")
 }
 
-/** Config home, honoring XDG_CONFIG_HOME only when it belongs to the real home. */
+/** Config home: an explicit root wins; otherwise ~/.config. The CLI resolves XDG at the edge. */
 export function configHome(roots: FsRoots): string {
-  const xdg = process.env.XDG_CONFIG_HOME
-  if (xdg && roots.home === (process.env.HOME ?? "")) return xdg
-  return join(roots.home, ".config")
+  return roots.configHome ?? join(roots.home, ".config")
 }
 
 /** State records live with their scope: global installs under the config home, project installs in the checkout. */

@@ -66,76 +66,112 @@ function parseFlags(args: readonly string[]): Flags {
   return { values, booleans, problems }
 }
 
+/** Where the CLI writes; injectable so tests can assert command output. */
+export interface CliIo {
+  readonly out?: (line: string) => void
+  readonly err?: (line: string) => void
+}
+
 /** CLI entry for the init/uninstall/list subcommands; returns the process exit code. */
-export async function runInstallerCli(argv: readonly string[]): Promise<number> {
+export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): Promise<number> {
+  const out = io.out ?? ((line: string) => console.log(line))
+  const err = io.err ?? ((line: string) => console.error(line))
   const [command, ...rest] = argv
   if (command === undefined || command === "help" || command === "--help") {
-    console.log(USAGE)
+    out(USAGE)
     return command === undefined ? 1 : 0
   }
   const flags = parseFlags(rest)
   if (flags.problems.length > 0) {
-    for (const problem of flags.problems) console.error(`error: ${problem}`)
-    console.error(`\n${USAGE}`)
+    for (const problem of flags.problems) err(`error: ${problem}`)
+    err(`\n${USAGE}`)
     return 1
   }
   const cwd = resolve(flags.values.get("cwd") ?? process.cwd())
   const home = process.env.HOME ?? homedir()
+  const configHome = resolveConfigHome(home)
 
   if (command === "list") {
-    const records = listRecords(home, cwd)
+    const records = listRecords({ home, cwd, configHome })
     if (records.length === 0) {
-      console.log("No installs recorded.")
+      out("No installs recorded.")
       return 0
     }
     for (const record of records) {
-      console.log(`${record.host} (${record.scope}) — search=${record.tiers.search}, fetch=${record.tiers.fetch}, installed ${record.createdAt}`)
-      for (const file of record.files) console.log(`  ${file.created ? "created" : "modified"} ${file.file}`)
+      out(`${record.host} (${record.scope}) — search=${record.tiers.search}, fetch=${record.tiers.fetch}, installed ${record.createdAt}`)
+      for (const file of record.files) out(`  ${file.created ? "created" : "modified"} ${file.file}`)
     }
     return 0
   }
 
   if (command === "uninstall") {
-    const input = requireInput(flags, cwd, home, false)
-    if (typeof input === "number") return input
+    const required = requireInput(flags, cwd, home, configHome, false)
+    if (!required.ok) return usageError(required.problems, err)
     try {
-      for (const line of uninstall(input)) console.log(line)
+      for (const line of uninstall(required.input)) out(line)
       return 0
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error))
+      err(error instanceof Error ? error.message : String(error))
       return 1
     }
   }
 
   if (command !== "init") {
-    console.error(`Unknown command "${command}".\n\n${USAGE}`)
+    err(`Unknown command "${command}".\n\n${USAGE}`)
     return 1
   }
 
-  const input = requireInput(flags, cwd, home, true)
-  if (typeof input === "number") return input
+  const required = requireInput(flags, cwd, home, configHome, true)
+  if (!required.ok) return usageError(required.problems, err)
+  const { input } = required
   const plan = planForHost(input.host, input)
   if (plan.errors.length > 0) {
-    for (const error of plan.errors) console.error(`error: ${error.message}`)
-    console.error("Nothing was written.")
+    for (const error of plan.errors) err(`error: ${error.message}`)
+    err("Nothing was written.")
     return 1
   }
-  console.log(renderPlan(plan))
+  out(renderPlan(plan))
   if (!flags.booleans.has("apply")) {
-    console.log("\nPlan only — re-run with --apply to write these changes.")
+    out("\nPlan only — re-run with --apply to write these changes.")
     return 0
   }
   try {
     const result = applyPlan(plan, input)
-    for (const line of result.lines) console.log(line)
+    for (const line of result.lines) out(line)
     return result.ok ? 0 : 1
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error))
+    err(error instanceof Error ? error.message : String(error))
     return 1
   }
 }
 
-function requireInput(flags: Flags, cwd: string, home: string, needsTiers: boolean): InstallerInput | number {
+function usageError(problems: readonly string[], err: (line: string) => void): number {
+  for (const problem of problems) err(`error: ${problem}`)
+  err(`\n${USAGE}`)
+  return 1
+}
+
+/**
+ * XDG_CONFIG_HOME is honored only when it belongs to the real home; the one
+ * environment read happens here, at the edge, and flows down as explicit input.
+ */
+function resolveConfigHome(home: string): string | undefined {
+  const xdg = process.env.XDG_CONFIG_HOME
+  if (xdg && home === (process.env.HOME ?? "")) return xdg
+  return undefined
+}
+
+type RequireInputResult =
+  | { readonly ok: true; readonly input: InstallerInput }
+  | { readonly ok: false; readonly problems: readonly string[] }
+
+function requireInput(
+  flags: Flags,
+  cwd: string,
+  home: string,
+  configHome: string | undefined,
+  needsTiers: boolean,
+): RequireInputResult {
   const problems: string[] = []
   const host = flags.values.get("host")
   const scope = flags.values.get("scope")
@@ -162,18 +198,18 @@ function requireInput(flags: Flags, cwd: string, home: string, needsTiers: boole
     }
   }
   if (home === "") problems.push("HOME is not set and the user home cannot be resolved; cannot proceed")
-  if (problems.length > 0) {
-    for (const problem of problems) console.error(`error: ${problem}`)
-    console.error(`\n${USAGE}`)
-    return 1
-  }
+  if (problems.length > 0) return { ok: false, problems }
   return {
-    host: host as HostName,
-    scope: scope as Scope,
-    search: search as Tier,
-    fetch: fetch as Tier,
-    packageRef: flags.values.get("package") ?? "deepseek-web-retrieval",
-    home,
-    cwd,
+    ok: true,
+    input: {
+      host: host as HostName,
+      scope: scope as Scope,
+      search: search as Tier,
+      fetch: fetch as Tier,
+      packageRef: flags.values.get("package") ?? "deepseek-web-retrieval",
+      home,
+      cwd,
+      configHome,
+    },
   }
 }
