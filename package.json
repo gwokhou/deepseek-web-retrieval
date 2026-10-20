@@ -26,7 +26,7 @@
     "./mcp": "./src/mcp/server.ts"
   },
   "bin": {
-    "deepseek-web-retrieval": "./dist/cli.js"
+    "deepseek-web-retrieval": "dist/cli.js"
   },
   "files": [
     "index.ts",
