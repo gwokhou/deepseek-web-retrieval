@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 0.4.0
 
 - Ground the search defaults in surveyed industry factory defaults
   ([research](docs/research/search-api-defaults.md)): every surveyed AI-native search API
@@ -15,6 +15,9 @@ All notable changes to this project are documented here.
   Unchanged and now evidence-backed: `maxRetries=0` (search-API SDK cohort: tavily-python
   and Linkup ship no retries; the 2-retry defaults belong to chat-completion SDKs), the
   30 s timeout, and the 1,200/16,000-character truncations
+- Drop the "Token- and cost-efficient" bullet from the README's Features section —
+  the default parameters are no longer endorsed as a selling point, and their behavior
+  is stated neutrally in General behavior
 
 ## 0.3.0
 

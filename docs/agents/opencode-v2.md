@@ -100,7 +100,7 @@ A complete global config:
 Use the bare package name (optionally pinned) as the `package` value:
 
 ```jsonc
-"plugins": [{ "package": "deepseek-web-retrieval@0.3.0" }]
+"plugins": [{ "package": "deepseek-web-retrieval@0.4.0" }]
 ```
 
 **Global checkout**
