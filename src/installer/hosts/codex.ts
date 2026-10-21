@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { codecFor } from "../formats"
 import { isPlainObject } from "../formats/value"
 import {
@@ -18,6 +19,21 @@ import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallRecord, Inst
  * docs/hosts.jsonc; the drift note fires when the probed CLI differs.
  */
 export const CODEX_TESTED_VERSION = "0.163.0"
+
+/**
+ * The one subprocess the installer runs: `codex --version`, probed for the
+ * version-drift note. A missing binary or unreadable output skips the check with
+ * a stderr note and never blocks the plan — honor or report.
+ */
+export function probeCodexVersion(err: (line: string) => void): string | undefined {
+  // env passed explicitly: runtime PATH edits (tests) must reach the lookup.
+  const result = spawnSync("codex", ["--version"], { timeout: 5000, encoding: "utf8", env: process.env })
+  const version = result.status === 0 ? parseCodexVersion(result.stdout ?? "") : undefined
+  if (version === undefined) {
+    err("note: codex was not found on PATH or printed no version; the version-drift check was skipped")
+  }
+  return version
+}
 
 /** Parses `codex --version` output (`codex-cli 0.163.0`) into the bare version. */
 export function parseCodexVersion(output: string): string | undefined {

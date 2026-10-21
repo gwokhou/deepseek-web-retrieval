@@ -118,6 +118,20 @@ export function formatSearchResults(results: readonly SearchResult[]): string {
     .join("\n\n")
 }
 
+/**
+ * Renders one search result as the structured mirror of its text form; hosts
+ * that read structuredContent (every JSON-replacing client excepted) get this
+ * shape from both adapters.
+ */
+export function toStructuredResult(result: SearchResult) {
+  return {
+    url: result.url,
+    ...(result.title ? { title: result.title } : {}),
+    ...(result.content ? { content: result.content } : {}),
+    ...(result.published !== undefined ? { published: result.published } : {}),
+  }
+}
+
 function escapeBrackets(value: string): string {
   return value.replaceAll("[", "\\[").replaceAll("]", "\\]")
 }

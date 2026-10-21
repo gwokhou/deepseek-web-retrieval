@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { isPlainObject } from "../core/object"
 
 /** The settings.json namespace the installer writes capability switches into. */
 export const SETTINGS_NAMESPACE = "deepseekWebRetrieval"
@@ -45,8 +46,4 @@ function readNamespace(file: string): Record<string, unknown> {
   } catch {
     return {}
   }
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }

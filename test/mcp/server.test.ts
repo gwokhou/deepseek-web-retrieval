@@ -16,7 +16,7 @@ import {
 } from "../../src/core/descriptions"
 import { resolvePluginOptions } from "../../src/core/options"
 import type { ResolvedOptions } from "../../src/core/types"
-import { resolveEnvOptions } from "../../src/mcp/config"
+import { resolveEnvOptions } from "../../src/core/env"
 import { createDeepSeekServer, servePrecheck } from "../../src/mcp/server"
 
 const originalFetch = globalThis.fetch

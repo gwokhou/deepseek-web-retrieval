@@ -1,8 +1,6 @@
-import { spawnSync } from "node:child_process"
 import { homedir } from "node:os"
 import { resolve } from "node:path"
-import { HOST_PLANNERS, planForHost } from "./hosts"
-import { parseCodexVersion } from "./hosts/codex"
+import { HOST_PLANNERS, HOST_VERSION_PROBES, planForHost } from "./hosts"
 import { applyPlan } from "./apply"
 import { renderPlan } from "./render"
 import { listRecords } from "./state"
@@ -37,7 +35,7 @@ interface Flags {
 
 const VALUE_FLAGS = new Set(["host", "scope", "search", "fetch", "path", "package", "cwd"])
 const BOOLEAN_FLAGS = new Set(["apply"])
-const PATHS: readonly ["extension", "mcp"] = ["extension", "mcp"]
+const PATH_CHOICES: readonly ["extension", "mcp"] = ["extension", "mcp"]
 
 function parseFlags(args: readonly string[]): Flags {
   const values = new Map<string, string>()
@@ -132,7 +130,8 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
   const required = requireInput(flags, cwd, home, configHome, true)
   if (!required.ok) return usageError(required.problems, err)
   const { input } = required
-  const hostVersion = input.host === "codex" ? probeCodexVersion(err) : undefined
+  const probe = HOST_VERSION_PROBES[input.host]
+  const hostVersion = probe?.(err)
   const plan = planForHost(input.host, hostVersion === undefined ? input : { ...input, hostVersion })
   if (plan.errors.length > 0) {
     for (const error of plan.errors) err(`error: ${error.message}`)
@@ -158,21 +157,6 @@ function usageError(problems: readonly string[], err: (line: string) => void): n
   for (const problem of problems) err(`error: ${problem}`)
   err(`\n${USAGE}`)
   return 1
-}
-
-/**
- * The one subprocess the CLI runs: `codex --version`, probed for the version-drift
- * note. A missing binary or unreadable output skips the check with a stderr note and
- * never blocks the plan.
- */
-function probeCodexVersion(err: (line: string) => void): string | undefined {
-  // env passed explicitly: runtime PATH edits (tests) must reach the lookup.
-  const result = spawnSync("codex", ["--version"], { timeout: 5000, encoding: "utf8", env: process.env })
-  const version = result.status === 0 ? parseCodexVersion(result.stdout ?? "") : undefined
-  if (version === undefined) {
-    err("note: codex was not found on PATH or printed no version; the version-drift check was skipped")
-  }
-  return version
 }
 
 /**
@@ -209,8 +193,8 @@ function requireInput(
   if (path !== undefined) {
     if (host !== "pi") {
       problems.push(`--path is only supported for host pi (${host ?? "no host"} has a single integration path)`)
-    } else if (!(PATHS as readonly string[]).includes(path)) {
-      problems.push(`invalid --path value "${path}" (one of: ${PATHS.join(", ")})`)
+    } else if (!(PATH_CHOICES as readonly string[]).includes(path)) {
+      problems.push(`invalid --path value "${path}" (one of: ${PATH_CHOICES.join(", ")})`)
     }
   }
   if (needsTiers) {

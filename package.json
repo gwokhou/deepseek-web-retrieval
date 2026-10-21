@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "deepseek-web-retrieval",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Token-efficient DeepSeek Search and Fetch for coding agents, starting with OpenCode v2.",
   "type": "module",
   "license": "MIT",

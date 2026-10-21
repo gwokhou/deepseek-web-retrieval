@@ -1,4 +1,4 @@
-import { planCodex } from "./codex"
+import { planCodex, probeCodexVersion } from "./codex"
 import { planOpenCode } from "./opencode"
 import { planPi } from "./pi"
 import { API_KEY_ENV } from "../../core/constants"
@@ -22,6 +22,17 @@ export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
   opencode: planOpenCode,
   pi: planPi,
   codex: planCodex,
+}
+
+/**
+ * Per-host version probes the CLI edge runs before planning, so "which host
+ * needs a probe" is a host-module fact, not a CLI branch. A missing entry means
+ * the host's plan never reads hostVersion.
+ */
+export const HOST_VERSION_PROBES: Partial<
+  Record<HostName, (err: (line: string) => void) => string | undefined>
+> = {
+  codex: probeCodexVersion,
 }
 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {

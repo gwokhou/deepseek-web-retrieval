@@ -7,26 +7,21 @@ import { fetchDocument, inspectFetchTarget, searchWeb } from "../core/client"
 import type { RequestOptions } from "../core/client"
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
 import {
-  FETCH_OUTPUT_TRUNCATED,
-  FETCH_SERVICE_LIMITS,
-  SEARCH_EMPTY_IS_NORMAL,
-  SEARCH_QUERY_OPERATORS,
-  SEARCH_RANKED_FILTERED,
+  FETCH_TOOL_DESCRIPTION,
+  FETCH_URL_PARAMETER,
+  SEARCH_QUERY_PARAMETER,
+  SEARCH_TOOL_DESCRIPTION,
 } from "../core/descriptions"
 import { pluginOptionsFromEnv } from "../core/env"
 import type { Env } from "../core/env"
-import { formatSearchResults } from "../core/format"
+import { formatSearchResults, toStructuredResult } from "../core/format"
 import { resolvePluginOptions } from "../core/options"
 import type { ResolvedOptions, SearchResult } from "../core/types"
 import { SETTINGS_NAMESPACE, readExtensionSettings } from "./settings"
 import type { ExtensionSettings } from "./settings"
 
 const SEARCH_PARAMETERS = Type.Object({
-  query: Type.String({
-    minLength: 1,
-    description:
-      "Search query, 128 characters or fewer including operators (site:, -site:, quoted phrases, lang:).",
-  }),
+  query: Type.String({ minLength: 1, description: SEARCH_QUERY_PARAMETER }),
 })
 
 const SEARCH_OUTPUT = Type.Object({
@@ -41,10 +36,7 @@ const SEARCH_OUTPUT = Type.Object({
 })
 
 const FETCH_PARAMETERS = Type.Object({
-  url: Type.String({
-    minLength: 1,
-    description: "Absolute http:// or https:// URL to fetch. Credentials are rejected.",
-  }),
+  url: Type.String({ minLength: 1, description: FETCH_URL_PARAMETER }),
 })
 
 const FETCH_OUTPUT = Type.Object({
@@ -53,19 +45,6 @@ const FETCH_OUTPUT = Type.Object({
   content: Type.String(),
   truncated: Type.Boolean(),
 })
-
-const SEARCH_DESCRIPTION =
-  "Search the web with DeepSeek's in-house search engine and return a short, filtered result " +
-    "list (title, URL, summary). " +
-    `${SEARCH_RANKED_FILTERED} ` +
-    `${SEARCH_EMPTY_IS_NORMAL} ` +
-    `${SEARCH_QUERY_OPERATORS} ` +
-    "To read a full page, pass a result URL to the deepseek_fetch tool."
-
-const FETCH_DESCRIPTION =
-  "Fetch one web page as clean Markdown through DeepSeek's Fetch API. " +
-    `${FETCH_SERVICE_LIMITS} ` +
-    `${FETCH_OUTPUT_TRUNCATED}`
 
 /** Pi may execute a tool without an abort signal; the core requires one. */
 const NEVER_ABORTS = new AbortController().signal
@@ -101,7 +80,7 @@ export function searchTool(config: ResolvedOptions) {
   return defineTool({
     name: "deepseek_web_search",
     label: "DeepSeek Web Search",
-    description: SEARCH_DESCRIPTION,
+    description: SEARCH_TOOL_DESCRIPTION,
     promptSnippet: "Search the web with DeepSeek and return ranked results with summaries.",
     parameters: SEARCH_PARAMETERS,
     outputSchema: SEARCH_OUTPUT,
@@ -127,7 +106,7 @@ export function fetchTool(config: ResolvedOptions) {
   return defineTool({
     name: "deepseek_fetch",
     label: "DeepSeek Fetch",
-    description: FETCH_DESCRIPTION,
+    description: FETCH_TOOL_DESCRIPTION,
     promptSnippet: "Fetch one web page as clean Markdown with DeepSeek.",
     parameters: FETCH_PARAMETERS,
     outputSchema: FETCH_OUTPUT,
@@ -180,15 +159,6 @@ function requireApiKey(): string {
     `${API_KEY_ENV} is not set. The DeepSeek extension reads it from the environment of the Pi ` +
       "process; set it in the shell that launches Pi.",
   )
-}
-
-function toStructuredResult(result: SearchResult) {
-  return {
-    url: result.url,
-    ...(result.title ? { title: result.title } : {}),
-    ...(result.content ? { content: result.content } : {}),
-    ...(result.published !== undefined ? { published: result.published } : {}),
-  }
 }
 
 function toErrorResult(error: unknown): AgentToolResult {

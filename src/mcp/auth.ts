@@ -1,6 +1,6 @@
 import { API_KEY_ENV } from "../core/constants"
 import { apiKeyFromEnv } from "../core/auth"
-import type { Env } from "./config"
+import type { Env } from "../core/env"
 
 export const MISSING_API_KEY_MESSAGE =
   `DeepSeek API key not found. Set ${API_KEY_ENV} in the MCP server's env configuration.`

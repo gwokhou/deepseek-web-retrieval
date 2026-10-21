@@ -4,7 +4,8 @@ import type { McpServer, ServerContext } from "@modelcontextprotocol/server"
 /**
  * Clients that discard a result's content blocks and hand the model the serialized
  * `structuredContent` JSON instead. For these the server omits `structuredContent`
- * so the model reads the text blocks.
+ * so the model reads the text blocks. The declared names are research facts —
+ * docs/agents/codex.md records where codex-mcp-client comes from.
  */
 const JSON_REPLACING_CLIENT_NAMES = new Set(["codex-mcp-client"])
 

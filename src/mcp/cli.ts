@@ -2,7 +2,7 @@
 import { serveStdio } from "@modelcontextprotocol/server/stdio"
 import { apiKeyFromEnv } from "../core/auth"
 import { MISSING_API_KEY_MESSAGE } from "./auth"
-import { resolveEnvOptions } from "./config"
+import { resolveEnvOptions } from "../core/env"
 import { createDeepSeekServer, servePrecheck } from "./server"
 
 // Installer subcommands run before the server path; MCP clients spawn this bin

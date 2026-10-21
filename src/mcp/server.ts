@@ -3,47 +3,28 @@ import type { CallToolResult, ServerContext } from "@modelcontextprotocol/server
 import * as z from "zod/v4"
 import { fetchDocument, searchWeb } from "../core/client"
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
+import { formatSearchResults, toStructuredResult } from "../core/format"
 import {
-  FETCH_OUTPUT_TRUNCATED,
-  FETCH_SERVICE_LIMITS,
-  SEARCH_EMPTY_IS_NORMAL,
-  SEARCH_QUERY_OPERATORS,
-  SEARCH_RANKED_FILTERED,
+  FETCH_TOOL_DESCRIPTION,
+  FETCH_URL_PARAMETER,
+  SEARCH_QUERY_PARAMETER,
+  SEARCH_TOOL_DESCRIPTION,
 } from "../core/descriptions"
-import { formatSearchResults } from "../core/format"
 import type { ResolvedOptions, SearchResult } from "../core/types"
 import pkg from "../../package.json"
 import { requireApiKey } from "./auth"
 import { omitStructuredContent } from "./client"
-import type { Env } from "./config"
+import type { Env } from "../core/env"
 
 export const MCP_SERVER_NAME = "deepseek-web-retrieval"
 
 const SEARCH_INPUT = z.object({
-  query: z
-    .string()
-    .min(1)
-    .describe(
-      "Search query, 128 characters or fewer including operators (site:, -site:, quoted phrases, lang:).",
-    ),
+  query: z.string().min(1).describe(SEARCH_QUERY_PARAMETER),
 })
 
 const FETCH_INPUT = z.object({
-  url: z.string().min(1).describe("Absolute http:// or https:// URL to fetch. Credentials are rejected."),
+  url: z.string().min(1).describe(FETCH_URL_PARAMETER),
 })
-
-const SEARCH_DESCRIPTION =
-  "Search the web with DeepSeek's in-house search engine and return a short, filtered result " +
-    "list (title, URL, summary). " +
-    `${SEARCH_RANKED_FILTERED} ` +
-    `${SEARCH_EMPTY_IS_NORMAL} ` +
-    `${SEARCH_QUERY_OPERATORS} ` +
-    "To read a full page, pass a result URL to the deepseek_fetch tool."
-
-const FETCH_DESCRIPTION =
-  "Fetch one web page as clean Markdown through DeepSeek's Fetch API. " +
-    `${FETCH_SERVICE_LIMITS} ` +
-    `${FETCH_OUTPUT_TRUNCATED}`
 
 /**
  * Builds the host-agnostic MCP server exposing the two DeepSeek retrieval tools.
@@ -57,7 +38,7 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
       "deepseek_web_search",
       {
         title: "DeepSeek Web Search",
-        description: SEARCH_DESCRIPTION,
+        description: SEARCH_TOOL_DESCRIPTION,
         inputSchema: SEARCH_INPUT,
         annotations: { readOnlyHint: true },
       },
@@ -80,7 +61,7 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
       "deepseek_fetch",
       {
         title: "DeepSeek Fetch",
-        description: FETCH_DESCRIPTION,
+        description: FETCH_TOOL_DESCRIPTION,
         inputSchema: FETCH_INPUT,
         annotations: { readOnlyHint: true },
       },
@@ -123,15 +104,6 @@ function callResult(
 ): CallToolResult {
   if (omitStructuredContent(server, ctx)) return { content: [{ type: "text", text }] }
   return { content: [{ type: "text", text }], structuredContent: structured }
-}
-
-function toStructuredResult(result: SearchResult) {
-  return {
-    url: result.url,
-    ...(result.title ? { title: result.title } : {}),
-    ...(result.content ? { content: result.content } : {}),
-    ...(result.published !== undefined ? { published: result.published } : {}),
-  }
 }
 
 /** Returns the both-disabled message, or undefined when a tool stays enabled. */

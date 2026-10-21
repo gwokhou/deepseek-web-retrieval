@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { pluginOptionsFromEnv, resolveEnvOptions } from "../../src/mcp/config"
+import { pluginOptionsFromEnv, resolveEnvOptions } from "../../src/core/env"
 
 describe("pluginOptionsFromEnv", () => {
   test("maps numeric environment variables onto plugin option keys", () => {
