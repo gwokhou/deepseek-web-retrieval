@@ -10,7 +10,7 @@ import {
 import { join } from "../paths"
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../formats/rules"
-import { MCP_TOOL_IDS, PI_TOOL_IDS, rulesLines } from "../rulesContent"
+import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent"
 import { SETTINGS_NAMESPACE } from "../../pi/settings"
 import { planHeader } from "./shared"
 import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallRecord, InstallPlan, PlanError } from "../types"
@@ -137,7 +137,7 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
     edits.push({
       file: paths.rules,
       format: "rules",
-      block: buildRulesBlock(input.host, rulesLines(PI_TOOL_IDS, input.search, input.fetch)),
+      block: buildRulesBlock(input.host, rulesLines(RAW_MCP_TOOL_IDS, input.search, input.fetch)),
     })
     notes.push(`Rules block upserted in ${paths.rules}; Pi loads AGENTS.md context files from the working directory and its parents.`)
   }

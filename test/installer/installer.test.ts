@@ -170,6 +170,28 @@ describe("plans", () => {
     expect(plan.edits.find((edit) => edit.format === "rules")?.file).toBe(join(input.cwd, "AGENTS.md"))
     expect(plan.edits.find((edit) => edit.format === "toml")?.file).toBe(join(input.home, ".codex/config.toml"))
   })
+
+  test("codex: off tiers disable tools via disabled_tools, keeping the user's own entries", () => {
+    const input = makeInput("codex", "global", "off", "optional")
+    const dir = join(input.home, ".codex")
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, "config.toml"),
+      '[mcp_servers.deepseek]\ncommand = "node"\ndisabled_tools = ["their_tool", "deepseek_fetch"]\n',
+    )
+    const plan = planCodex(input, readRecord(input))
+    expect(plan.errors).toEqual([])
+    const setOp = plan.edits.find((edit) => edit.format === "toml")?.ops.find((op) => op.op === "set" && op.path.join(".") === "mcp_servers.deepseek")
+    const entry = setOp && "value" in setOp
+      ? (setOp.value as { disabled_tools?: string[]; env?: Record<string, string> })
+      : undefined
+    // The user's own entry rides along; the stale deepseek_fetch (ours) is filtered so
+    // only the off tier's choice is written fresh.
+    expect(entry?.disabled_tools).toEqual(["their_tool", "deepseek_web_search"])
+    expect(entry?.env).toBeUndefined()
+    expect(plan.notes.join(" ")).toContain("disabled_tools")
+    expect(plan.notes.join(" ")).toContain("deepseek_web_search")
+  })
 })
 
 describe("apply and uninstall round-trips", () => {
@@ -330,6 +352,30 @@ describe("apply and uninstall round-trips", () => {
     const restored = readFileSync(join(dir, "config.toml"), "utf8")
     expect(restored).toContain('web_search = "live"')
     expect(restored).not.toContain("mcp_servers.deepseek")
+  })
+
+  test("codex: off tier writes disabled_tools, merges user entries, and downgrades cleanly", () => {
+    const input = makeInput("codex", "global", "off", "optional")
+    const dir = join(input.home, ".codex")
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, "config.toml"), '[mcp_servers.deepseek]\ncommand = "node"\ndisabled_tools = ["their_tool"]\n')
+    const applied = applyPlan(planCodex(input, readRecord(input)), input)
+    expect(applied.ok).toBe(true)
+    const afterInstall = readFileSync(join(dir, "config.toml"), "utf8")
+    expect(afterInstall).toContain('disabled_tools = [ "their_tool", "deepseek_web_search" ]')
+
+    // Downgrade to optional: the set op replaces the entry without our tool name; the
+    // user's own entry stays.
+    applyPlan(planForHost("codex", { ...input, search: "optional" }), input)
+    const afterDowngrade = readFileSync(join(dir, "config.toml"), "utf8")
+    expect(afterDowngrade).toContain('disabled_tools = [ "their_tool" ]')
+    expect(afterDowngrade).not.toContain("deepseek_web_search")
+
+    // Uninstall restores the user's original entry exactly.
+    uninstall(input)
+    const restored = readFileSync(join(dir, "config.toml"), "utf8")
+    expect(restored).toContain('disabled_tools = [ "their_tool" ]')
+    expect(restored).not.toContain("env_vars")
   })
 
   test("preferred → forced downgrade removes the orphaned rules block", () => {

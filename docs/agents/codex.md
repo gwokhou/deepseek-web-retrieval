@@ -46,7 +46,9 @@ It prints the full plan — every file, old value → new value, and notes about
 MCP servers — and writes nothing until you pass `--apply`. `uninstall` restores exactly
 what the plan applied (snapshots, merged entries, created files). Codex's config lives in
 `~/.codex/config.toml` at the user level only, so the server registration and kill switch
-are written there even for `--scope project`; the rules file follows the scope.
+are written there even for `--scope project`; the rules file follows the scope. An `off`
+capability is written as the tool's name in the server entry's `disabled_tools` array —
+Codex's own mechanism — merging with any entries you put there yourself.
 
 ### Manual install
 
@@ -65,12 +67,21 @@ env_vars = ["DEEPSEEK_API_KEY"]
 > forwarded explicitly and set in the shell that launches Codex. Literal values can go
 > in an `env` table instead if you prefer them in the file.
 
-To disable one capability, set it in the `env` table:
+To disable one capability, add its raw tool name to the server's `disabled_tools` —
+Codex removes the tool from the model's context while the server keeps running:
 
 ```toml
-[mcp_servers.deepseek.env]
-DEEPSEEK_ENABLE_SEARCH = "false"   # or DEEPSEEK_ENABLE_FETCH; at least one must stay on
+[mcp_servers.deepseek]
+command = "npx"
+args = ["-y", "deepseek-web-retrieval"]
+env_vars = ["DEEPSEEK_API_KEY"]
+disabled_tools = ["deepseek_web_search"]   # or deepseek_fetch; at least one must stay on
 ```
+
+The names match verbatim what the server declares (`deepseek_web_search`,
+`deepseek_fetch`). The server also honors `DEEPSEEK_ENABLE_SEARCH`/`DEEPSEEK_ENABLE_FETCH`
+in the `env` table if you prefer switching the tools off at the source; the installer uses
+`disabled_tools`.
 
 ### Local checkout
 

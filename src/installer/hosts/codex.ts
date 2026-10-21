@@ -7,9 +7,9 @@ import {
   splitCompetitors,
 } from "../detect"
 import { join } from "../paths"
-import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
+import { API_KEY_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../formats/rules"
-import { MCP_TOOL_IDS, rulesLines } from "../rulesContent"
+import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent"
 import { planHeader } from "./shared"
 import type { ConfigOp, FileEdit, HostPaths, InstallRecord, InstallerInput, InstallPlan } from "../types"
 
@@ -61,20 +61,38 @@ export function planCodex(input: InstallerInput, _previous: InstallRecord | unde
     if (stayRegistered.length > 0) notes.push(othersStayRegisteredNote(stayRegistered))
   }
 
-  const env: Record<string, string> = {}
-  if (input.search === "off") env[ENABLE_SEARCH_ENV] = "false"
-  if (input.fetch === "off") env[ENABLE_FETCH_ENV] = "false"
+  const existingEntry = isPlainObject(servers) ? servers.deepseek : undefined
+  // The entry's disabled_tools key carries the user's own entries (ours filtered out)
+  // plus the off tier's tool names, so re-inits and uninstall stay whole-entry ops —
+  // an append inside a set op's subtree would break both verify and the drift check.
+  const rawToolIds: readonly string[] = Object.values(RAW_MCP_TOOL_IDS)
+  const keptDisabled = isPlainObject(existingEntry) && Array.isArray(existingEntry.disabled_tools)
+    ? existingEntry.disabled_tools.filter(
+        (name): name is string => typeof name === "string" && !rawToolIds.includes(name),
+      )
+    : []
+  const offDisabled = [
+    ...(input.search === "off" ? [RAW_MCP_TOOL_IDS.search] : []),
+    ...(input.fetch === "off" ? [RAW_MCP_TOOL_IDS.fetch] : []),
+  ]
   const entry = {
     command: "npx",
     args: ["-y", input.packageRef],
-    ...(Object.keys(env).length > 0 ? { env } : {}),
+    ...(keptDisabled.length > 0 || offDisabled.length > 0
+      ? { disabled_tools: [...keptDisabled, ...offDisabled] }
+      : {}),
     env_vars: [API_KEY_ENV],
   }
 
-  const existingEntry = isPlainObject(servers) ? servers.deepseek : undefined
   const ops: ConfigOp[] = [
     { op: "set", path: ["mcp_servers", "deepseek"], value: entry, previous: existingEntry },
   ]
+  if (offDisabled.length > 0) {
+    notes.push(
+      `Off capabilities use Codex's own disabled_tools key (${offDisabled.join(", ")}): the tools are removed from ` +
+        "the model's context while the server keeps running and stays re-enableable by deleting the entries.",
+    )
+  }
   if (input.search === "forced") {
     const previous = typeof loaded.value.web_search === "string" ? loaded.value.web_search : undefined
     ops.push({ op: "set", path: ["web_search"], value: "disabled", previous })

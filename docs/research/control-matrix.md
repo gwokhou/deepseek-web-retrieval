@@ -111,7 +111,9 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   `command`/`args`/`env`/`env_vars`; `startup_timeout_sec` (30 s) and `tool_timeout_sec`
   (300 s) defaults — the `DEFAULT_STARTUP_TIMEOUT`/`DEFAULT_TOOL_TIMEOUT` constants
   ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs));
-  `enabled_tools`/`disabled_tools`, per-tool approval modes, and output limits.
+  `enabled_tools`/`disabled_tools` (verbatim raw tool-name match, filtered before
+  registration so the model never sees a disabled tool; an empty `enabled_tools` allow-list
+  exposes nothing), per-tool approval modes, and output limits.
   stdio children do not inherit the parent environment (only `HOME`, `PATH`, and explicit
   `env`), so `DEEPSEEK_API_KEY` must be passed explicitly. When a tool result has
   `structuredContent`, Codex replaces the content blocks with the serialized JSON. No SSE.

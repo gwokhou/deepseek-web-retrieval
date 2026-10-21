@@ -137,7 +137,7 @@ the artifacts below name the path where they differ.
 | Forced (replacement) | OpenCode plugin options (`setDefaultWebsearch` / `fetchOverrideWebfetch`) |
 | Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found — Pi sets their `enabled` key to `false`; Codex, lacking a per-server kill switch, refuses the tier instead; Pi's extension path additionally refuses when a web-capable `packages`/`extensions` source is listed in settings.json (no per-package kill switch exists) |
 | Forced (de-facto) | Nothing beyond the Optional artifacts — no competitor exists |
-| Off | The MCP entry with the capability's false-only server-side switch instead of that tool (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); Pi's extension path writes the same switches into the `deepseekWebRetrieval` settings namespace the extension reads at load; both capabilities off refuses to install |
+| Off | Codex writes the capability's raw tool name into the server entry's `disabled_tools` (host-native: the tool leaves the model's context; the user's own entries in that array are kept); the other MCP entry writes the capability's false-only server-side switch instead (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); Pi's extension path writes the same switches into the `deepseekWebRetrieval` settings namespace the extension reads at load; both capabilities off refuses to install |
 
 OpenCode additionally appends `permissions` allow entries for exactly the tools it
 registers (`websearch`, `deepseek_fetch`, and `webfetch` when fetch is forced), merged
