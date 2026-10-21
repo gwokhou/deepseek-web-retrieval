@@ -1,346 +1,107 @@
 # Changelog
 
-All notable changes to this project are documented here.
-
-## Unreleased
-
-- Installer: validate install-record structure, version, host, and scope; corrupt
-  or unreadable records now refuse init, list, and uninstall with repair guidance.
-- Installer: atomically replace config and install-record files, preserve existing
-  permissions and valid symlinks, and keep records private. Operation locks serialize
-  writes to the same install or config; stale plans refuse after another operation.
-  Interrupted locks require inspection before manual removal.
-- CI/release: require the full check, installed-package Node smoke, and keyless
-  installer/reinit/pkg Docker scenarios before publishing. CI also checks the
-  packaged CLI on Node 20, 22, 24, and 26.
-- Docs: `docs:matrix --check` detects drift without rewriting generated documents.
-- Core/adapters: expose an injectable retrieval-client factory; core and adapter
-  tests use independent HTTP dependencies instead of replacing global `fetch`.
-
-- Installer: reject values on the `--apply` switch, including `--apply=false`,
-  before writing anything; use a bare `--apply` to apply the preview.
-- Tests: rebuild the CLI for stdio smoke tests, check Node child-process streams
-  before MCP startup, and include captured stderr in handshake failures.
-- Installer: refuse incomplete, reversed, or duplicate rules-block markers before
-  modifying files, preserving user content and uninstall state.
-- Installer: repeated Pi forced installs retain competitor exclusions and their
-  original snapshots; lowering the tier still restores those values.
-- Installer: shared config ownership is recorded beside the actual config, so
-  Codex installs from different projects cannot overwrite or uninstall one another.
-  Claims are previewed, acquired before writes, retained on failed re-init, and
-  released on fully rolled-back first apply or successful uninstall. Older installations migrate
-  by re-running init from their original project and scope; an unowned installer-style
-  registration is refused instead of silently adopted.
-- Installer: preferred rules steer only the selected capability, leaving the other
-  capability's optional tier unchanged.
-- Core: URL-object Fetch inputs now enforce the same protocol, credential, and
-  length restrictions as string inputs before making any request.
-- Search: a result without a (finite) `rerank_score` now passes while
-  `minRerank` is `0`, making the default the pass-through the 0.4.0 research
-  intended — the README's "thresholds are off by default" now covers missing
-  scores too, symmetric with `allowUnknownAuthority`. A positive threshold
-  still drops unscored results (they cannot be compared against it); a present
-  score always compares
-- Installer: `apply` verifies written files before committing the install record.
-  Write, orphan-revert, and verification failures restore touched files and the
-  previous record, then verify that recovery. `ApplyError.status` distinguishes
-  `rolled_back` from `recovery_required`; incomplete recovery retains new config
-  ownership claims and reports the original failure plus recovery errors. If
-  obsolete ownership cleanup fails after commit, the verified install and its new
-  record remain available and the error explicitly reports that state.
-- Installer: removing a marked rules block keeps exactly one blank separator
-  line between the surviving neighbors instead of collapsing it
-- Installer: path joins use the platform separator (Windows-native paths
-  instead of `/`-joined ones)
-- Removed the unused `formatFetchContent` export from the core (use
-  `formatFetchedContent`, which also reports truncation)
+All notable changes to this project are documented here, with one sentence per item.
 
 ## 0.5.0
 
-- Ship a native Pi extension adapter (`src/pi/`) as Pi's recommended integration
-  path, keeping the MCP server as an explicit fallback. Pi loads
-  `src/pi/extension.ts` in-process through the package's new `pi` manifest field
-  (jiti, no build step), so the tools are declared to the model like built-ins —
-  `exposure: "direct"` is Pi's own default for extension tools, so the MCP path's
-  codemode trap does not exist — results bypass the MCP layer's 20 KB truncation
-  and 60 s request timeout, and the key is read from the Pi process environment
-  with no `env` forwarding. Configuration is the same `DEEPSEEK_*` environment
-  pipeline as the MCP server (moved to `src/core/env.ts`, now shared by both
-  adapters) plus a `deepseekWebRetrieval` settings namespace for the off
-  switches; Pi preserves unknown settings keys on read and on its own rewrites,
-  verified at 1.3.0 against `pi install`'s settings rewrite
-- The installer gains `--path <extension|mcp>` (Pi only; extension by default).
-  The extension path appends an `npm:<package>` source to the `packages` array
-  in `~/.pi/agent/settings.json` / `.pi/settings.json` — Pi resolves package
-  sources at session start, so no host-CLI invocation is needed — writes the
-  off-tier switches into the settings namespace the extension reads at load
-  (outranking the environment), names the unprefixed tool ids in the preferred
-  rules block, disables web-capable MCP servers under the forced tier, and
-  refuses the forced tier when a web-capable `packages`/`extensions` source
-  cannot be excluded (Pi has no per-package kill switch). Re-init across paths
-  migrates through the orphan-revert machinery; `docs/hosts.jsonc` flips Pi to
-  `paths: ["extension", "mcp"]` with `adapter: "src/pi"`
-- e2e: a keyless `pi-extension` scenario proves the settings namespace in both
-  directions through Pi's real load surface (a both-off namespace fails at load
-  with the precheck message; removing it loads the checkout cleanly), the
-  installer scenario now covers both paths end to end, and `pi-billed` moves to
-  the extension path (the MCP path keeps its keyless handshake coverage). Unit
-  tests cover the adapter (tool definitions, execute paths, settings-over-env
-  precedence) and the installer's extension branch (plans, off artifacts,
-  forced refusals, apply/uninstall round-trips, mcp → extension migration,
-  `--path` validation)
+- Add a native Pi extension as the default integration, with shared environment configuration and settings-based capability switches.
+- Add Pi `--path extension|mcp` and preserve uninstall snapshots when migrating between paths.
+- Enforce Pi forced tiers by disabling supported competitors and refusing competitors the host cannot exclude.
+- Shape MCP results for each client, including readable text for Codex.
+- Use Codex's `disabled_tools` for capability off tiers and report host-version drift during init.
+- Keep each capability's preferred rules independent of the other capability's tier.
+- Make host SDK peers optional for standalone MCP installs and limit Pi peers to the compatible `^1.3.0` range.
+- Reject valued `--apply` flags such as `--apply=false` before writing files.
+- Validate install records and refuse corrupt or unreadable records with repair guidance.
+- Track shared config ownership to prevent installs from different projects overwriting or uninstalling one another.
+- Atomically replace individual files, preserve permissions and symlinks, and serialize conflicting writes with operation locks.
+- Verify writes and recovery, reporting `rolled_back` or `recovery_required` when apply fails.
+- Preserve user content, original competitor snapshots, and rules separators during re-init and uninstall.
+- Use platform-native paths and reject malformed or duplicate rules markers.
+- Apply identical Fetch URL validation to string and URL-object inputs.
+- Allow unscored search results when `minRerank` is zero while retaining positive-threshold filtering.
+- Add injectable retrieval clients so adapter tests no longer replace global `fetch`.
+- Remove `formatFetchContent` in favor of `formatFetchedContent`, which also reports truncation.
+- Add Biome checks, read-only docs drift detection, and clearer stdio handshake diagnostics.
+- Gate releases on full checks, installed-package validation across Node 20/22/24/26 in CI, and keyless Docker regressions.
+- Add a published 0.4.0 upgrade regression covering all three hosts, Pi path migration, and restoration of original configuration on uninstall.
+- Upgrade existing installs from their original project and scope, selecting `--path mcp` explicitly to retain Pi's MCP path.
+- Preserve install records for recovery and inspect interrupted operation locks before removing them.
 
 ## 0.4.0
 
-- Ground the search defaults in surveyed industry factory defaults
-  ([research](docs/research/search-api-defaults.md)): every surveyed AI-native search API
-  returns ten results by default and none filters results client-side by score or
-  authority, so `maxResults` moves 5 → 10 (matching the API `count` default) and the
-  `minRerank`/`minAuthority` thresholds move to 0 with `allowUnknownAuthority` flipping
-  to `true` — the pass-through default returns what DeepSeek ranked, and the thresholds
-  remain available as opt-ins. `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` becomes a
-  false-only switch (`false`/`0`/`no`/`off` disables) since the default is now on.
-  Unchanged and now evidence-backed: `maxRetries=0` (search-API SDK cohort: tavily-python
-  and Linkup ship no retries; the 2-retry defaults belong to chat-completion SDKs), the
-  30 s timeout, and the 1,200/16,000-character truncations
-- Drop the "Token- and cost-efficient" bullet from the README's Features section —
-  the default parameters are no longer endorsed as a selling point, and their behavior
-  is stated neutrally in General behavior
+- Align search defaults with [industry defaults](docs/research/search-api-defaults.md): return up to ten results with score and authority filtering disabled unless explicitly enabled.
+- Make `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` default to true, with `false`, `0`, `no`, or `off` disabling it.
+- Replace the README's cost-efficiency claim with neutral descriptions of default behavior.
 
 ## 0.3.0
 
-- Close the lifecycle gaps in the keyless e2e coverage with a `reinit` scenario: tier
-  downgrades revert orphaned artifacts through the real CLI (the Codex kill switch
-  restored inside the still-claimed config with the registration kept and the plan's
-  reverts section visible; the Pi preferred → optional downgrade deletes the orphaned,
-  installer-created rules file whole), a second Codex scope claiming the same config
-  file is refused with uninstall guidance, `list` reports the recorded installs, and
-  `XDG_CONFIG_HOME` routes the global config home with uninstall finding the record
-  there. The Codex project scope and OpenCode global scope path mappings are exercised
-  for the first time
-- Refuse drift between plan and apply (ADR-0001): apply now re-verifies that the value
-  at every set-op path still equals what the plan previewed, and refuses with re-run
-  guidance when the config changed since the plan was rendered — the preview, the secret
-  guard, and the install record describe one snapshot taken once at plan time, and an
-  interim user edit can never be silently overwritten. A file that stopped parsing in
-  that window refuses the same way
-- Deepen the modules the installer and adapters are built on, behavior-preserving
-  except where noted: revert and the cross-scope collision invariant each get exactly
-  one owner (a whole-file orphan revert now deletes a created file it leaves empty,
-  matching uninstall's semantics; partial orphan reverts never delete a still-claimed
-  file); the three config formats — comment-preserving JSONC, comment-lossy TOML, and
-  the host-marked rules block — sit behind one codec registry, with a plan's file edits
-  as a discriminated union instead of optional-field smuggling; each host module owns
-  its per-scope paths, tool ids, and shared plan header, the CLI roster derives from
-  the planner registry, and `docs/hosts.jsonc` records which hosts have installer
-  modules with test guards holding both in sync; the DeepSeek HTTP transport moves
-  behind its own seam with an injectable fetch, the per-call timeout becomes part of
-  the request context (the shorter of it and the configured timeout wins, for search
-  as well as fetch), and the OpenCode adapter stops rebuilding resolved options; the
-  core returns a host-neutral search result, owns the capability-fact description
-  fragments both adapters compose from, and resolves OpenCode's registration knobs
-  inside the OpenCode adapter where they are consumed; the `DEEPSEEK_*` environment
-  variable names have a single source in the core constants
-- Make the installer CLI edge testable and explicit: command output is injectable,
-  input validation returns a discriminated result instead of smuggling exit codes as
-  numbers, and the config home is an explicit input with the XDG comparison resolved
-  once at the entry (behavior unchanged)
-- Track the project's domain documentation: `CONTEXT.md` (the glossary hosts, adapters,
-  tiers, plans, records, reverts, codecs are written in) and `docs/adr/` now live in
-  the repository, alongside the `docs/agents/` agent-skills configuration (GitHub
-  Issues as the tracker, default triage labels, single-context domain docs)
-- Enforce the forced tier's exclusivity promise and complete the detect phase: other
-  registered MCP servers are now classified web-capable from their name plus
-  command/args/url (a heuristic the plan notes state openly). Under a forced tier, Pi
-  disables the web-capable ones via their per-server `enabled` key with the prior value
-  snapshotted for uninstall, while Codex — which has no per-server kill switch — refuses
-  the tier with guidance instead of promising non-exclusive routing (OpenCode's forced is
-  replacement, which no third-party server overrides). The target rules file is scanned
-  for steering toward other web tools (the installer's own marked block excluded) and the
-  conflict is reported, not resolved; every forced-tier plan names the README's "Privacy
-  and cost" section; the both-off error and the stay-registered/replacement notes become
-  shared strings instead of per-planner copies
-- Refuse cross-scope installs that would claim one config file: Codex's project-scope
-  fallback writes the user-level `~/.codex/config.toml`, so a project install beside a
-  global one left both scopes' records claiming `mcp_servers.deepseek` in that file, and
-  whichever uninstalled first reverted the other's registration. The plan now refuses a
-  second scope whose edits overlap the other scope's recorded files (pointing at the
-  uninstall command to run instead), and uninstall runs the same check defensively for
-  records that predate the guard. Pi and OpenCode scope pairs map to disjoint files and
-  install side by side as before
-- Split installer config editing into `configFile` (JSONC text editing) and
-  `configValue` (the parsed-object model), unifying the duplicated path walkers,
-  append-array dedupe, created-parents pruning, and the isPlainObject guard along the
-  way (no behavior change); add a guard test that every version literal in installer
-  prose appears in `docs/hosts.jsonc`, so a version bump without the re-verification
-  pass fails tests instead of shipping stale facts in user-facing plan notes
-- Close the remaining high- and medium-value e2e coverage gaps with four new Docker
-  scenarios: `installer` (keyless — the installer CLI's own product: init/apply/uninstall
-  for all three hosts, verified through the real agents' config readers, including the
-  Codex kill-switch write and the OpenCode engine replacement), `pkg` (keyless — the
-  `npm pack` tarball installed with npm in the container, its bin executed directly,
-  then registered as the Pi server for a real handshake), `capability-off` (keyless —
-  `DEEPSEEK_ENABLE_FETCH=false` leaves exactly the search tool, both flags false refuses
-  to start, and a registration without `exposure` reports `codemode`), and `preferred`
-  (billed — installer product at Pi project scope with preferred tiers, then
-  natural-language prompts that name no tool, so only the AGENTS.md rules block can steer
-  the model). The harness now accepts multiple scenario names, packs the npm tarball
-  before running, gives each scenario an isolated HOME and project dir (cleaned up
-  afterwards) while sharing one npm download cache per run, and suggests the keyless
-  subset when `DEEPSEEK_API_KEY` is missing
-- Fix the installer's secret guard refusing its own output: a re-init over an existing
-  entry whose `DEEPSEEK_API_KEY` is the `${DEEPSEEK_API_KEY}` indirection form was
-  rejected as a literal credential. Pure `${VAR}` expansions now pass the guard (found
-  by the new installer e2e scenario running after pi-billed in a shared HOME); literal
-  keys are still refused
-- Fix the `codex` e2e scenario, which had never actually completed a turn: the slim
-  Node base image ships no system CA bundle, so Codex's static-musl TLS stack (rustls,
-  unlike Node's bundled store) failed every HTTPS request as an opaque
-  "Reconnecting... waiting for network" loop — the Dockerfile now installs
-  `ca-certificates`. The scenario config also follows DeepSeek's official Codex
-  integration: a vendored `test/e2e/codex-models.json` catalog is written to
-  `~/.codex/models.json` and referenced via `model_catalog_json` (without it Codex
-  cannot resolve DeepSeek model slugs), with `wire_api = "responses"` and the key
-  still forwarded through `env_key`/`env_vars` instead of the official script's
-  bearer-token-in-file. The scenario now exercises the `web_search = "disabled"`
-  kill switch for real. All four scenarios (pi, pi-billed, opencode, codex) pass in
-  Docker with real billed requests
-- Add the billed `pi-billed` e2e scenario, bringing Pi to the same invocation-level
-  coverage as the opencode and codex scenarios: headless `pi --print` prompts whose
-  LLM is Pi's native DeepSeek provider (`deepseek/deepseek-flash`), so one key pays
-  for both legs and the model really calls `deepseek_fetch` / `deepseek_web_search`
-  through Pi's own MCP client. The keyless `pi` handshake scenario stays
-- Drop Continue and Gemini from the host matrix — they will not be supported.
-  Both generated tables, the per-host reference, the protocol research, the
-  installer examples, and the host-count invariants shrink accordingly (the
-  MCP-capable host count is now seven)
-- Fix the critical code-review findings on the installer: a tier-change re-init now
-  reverts the previous init's artifacts explicitly (shown in the plan, undone on
-  apply) instead of orphaning them; the plan renders old values for every set op and
-  existing counts for appends; TOML comment-loss detection covers trailing comments
-  (string-aware); rules-block markers are per host so pi and codex can share one
-  AGENTS.md; install records are written 0600 with `.deepseek-web-retrieval/`
-  gitignored; replacing an entry that contains a literal credential-looking key is
-  refused instead of snapshotted; the CLI resolves `--cwd`, falls back to
-  `os.homedir()`, rejects unknown flags/positionals with targeted messages, and
-  apply refuses to clobber non-array/non-object config values before writing
-  anything; the e2e runner rejects stale flags (including `--local`) and forwards
-  empty env values as empty instead of passing host values through
-- Add the installer CLI (`deepseek-web-retrieval init` / `uninstall` / `list`) for
-  OpenCode, Pi, and Codex: plan-then-apply with per-capability tiers (optional /
-  preferred / forced / off) and a first-class project/global scope, JSON edits that
-  preserve comments (jsonc-parser), TOML support (smol-toml), snapshot-based surgical
-  rollback that never clobbers user edits, and detect notes for competitors, other
-  registered MCP servers, and Codex's `[tools] web_search` no-op trap
-- Add `DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH` (and the OpenCode
-  `searchEnabled` / `fetchEnabled` options) for per-capability control on every host;
-  the MCP server refuses to start when both tools are disabled
-- Promote Codex to supported: MCP-server adapter, the `docs/agents/codex.md` guide,
-  tier table with the top-level `web_search = "disabled"` kill switch, and
-  `env_vars`-based key forwarding that respects Codex's stdio env allowlist
-- Make the e2e suites Docker-only (remove `--local`) and add the billed `codex`
-  scenario: headless `codex exec` in an isolated HOME with DeepSeek as the Codex LLM
-  over the Responses wire (Codex 0.163.0 dropped `wire_api = "chat"`; DeepSeek serves
-  the Responses endpoint), one key paying for both legs
-- Replace the hand-written JSONC stripper with jsonc-parser (now also
-  `src/core/jsonc.ts`); drop `scripts/jsonc.ts`
-
-- Fix documentation review findings: resolve the Pi `structuredContent` contradiction
-  against the v1.3.0 source (content-first, structuredContent as a no-content
-  fallback), add the missing `extension` mechanism to the taxonomy and re-path
-  OpenCode to its native mechanisms, qualify the Forced tier in the Tiers table
-  itself, de-restate version locks and the baseline in CONTRIBUTING/integration,
-  replace "planned" with "shipped" for the MCP server, tighten installer rollback
-  and forced-unavailable/session-scoped semantics, and dedupe the provenance and
-  quirk summaries
-- State the installer principles — never overwrite user configuration without the
-  user's knowledge, and post-install behavior and impact scope must be controllable
-  and knowable — and specify the detect/merge/verify flow, tier semantics against
-  stock configuration, snapshot-based rollback, and a first-class project/global
-  scope choice (honor or report, never silently downgrade) in
-  `docs/design/installer-design.md`; qualify the control matrix's exclusion flavor as
-  relative to built-in competitors only
-- Categorize `docs/`: per-agent guides in `docs/agents/`, research notes in
-  `docs/research/`, and design notes in `docs/design/`; the integration hub and
-  `docs/hosts.jsonc` stay at the root
-- Add `docs/research/control-matrix.md`: control-tier research (optional / preferred /
-  forced, per host and capability) with a consolidated per-host reference — built-in web
-  tools and their kill switches, MCP registration, and rules files. The control matrix is
-  generated from the new `control` field in `docs/hosts.jsonc` (`bun run docs:matrix`;
-  drift fails tests)
-- Correct the Continue host note (the CLI has no built-in `search_web`; it is
-  IDE-extension-only) and state the built-in web tools in the Codex, Cursor, Devin, and
-  Copilot notes; extend the host-evaluation checklist with the rules and built-in
-  kill-switch questions
-- Move install-time tier planning to `docs/design/installer-design.md`, and fold the
-  `docs/research/mcp-compatibility.md` per-host setup notes and quirk catalog into the
-  control-matrix per-host reference; `integration.md` host notes now link there instead
-  of restating details
-- Fix the hosts.jsonc drift guard: the matrix renderer no longer rewrites
-  docs/integration.md when imported by tests, and CI and `bun run check` now fail
-  on drift (`docs:matrix --check`)
-- Serve both MCP tools end to end at every pinned client revision, not only
-  `listTools`
-- Build `dist/cli.js` on demand for the stdio smoke test instead of silently
-  skipping it on a fresh checkout
-- Share the fetch pipeline (parse, host policy, fetch, format) between the
-  OpenCode and MCP adapters through `fetchDocument` in the core
-- Stop restating host version locks in narrative docs; reference
-  `docs/hosts.jsonc` instead
-- Pin the e2e Docker base image (`node:22.23.3-slim`) and correct the 0.2.0
-  changelog wording about where e2e versions are pinned
-- Type the `DEEPSEEK_*` environment mapping so option keys and variable names
-  cannot drift apart
+- Add keyless re-init coverage for tier downgrades, snapshot restoration, scope collisions, listing, and XDG config routing.
+- Refuse apply when configuration has changed or stopped parsing since the plan was generated.
+- Consolidate installer codecs, host planning, reversible edits, and shared retrieval behavior behind dedicated modules.
+- Make CLI output injectable and resolve input validation and config-home selection at the CLI boundary.
+- Add the domain glossary, architecture decisions, and agent workflow documentation.
+- Detect competing web tools and refuse forced tiers when the host cannot enforce exclusivity.
+- Refuse cross-scope installs that would claim the same config file.
+- Separate JSONC editing from value manipulation and guard installer version claims against the host registry.
+- Add isolated Docker scenarios for installation, packaging, capability switches, and preferred routing.
+- Accept `${VAR}` credential references during re-init while continuing to reject literal secrets.
+- Fix Codex end-to-end execution with system CA certificates, a model catalog, and the Responses API.
+- Add a billed Pi scenario that verifies real model calls to both retrieval tools.
+- Remove Continue and Gemini from the support matrix.
+- Harden installer previews, orphan reverts, config-shape checks, rules markers, private records, and CLI validation.
+- Add reversible `init`, `uninstall`, and `list` commands for OpenCode, Pi, and Codex with project/global scopes and per-capability tiers.
+- Add independent Search and Fetch switches and refuse MCP startup when both are disabled.
+- Promote Codex to supported with documented MCP setup, built-in search control, and environment-based key forwarding.
+- Make end-to-end tests Docker-only and add a billed Codex scenario.
+- Replace the handwritten JSONC parser with `jsonc-parser`.
+- Correct integration documentation for Pi content handling, native extensions, control tiers, and rollback limits.
+- Document installer preview, scope, verification, and snapshot-based recovery guarantees.
+- Organize documentation into agent guides, research, and design notes.
+- Generate the capability control matrix from `docs/hosts.jsonc` with drift checks.
+- Correct built-in web-tool facts and expand the host evaluation checklist.
+- Consolidate host setup and compatibility details in the control-matrix reference.
+- Prevent matrix-renderer imports from rewriting documentation and fail checks on generated-doc drift.
+- Exercise both MCP tools at every pinned client protocol revision.
+- Build the CLI before stdio smoke tests instead of skipping fresh checkouts.
+- Share the Fetch pipeline between OpenCode and MCP through the core's `fetchDocument`.
+- Reference the host registry instead of repeating version locks in narrative documentation.
+- Pin the Docker base image and clarify where end-to-end host versions are configured.
+- Type the environment-variable mapping to prevent option names from drifting.
 
 ## 0.2.0
 
-- Make `docs/hosts.jsonc` the single source of truth for host facts: the
-  integration.md host table is generated from it (`bun run docs:matrix`, drift fails
-  tests), CI matrices and the e2e Docker build args derive from it, and narrative
-  docs reference it instead of restating version locks
-- Add a local-only end-to-end script (`bun run test:e2e`): a keyless real
-  `pi mcp list` handshake against the built server, and a headless `opencode run`
-  scenario that makes real billed requests; never run in CI. Agents run inside
-  Docker with versions injected from `docs/hosts.jsonc` as Docker build args
-  (`--local` opts out)
-- Add an MCP server adapter (`src/mcp/`) exposing `deepseek_web_search` and `deepseek_fetch`
-  over stdio, serving MCP clients from revision 2024-11-05 through 2026-07-28
-- Support `DEEPSEEK_*` environment variable configuration in the MCP server, mapped onto the
-  shared option pipeline
-- Add the Pi guide (`docs/pi.md`) and `examples/pi.mcp.jsonc`; Pi 1.3.0 is the first
-  supported MCP host
-- Add `docs/mcp-compatibility.md`, a primary-source review of MCP protocol compatibility
-  across the hosts in the support matrix
-- Add a Node build (`dist/cli.js`) with a `deepseek-web-retrieval` bin entry and Node 20+
-  engines, alongside the existing Bun workflow
-- Cover the MCP server with SDK client personas pinned to 2024-11-05, 2025-06-18,
-  2025-11-25, and 2026-07-28, plus a real stdio smoke test of the built entry
-- Enforce the fetch host policy inside the core client so direct core consumers cannot bypass it
-- Fail fast on a missing API key before the fetch permission prompt, and reject non-string `url` inputs
-- Move OpenCode-specific missing-key guidance out of the agent-agnostic core
-- Document that `maxResults: 0` returns no results
-- Cover response body reads with the request timeout and cancellation signal
-- Reject successful API responses larger than 5 MiB
-- Reject search queries that exceed 128 characters after adding search operators
-- Block IPv4-mapped IPv6 private addresses in the fetch host policy
-- Truncate API error bodies by Unicode code points
-- Move OpenCode-specific setup and usage into `docs/opencode-v2.md`
-- Add `docs/integration.md` with a version-locked host support matrix
-- Calibrate the OpenCode v2 install and uninstall guide against verified behavior:
-  plugin hot reload, `plugin add` not selecting the provider, and `plugin remove` leftovers
+- Make `docs/hosts.jsonc` the source for host facts, generated tables, CI matrices, and Docker version arguments.
+- Add local end-to-end tests for keyless Pi handshakes and billed OpenCode requests, using Docker by default with an optional local mode.
+- Add a stdio MCP adapter exposing Search and Fetch across protocol revisions 2024-11-05 through 2026-07-28.
+- Configure the MCP adapter through shared `DEEPSEEK_*` environment options.
+- Add Pi setup documentation and an MCP config example as the first supported MCP host.
+- Add a primary-source review of MCP compatibility across the host matrix.
+- Add the Node 20+ CLI build and executable alongside the Bun workflow.
+- Test pinned MCP client revisions and the built CLI's stdio transport.
+- Enforce Fetch host policy inside the core client.
+- Reject missing credentials before prompting for Fetch permission and reject non-string URLs.
+- Move OpenCode-specific credential guidance out of the shared core.
+- Document that `maxResults: 0` returns no results.
+- Apply timeout and cancellation to response-body reads.
+- Reject successful API responses larger than 5 MiB.
+- Reject search queries longer than 128 characters after operators are added.
+- Block IPv4-mapped IPv6 private addresses.
+- Truncate API error bodies by Unicode code points.
+- Move OpenCode setup and usage into its dedicated guide.
+- Add an integration guide with a version-locked support matrix.
+- Correct OpenCode installation and removal guidance for hot reload, provider selection, and leftover configuration.
 
 ## 0.1.0
 
-Initial public-ready release.
-
-- DeepSeek Search provider for OpenCode v2 (`websearch.provider = "deepseek"`)
-- `deepseek_fetch` tool backed by DeepSeek Fetch
-- Optional drop-in `webfetch` replacement
-- Reuse of the active DeepSeek credential stored in OpenCode
-- `DEEPSEEK_API_KEY` fallback and `apiKeySource` control
-- Summary-only search with rerank/authority filtering and URL deduplication
-- Markdown-only fetch with a configurable character cap
-- Domain allow/deny lists and private-host blocking
-- Bounded retries for 408, 425, 429, and 5xx responses with `Retry-After`
-- Unicode-safe truncation and secret redaction in errors
-- Unit tests and CI
+- Add a DeepSeek Search provider for OpenCode v2.
+- Add the `deepseek_fetch` tool backed by DeepSeek Fetch.
+- Offer an optional replacement for OpenCode's built-in `webfetch`.
+- Reuse the active DeepSeek credential stored in OpenCode.
+- Support `DEEPSEEK_API_KEY` fallback and `apiKeySource` selection.
+- Return summary-only search results with score filtering and URL deduplication.
+- Return Markdown Fetch content with a configurable character limit.
+- Add domain allow/deny lists and private-host blocking.
+- Retry selected transient HTTP failures with bounded attempts and `Retry-After` support.
+- Preserve Unicode boundaries and redact secrets in errors.
+- Add unit tests and CI.

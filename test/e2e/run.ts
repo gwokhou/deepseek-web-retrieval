@@ -14,6 +14,7 @@ import { runPreferredScenario } from "./preferred";
 import { runReinitScenario } from "./reinit";
 import type { Runner } from "./runner";
 import { createDockerRunner, ensureDockerImage } from "./runner";
+import { runUpgradeScenario } from "./upgrade";
 
 const IMAGE = "deepseek-web-retrieval-e2e:latest";
 
@@ -58,6 +59,11 @@ const SCENARIOS: readonly Scenario[] = [
     name: "reinit",
     requiresApiKey: false,
     run: (runner) => runReinitScenario(runner),
+  },
+  {
+    name: "upgrade",
+    requiresApiKey: false,
+    run: (runner) => runUpgradeScenario(runner),
   },
   {
     name: "pkg",

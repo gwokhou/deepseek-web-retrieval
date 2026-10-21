@@ -9,8 +9,8 @@ bun install
 bun run check
 ```
 
-The project uses Bun for development. OpenCode supplies `@opencode/plugin` at
-runtime; do not bundle it into the plugin.
+The project uses Bun for development; native adapters use the SDKs supplied by
+OpenCode and Pi at runtime, so do not bundle host SDKs into the adapters.
 
 `bun run check` runs Biome, TypeScript, the generated-docs check, the build, and
 the test suite. Biome checks formatting, recommended lint rules, and import
@@ -36,15 +36,31 @@ local validation, so they do not make billed API calls.
 ## Release and end-to-end tests
 
 `bun run check:release` runs the full check, the installed-package Node smoke
-test, and the keyless `installer`, `reinit`, and `pkg` Docker scenarios.
+test, and all seven keyless Docker scenarios (`pi`, `pi-extension`, `installer`,
+`reinit`, `upgrade`, `pkg`, and `capability-off`).
 `prepublishOnly` requires this gate; Docker and npm registry access are required.
 CI runs those keyless scenarios and tests the packaged CLI on Node 20, 22, 24,
 and 26. Billed scenarios remain explicit local runs with a real key.
 
 `bun run test:package` installs a freshly packed tarball in a temporary directory
 and tests init, re-init, uninstall, and an MCP stdio handshake with the selected
-Node executable. It requires a current build (`bun run build`), not host peers.
-The Docker `pkg` scenario separately tests normal npm peer installation and Pi.
+Node executable using normal npm peer resolution, and fails if any host SDK is
+installed alongside the standalone MCP package; it requires a current build
+(`bun run build`). The Docker `pkg` scenario also loads the packed native adapters
+in the pinned Pi and OpenCode hosts, using the SDKs provided by those hosts.
+
+Host SDKs are optional peers because only the corresponding native adapter needs
+them; the MCP CLI does not import them. Pi peers use `^1.3.0` and OpenCode retains
+`^2.0.32`, while development dependencies and `docs/hosts.jsonc` pin the versions
+actually tested. These ranges express compatibility expectations, not a claim
+that every future minor release has been tested. A custom adapter loader must
+supply the appropriate SDK itself.
+
+The release gate needs a temporary directory with enough space for npm caches
+and installed packages; on systems with a small `/tmp`, set `TMPDIR` to an empty
+directory on a disk with sufficient free space before running it. No npm login
+is needed for these public-package checks; publishing credentials are needed
+only for the later, explicit release step.
 
 `bun run test:e2e` exercises real coding agents. It only runs
 inside Docker (`test/e2e/Dockerfile`); there is no host-binary mode, so the agent
@@ -53,12 +69,12 @@ image contains no secrets; the key is passed at `docker run` time.
 
 - `bun run test:e2e pi` — keyless. Registers the built MCP server in an isolated
   Pi config and asserts a real `pi mcp list` handshake.
+- `bun run test:e2e pi-extension` — keyless; checks that Pi rejects a both-off
+  settings namespace and loads the extension when the namespace is removed.
 - `bun run test:e2e pi-billed` — requires `DEEPSEEK_API_KEY`. Runs headless
-  `pi --print` prompts against the same MCP registration, with Pi's native
-  DeepSeek provider (`deepseek/deepseek-flash`) as the LLM from the same key.
-  This covers the invocation level the keyless scenario cannot: the model
-  actually calling `mcp__deepseek__deepseek_fetch` and
-  `mcp__deepseek__deepseek_web_search` through Pi's own MCP client. Real billed
+  `pi --print` prompts through the native extension, with Pi's DeepSeek provider
+  (`deepseek/deepseek-flash`) as the LLM from the same key, and verifies model
+  calls to `deepseek_fetch` and `deepseek_web_search`. Real billed
   requests (LLM + retrieval).
 - `bun run test:e2e installer` — keyless. Runs the installer CLI itself inside
   the container: `init --apply` for Pi (global, verified by a real handshake),
@@ -75,11 +91,18 @@ image contains no secrets; the key is passed at `docker run` time.
   installs, and `XDG_CONFIG_HOME` routes the global config home (with uninstall
   finding the record there). Also covers the Codex project scope and OpenCode
   global scope path mappings.
+- `bun run test:e2e upgrade` — keyless; installs the published npm 0.4.0 CLI,
+  creates all three host installs over existing user configuration, upgrades to
+  the packed candidate, migrates Pi from MCP to its default extension, repeats
+  forced init, and verifies uninstall restores the original settings and rules.
+  The baseline omits legacy host peers to avoid resolving them to newer versions;
+  the candidate uses normal npm installation, and a fresh install checks that
+  ownership claims were released.
 - `bun run test:e2e pkg` — keyless. Installs the `npm pack` tarball of this
   checkout with npm inside the container, executes its bin directly, and
-  registers the installed binary as the Pi MCP server for a real handshake.
-  Every other scenario runs the checkout's `dist/cli.js`, which would stay green
-  if the packaging broke.
+  registers the installed binary as the Pi MCP server for a real handshake,
+  then verifies native Pi tool registration and OpenCode plugin activation
+  without SDKs installed alongside the package.
 - `bun run test:e2e capability-off` — keyless. Covers the per-capability
   switches and the exposure trap through `pi mcp list --json`:
   `DEEPSEEK_ENABLE_FETCH=false` leaves exactly the search tool, both flags
@@ -109,7 +132,7 @@ image contains no secrets; the key is passed at `docker run` time.
   because Codex is a static musl binary whose TLS stack reads the system CA
   store, which the slim Node base does not ship.
 - `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
-  Multiple names select a subset (`bun run test:e2e pi pi-extension installer reinit pkg
+  Multiple names select a subset (`bun run test:e2e pi pi-extension installer reinit upgrade pkg
   capability-off` runs every keyless scenario); the harness packs the npm
   tarball before running, so the installer and pkg scenarios always exercise
   the current checkout's packaging.

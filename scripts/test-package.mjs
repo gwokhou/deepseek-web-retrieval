@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +29,7 @@ try {
   const packed = JSON.parse(
     run("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch], { cwd: root }),
   );
-  // Host peers are tested by the Docker pkg scenario. This isolates the Node MCP runtime.
+  // A standalone MCP install must not pull in unrelated host SDKs.
   run(
     "npm",
     [
@@ -37,13 +37,15 @@ try {
       "--prefix",
       join(scratch, "installed"),
       "--ignore-scripts",
-      "--legacy-peer-deps",
       "--no-audit",
       "--no-fund",
       join(scratch, packed[0].filename),
     ],
     { cwd: scratch },
   );
+  for (const peer of ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent", "@opencode/plugin"]) {
+    assert.equal(existsSync(join(scratch, "installed/node_modules", peer)), false, `MCP install pulled in ${peer}`);
+  }
   const bin = join(scratch, "installed/node_modules/.bin/deepseek-web-retrieval");
   const cli = (...args) => run(process.execPath, [bin, ...args], { cwd: project, env });
   assert.match(cli("list"), /No installs recorded/);
