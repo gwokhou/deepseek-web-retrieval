@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Search: a result without a (finite) `rerank_score` now passes while
+  `minRerank` is `0`, making the default the pass-through the 0.4.0 research
+  intended — the README's "thresholds are off by default" now covers missing
+  scores too, symmetric with `allowUnknownAuthority`. A positive threshold
+  still drops unscored results (they cannot be compared against it); a present
+  score always compares
+- Installer: `apply` now rolls back on failure. Any error after the first
+  write — a later file write, an orphan revert, or the install-record write —
+  restores every touched file to its pre-apply bytes (files the apply created
+  are deleted) and rewrites the previous record, so a half-applied install can
+  no longer leave the failed run's values as the snapshots a re-init would
+  inherit. The thrown error carries the original cause plus a restore report
+- Installer: removing a marked rules block keeps exactly one blank separator
+  line between the surviving neighbors instead of collapsing it
+- Installer: path joins use the platform separator (Windows-native paths
+  instead of `/`-joined ones)
+- Removed the unused `formatFetchContent` export from the core (use
+  `formatFetchedContent`, which also reports truncation)
+
 ## 0.5.0
 
 - Ship a native Pi extension adapter (`src/pi/`) as Pi's recommended integration

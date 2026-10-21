@@ -1,8 +1,10 @@
+import { join as pathJoin } from "node:path"
 import type { FsRoots, Scope } from "./types"
 
-/** Joins path parts with "/", skipping empty segments. */
+/** Joins path parts with the platform separator, skipping empty segments. */
 export function join(...parts: readonly string[]): string {
-  return parts.filter((part) => part.length > 0).join("/")
+  const nonEmpty = parts.filter((part) => part.length > 0)
+  return nonEmpty.length === 0 ? "" : pathJoin(...nonEmpty)
 }
 
 /** Config home: an explicit root wins; otherwise ~/.config. The CLI resolves XDG at the edge. */

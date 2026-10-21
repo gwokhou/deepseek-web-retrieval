@@ -145,9 +145,6 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
   notes.push(
     "Extension tools are declared to the model with exposure \"direct\" by Pi's own default; no exposure key is needed.",
   )
-  if (loaded.lossy) {
-    notes.push(`${paths.config} contains comments; the JSON edit preserves them.`)
-  }
 
   if (forced) {
     edits.push(...planMcpCompetitorDisables(input, notes, errors))
@@ -175,6 +172,48 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
   return { host: "pi", scope: input.scope, tiers, edits, notes, errors }
 }
 
+/**
+ * Disables web-capable MCP competitors for the forced tier: one `enabled:
+ * false` op per server (Pi entries carry an `enabled` key), each snapshotting
+ * its prior value for uninstall. Shared by both Pi paths — the MCP path folds
+ * the ops into its own mcp.json edit, the extension path opens a separate one.
+ */
+function planCompetitorDisables(
+  servers: Record<string, unknown>,
+  competitors: readonly string[],
+  notes: string[],
+  errors: PlanError[],
+): readonly ConfigOp[] {
+  const ops: ConfigOp[] = []
+  const excluded: string[] = []
+  const unexcludable: string[] = []
+  for (const name of competitors) {
+    const current = servers[name]
+    if (!isPlainObject(current)) {
+      unexcludable.push(name)
+      continue
+    }
+    const previous = typeof current.enabled === "boolean" ? current.enabled : undefined
+    if (previous === false) continue // already excluded
+    ops.push({ op: "set", path: ["mcpServers", name, "enabled"], value: false, previous })
+    excluded.push(name)
+  }
+  if (excluded.length > 0) {
+    notes.push(
+      `Forced tier: web-capable MCP servers are disabled so DeepSeek routing is exclusive (${excluded.join(", ")}; ` +
+        "prior enabled values are snapshotted for uninstall).",
+    )
+  }
+  if (unexcludable.length > 0) {
+    errors.push({
+      message:
+        `Forced cannot deliver exclusive routing: mcpServers entries ${unexcludable.join(", ")} look web-capable ` +
+        "but are not objects, so the plan cannot set their enabled key. Fix or remove them, or choose a lower tier.",
+    })
+  }
+  return ops
+}
+
 /** Disables web-capable MCP servers for the forced tier; the extension path still shares the field with them. */
 function planMcpCompetitorDisables(input: InstallerInput, notes: string[], errors: PlanError[]): FileEdit[] {
   const mcpFile = input.scope === "global" ? join(input.home, ".pi/agent/mcp.json") : join(input.cwd, ".pi/mcp.json")
@@ -189,36 +228,8 @@ function planMcpCompetitorDisables(input: InstallerInput, notes: string[], error
   const { competitors, bystanders } = splitCompetitors(servers)
   const edits: FileEdit[] = []
   if (competitors.length > 0) {
-    // Forced demands exclusivity: disable the web-capable competitors (Pi entries
-    // carry an `enabled` key), snapshotting each prior value for uninstall.
-    const ops: ConfigOp[] = []
-    const excluded: string[] = []
-    const unexcludable: string[] = []
-    for (const name of competitors) {
-      const current = servers[name]
-      if (!isPlainObject(current)) {
-        unexcludable.push(name)
-        continue
-      }
-      const previous = typeof current.enabled === "boolean" ? current.enabled : undefined
-      if (previous === false) continue // already excluded
-      ops.push({ op: "set", path: ["mcpServers", name, "enabled"], value: false, previous })
-      excluded.push(name)
-    }
-    if (ops.length > 0) {
-      edits.push({ file: mcpFile, format: "json", ops })
-      notes.push(
-        `Forced tier: web-capable MCP servers are disabled so DeepSeek routing is exclusive (${excluded.join(", ")}; ` +
-          "prior enabled values are snapshotted for uninstall).",
-      )
-    }
-    if (unexcludable.length > 0) {
-      errors.push({
-        message:
-          `Forced cannot deliver exclusive routing: mcpServers entries ${unexcludable.join(", ")} look web-capable ` +
-          "but are not objects, so the plan cannot set their enabled key. Fix or remove them, or choose a lower tier.",
-      })
-    }
+    const ops = planCompetitorDisables(servers, competitors, notes, errors)
+    if (ops.length > 0) edits.push({ file: mcpFile, format: "json", ops })
   }
   if (bystanders.length > 0) notes.push(othersStayRegisteredNote(bystanders))
   return edits
@@ -260,34 +271,7 @@ function planPiMcp(input: InstallerInput): InstallPlan {
     const { competitors, bystanders } = splitCompetitors(servers)
     const forced = input.search === "forced" || input.fetch === "forced"
     if (forced) {
-      // Forced demands exclusivity: disable the web-capable competitors (Pi entries
-      // carry an `enabled` key), snapshotting each prior value for uninstall.
-      const excluded: string[] = []
-      const unexcludable: string[] = []
-      for (const name of competitors) {
-        const current = servers[name]
-        if (!isPlainObject(current)) {
-          unexcludable.push(name)
-          continue
-        }
-        const previous = typeof current.enabled === "boolean" ? current.enabled : undefined
-        if (previous === false) continue // already excluded
-        ops.push({ op: "set", path: ["mcpServers", name, "enabled"], value: false, previous })
-        excluded.push(name)
-      }
-      if (excluded.length > 0) {
-        notes.push(
-          `Forced tier: web-capable MCP servers are disabled so DeepSeek routing is exclusive (${excluded.join(", ")}; ` +
-            "prior enabled values are snapshotted for uninstall).",
-        )
-      }
-      if (unexcludable.length > 0) {
-        errors.push({
-          message:
-            `Forced cannot deliver exclusive routing: mcpServers entries ${unexcludable.join(", ")} look web-capable ` +
-            "but are not objects, so the plan cannot set their enabled key. Fix or remove them, or choose a lower tier.",
-        })
-      }
+      ops.push(...planCompetitorDisables(servers, competitors, notes, errors))
     }
     const stayRegistered = forced ? bystanders : [...competitors, ...bystanders]
     if (stayRegistered.length > 0) notes.push(othersStayRegisteredNote(stayRegistered))
@@ -296,9 +280,6 @@ function planPiMcp(input: InstallerInput): InstallPlan {
   notes.push(
     `\`${API_KEY_ENV}\` is written as "\${${API_KEY_ENV}}" so the key expands from the shell that launches Pi and stays out of the file.`,
   )
-  if (loaded.lossy) {
-    notes.push(`${paths.config} contains comments; the JSON edit preserves them.`)
-  }
 
   if (input.search === "preferred" || input.fetch === "preferred") {
     edits.push({

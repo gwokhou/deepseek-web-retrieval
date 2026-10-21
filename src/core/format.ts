@@ -11,10 +11,6 @@ export function truncate(value: string, maxChars: number): string {
   return Array.from(value).slice(0, maxChars).join("")
 }
 
-export function formatFetchContent(title: string, content: string, maxChars: number): string {
-  return truncate(withTitle(title, content), maxChars)
-}
-
 /**
  * Builds the model-facing document and reports whether it was cut. The
  * truncation marker counts toward `maxChars`, so the returned content never

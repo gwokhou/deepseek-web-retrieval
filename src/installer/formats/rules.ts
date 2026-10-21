@@ -30,11 +30,14 @@ export function removeBlock(host: HostName, text: string): string {
   if (start === -1) return text
   const end = text.indexOf(markers.end)
   if (end === -1) return text.slice(0, start)
-  let after = text.slice(end + markers.end.length)
-  // Drop the blank lines the upsert added around the block.
-  after = after.replace(/^\n{1,2}/, "")
-  const before = text.slice(0, start)
-  return before.endsWith("\n\n") ? `${before.slice(0, -1)}${after}` : before + after
+  // The upsert joins non-empty neighbors with exactly one blank line; removal
+  // mirrors it, so the surrounding spacing stays stable across round-trips
+  // instead of collapsing the separator the block used to occupy.
+  const before = text.slice(0, start).trimEnd()
+  const after = text.slice(end + markers.end.length).replace(/^\n{1,2}/, "").trimStart()
+  if (before && after) return `${before}\n\n${after}`
+  if (before) return `${before}\n`
+  return after
 }
 
 export function hasBlock(host: HostName, text: string): boolean {

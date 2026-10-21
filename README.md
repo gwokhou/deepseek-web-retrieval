@@ -61,8 +61,10 @@ binary files, per-request billing) are documented there.
   full page content never enters the results.
 - Returns at most ten results by default (matching the API's `count` default and the
   industry norm for AI-native search APIs), deduplicating URLs. Optional
-  `rerank_score` and `authority` thresholds are off by default; when enabled they
-  drop results below the configured score or tier.
+  `rerank_score` and `authority` thresholds are off by default — the default
+  returns exactly what DeepSeek ranked, including results without a score;
+  when a positive threshold is set, results below it (or without a score to
+  compare) are dropped.
 - Builds `blockedDomains`, `includeDomains`, and `language` into query operators and
   rejects the final query locally when it exceeds the API's 128-character limit.
 - An empty result set is normal and is not an error.

@@ -66,6 +66,22 @@ describe("processResults", () => {
     ])
   })
 
+  test("keeps missing rerank_score only while no positive threshold is set", () => {
+    const raw: DeepSeekSearchResult[] = [
+      { url: "https://missing", authority: 4 },
+      { url: "https://non-finite", rerank_score: Number.NaN, authority: 4 },
+      { url: "https://negative", rerank_score: -1, authority: 4 },
+    ]
+    // Default (minRerank 0): the pass-through default returns what DeepSeek
+    // ranked, so unscored results stay; a present score still compares.
+    expect(processResults(raw, resolveSearchOptions()).map((result) => result.url)).toEqual([
+      "https://missing/",
+      "https://non-finite/",
+    ])
+    // Any positive threshold requires a score to compare against it.
+    expect(processResults(raw, resolveSearchOptions({ minRerank: 0.5 }))).toEqual([])
+  })
+
   test("optionally keeps unknown authority", () => {
     const options = resolveSearchOptions({ allowUnknownAuthority: true })
     const raw: DeepSeekSearchResult[] = [

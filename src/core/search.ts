@@ -30,7 +30,9 @@ export function parsePublished(value: unknown): number | undefined {
 
 /**
  * Filters and maps DeepSeek results into the neutral SearchResult shape.
- * Missing/non-finite rerank_score never passes. Authority -1/missing is
+ * A present rerank_score always compares against minRerank; a missing or
+ * non-finite score passes only while no positive threshold is set, so the
+ * default returns exactly what DeepSeek ranked. Authority -1/missing is
  * "unknown" and only passes when allowUnknownAuthority is enabled.
  */
 export function processResults(
@@ -48,7 +50,13 @@ export function processResults(
     if (!url || seen.has(url)) continue
 
     const rerank = item.rerank_score
-    if (typeof rerank !== "number" || !Number.isFinite(rerank) || rerank < options.minRerank) continue
+    if (typeof rerank === "number" && Number.isFinite(rerank)) {
+      if (rerank < options.minRerank) continue
+    } else if (options.minRerank > 0) {
+      // A threshold was explicitly raised, so a result that cannot be scored
+      // against it must not slip through.
+      continue
+    }
 
     const authority = item.authority
     const knownAuthority =

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, chmodSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
@@ -79,6 +79,11 @@ describe("rules blocks", () => {
     expect(twice.match(/deepseek-web-retrieval:pi:rules:begin/g)?.length).toBe(1)
     expect(twice).toContain("changed")
     expect(removeBlock("pi", twice)).toBe("# project rules\n")
+  })
+
+  test("removing a block between content keeps exactly one blank separator line", () => {
+    const text = `# top\n\n${block}\n\n# bottom\n`
+    expect(removeBlock("pi", text)).toBe("# top\n\n# bottom\n")
   })
 })
 
@@ -406,6 +411,59 @@ describe("apply and uninstall round-trips", () => {
     expect(existsSync(rulesFile)).toBe(false)
     uninstall(input)
     expect(existsSync(join(input.home, ".config/opencode/opencode.jsonc"))).toBe(false)
+  })
+})
+
+describe("apply rollback", () => {
+  test("a mid-write failure restores the touched files byte-identically and keeps the prior record", () => {
+    const input = makeInput("opencode", "project", "optional", "preferred")
+    const config = join(input.cwd, "opencode.jsonc")
+    const rules = join(input.cwd, "AGENTS.md")
+    const original = `{\n  // keep me\n  "websearch": { "provider": "tavily" }\n}\n`
+    writeFileSync(config, original)
+
+    const first = applyPlan(planOpenCode(input, readRecord(input)), input)
+    expect(first.ok).toBe(true)
+    const afterFirst = readFileSync(config, "utf8")
+    expect(afterFirst).toContain("// keep me")
+
+    // The re-init would rewrite the config, but its rules write cannot even
+    // open the file: the AGENTS.md path is a symlink into a directory that
+    // does not exist, so loading treats the file as absent while the write
+    // fails with ENOENT (it cannot create the target).
+    rmSync(rules)
+    symlinkSync("missing-dir/target", rules)
+    const reinit: InstallerInput = { ...input, search: "forced" }
+    expect(() => applyPlan(planOpenCode(reinit, readRecord(reinit)), reinit)).toThrow(
+      /apply failed and was rolled back/,
+    )
+
+    expect(readFileSync(config, "utf8")).toBe(afterFirst)
+    const record = readRecord(input)
+    expect(record?.tiers.search).toBe("optional")
+    // The prior record still snapshots the true pre-install world, so uninstall
+    // restores it rather than the failed run's half-written values.
+    uninstall(input)
+    const restored = readFileSync(config, "utf8")
+    const restoredValue = parseJsonc(restored) as { websearch: { provider: string }; plugins?: unknown[]; permissions?: unknown[] }
+    expect(restored).toContain("// keep me")
+    expect(restoredValue.websearch.provider).toBe("tavily")
+    expect(restoredValue.plugins).toBeUndefined()
+    expect(restoredValue.permissions).toBeUndefined()
+  })
+
+  test("a record-write failure rolls back created files and leaves no install recorded", () => {
+    const input = makeInput("opencode", "project", "optional", "preferred")
+    // The record path is a directory: readRecord sees no record (the read
+    // fails) and the record write fails after both files were written.
+    mkdirSync(join(input.cwd, ".deepseek-web-retrieval/install.opencode.json"), { recursive: true })
+
+    expect(() => applyPlan(planOpenCode(input, readRecord(input)), input)).toThrow(
+      /apply failed and was rolled back/,
+    )
+    expect(existsSync(join(input.cwd, "opencode.jsonc"))).toBe(false)
+    expect(existsSync(join(input.cwd, "AGENTS.md"))).toBe(false)
+    expect(listRecords(input)).toEqual([])
   })
 })
 

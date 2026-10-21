@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, rmSync } from "node:fs"
+import { dirname } from "node:path"
 import { codecFor, writeConfig } from "./formats"
 import { deepEqual, valueAt } from "./formats/value"
-import { revertRecordedFile } from "./revert"
-import { readRecord, writeRecord } from "./state"
+import { pruneEmptyDir, revertRecordedFile } from "./revert"
+import { deleteRecord, readRecord, writeRecord } from "./state"
 import type { ConfigOp, FileEdit, InstallPlan, InstallRecord, InstallerInput, RecordedFile } from "./types"
 
 export interface ApplyResult {
@@ -21,7 +22,11 @@ interface PreparedEdit {
  * rendered (the plan and the record must describe one plan-time snapshot —
  * ADR-0001), prepares every edit in memory (a malformed existing config fails
  * before any file is written), writes the files, reverts artifacts orphaned by
- * a tier change, records surgical-undo state, and verifies the result.
+ * a tier change, records surgical-undo state, and verifies the result. Any
+ * failure after the first write restores every touched file to its pre-apply
+ * bytes and the previous record, so a half-applied install — whose written
+ * values a re-init would wrongly snapshot as the originals — is never left
+ * behind.
  */
 export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult {
   if (plan.errors.length > 0) {
@@ -30,26 +35,31 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
   assertNoDrift(plan)
   const previous = readRecord(input)
   const prepared = plan.edits.map((edit) => prepareEdit(edit, plan.host))
+  const snapshots = snapshotTouchedFiles(plan)
   const files: RecordedFile[] = []
   const lines: string[] = []
-  for (const item of prepared) {
-    item.write()
-    const desired = item.edit.format === "rules" ? [] : item.edit.ops
-    files.push(mergeRecorded(item.recorded, previous?.files.find((file) => file.file === item.edit.file), desired))
-    lines.push(`${item.recorded.created ? "created" : "updated"} ${item.edit.file}`)
+  try {
+    for (const item of prepared) {
+      item.write()
+      const desired = item.edit.format === "rules" ? [] : item.edit.ops
+      files.push(mergeRecorded(item.recorded, previous?.files.find((file) => file.file === item.edit.file), desired))
+      lines.push(`${item.recorded.created ? "created" : "updated"} ${item.edit.file}`)
+    }
+    if ((plan.reverts ?? []).length > 0) {
+      lines.push(...applyReverts(plan))
+    }
+    const record: InstallRecord = {
+      version: 1,
+      host: plan.host,
+      scope: plan.scope,
+      tiers: plan.tiers,
+      createdAt: new Date().toISOString(),
+      files,
+    }
+    writeRecord(input, record)
+  } catch (error) {
+    throw rollbackApply(input, previous, snapshots, error)
   }
-  if ((plan.reverts ?? []).length > 0) {
-    lines.push(...applyReverts(plan))
-  }
-  const record: InstallRecord = {
-    version: 1,
-    host: plan.host,
-    scope: plan.scope,
-    tiers: plan.tiers,
-    createdAt: new Date().toISOString(),
-    files,
-  }
-  writeRecord(input, record)
   const verification = verifyEdits(plan.edits, plan.host)
   lines.push(...verification.lines)
   return { lines, ok: verification.ok }
@@ -84,6 +94,69 @@ function assertNoDrift(plan: InstallPlan): void {
         "Re-run init to re-plan against the current files.",
     )
   }
+}
+
+/** The on-disk state of one file before the apply mutated it. */
+interface FileSnapshot {
+  readonly exists: boolean
+  readonly text: string
+}
+
+/** Captures the exact bytes of every file the apply may touch, edits and reverts. */
+function snapshotTouchedFiles(plan: InstallPlan): Map<string, FileSnapshot> {
+  const snapshots = new Map<string, FileSnapshot>()
+  const touched = [...plan.edits.map((edit) => edit.file), ...(plan.reverts ?? []).map((revert) => revert.file)]
+  for (const file of new Set(touched)) {
+    snapshots.set(
+      file,
+      existsSync(file) ? { exists: true, text: readFileSync(file, "utf8") } : { exists: false, text: "" },
+    )
+  }
+  return snapshots
+}
+
+/**
+ * Undoes a partially applied plan: every touched file returns to its pre-apply
+ * bytes (a file the apply created is deleted and its directory pruned) and the
+ * previous record is restored, so the disk and the install state again
+ * describe the world the user approved — the original snapshots a later re-init
+ * would inherit are what rollback writes back, not the failed run's values.
+ * Restore failures are reported in the thrown error, never thrown over the
+ * original cause, which stays the headline.
+ */
+function rollbackApply(
+  input: InstallerInput,
+  previous: InstallRecord | undefined,
+  snapshots: ReadonlyMap<string, FileSnapshot>,
+  cause: unknown,
+): Error {
+  const report: string[] = []
+  for (const [file, snapshot] of [...snapshots.entries()].reverse()) {
+    try {
+      if (snapshot.exists) {
+        if (existsSync(file) && readFileSync(file, "utf8") === snapshot.text) continue
+        writeConfig(file, snapshot.text)
+      } else {
+        if (!existsSync(file)) continue
+        rmSync(file)
+        pruneEmptyDir(dirname(file))
+      }
+      report.push(`restored ${file}`)
+    } catch (restoreError) {
+      report.push(`could not restore ${file}: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}`)
+    }
+  }
+  try {
+    if (previous !== undefined) writeRecord(input, previous)
+    else deleteRecord(input)
+  } catch {
+    report.push("could not restore the install record")
+  }
+  const message = cause instanceof Error ? cause.message : String(cause)
+  return new Error(
+    `apply failed and was rolled back — nothing was left applied (${message}). ` +
+      `Rollback report: ${report.join("; ")}. Fix the cause and re-run init.`,
+  )
 }
 
 function prepareEdit(edit: FileEdit, host: InstallPlan["host"]): PreparedEdit {

@@ -174,7 +174,7 @@ Set these in the plugin's `options` object.
 | `searchEnabled` | `true` | Register the DeepSeek search provider at all. Only an explicit `false` disables it. |
 | `count` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
 | `maxResults` | `10` | Results returned to the model after filtering, 0–50. `0` returns no results. |
-| `minRerank` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. |
+| `minRerank` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. A result without a finite score passes while the threshold is `0` and is dropped once it is positive. |
 | `minAuthority` | `0` | Drop known authorities below this tier. Authority is 0–4. |
 | `allowUnknownAuthority` | `true` | Keep results whose authority is missing or unknown. Only an explicit `false` disables it. |
 | `blockedDomains` | `[]` | Add `-site:` operators to the search query. |
