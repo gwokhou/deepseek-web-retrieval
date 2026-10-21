@@ -24,7 +24,12 @@ export function clientNameOf(server: McpServer, ctx: ServerContext): string | un
   return server.server.getClientVersion()?.name
 }
 
+/** True when a client declaring this name would replace text content with serialized JSON. */
+export function isJsonReplacingClient(name: string | undefined): boolean {
+  return name !== undefined && JSON_REPLACING_CLIENT_NAMES.has(name)
+}
+
 /** True when the connected client would replace text content with serialized JSON. */
 export function omitStructuredContent(server: McpServer, ctx: ServerContext): boolean {
-  return JSON_REPLACING_CLIENT_NAMES.has(clientNameOf(server, ctx) ?? "")
+  return isJsonReplacingClient(clientNameOf(server, ctx))
 }

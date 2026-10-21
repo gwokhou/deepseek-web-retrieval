@@ -69,40 +69,109 @@ export async function runCodexScenario(runner: Runner): Promise<string[]> {
   check(version.exitCode === 0, "codex --version failed", excerpt(`${version.stdout}\n${version.stderr}`))
   lines.push(`codex: ${version.stdout.trim()}`)
 
+  // Both prompts run under `codex exec --json`: the emitted mcp_tool_call events
+  // carry the raw CallToolResult, which makes the text-only shaping observable —
+  // if Codex ever renames its codex-mcp-client identity, structured_content
+  // reappears in these events and the check below fails loudly.
   const fetchPrompt =
     "Use the deepseek_fetch MCP tool to fetch https://example.com and reply with only the page's H1 heading."
   const fetchRun = await runPrompt(runner, env, fetchPrompt)
+  const fetchEvents = parseEvents(fetchRun.stdout)
   check(
-    /Example Domain/i.test(finalLines(fetchRun.stdout)),
+    /Example Domain/i.test(lastAgentMessage(fetchEvents)),
     "fetch prompt did not return the example heading",
     excerpt(`${fetchRun.stdout}\n${fetchRun.stderr}`),
   )
+  checkShapedResult(lines, fetchEvents, fetchRun, "deepseek_fetch", "Example Domain")
   lines.push("fetch: model fetched example.com through deepseek_fetch (billed)")
 
   const searchPrompt =
     'Use the deepseek_web_search MCP tool to search the web for "codex mcp servers" and reply with only one result URL.'
   const searchRun = await runPrompt(runner, env, searchPrompt)
-  const lastLine = searchRun.stdout.trim().split("\n").filter((line) => line.trim().length > 0).pop() ?? ""
+  const searchEvents = parseEvents(searchRun.stdout)
+  const lastLine =
+    lastAgentMessage(searchEvents).trim().split("\n").filter((line) => line.trim().length > 0).pop() ?? ""
   check(
     /^https?:\/\/\S+$/.test(lastLine),
     "search prompt did not end with exactly a result URL",
     excerpt(`${searchRun.stdout}\n${searchRun.stderr}`),
   )
+  checkShapedResult(lines, searchEvents, searchRun, "deepseek_web_search", undefined)
   lines.push("search: model searched through deepseek_web_search (billed)")
 
   lines.push("both legs (LLM + retrieval) were billed to the single DeepSeek key")
   return lines
 }
 
-function runPrompt(runner: Runner, env: Record<string, string>, prompt: string) {
-  return runner.run(
-    ["codex", "exec", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox", prompt],
-    { cwd: runner.projectDir.guest, env, timeoutMs: RUN_TIMEOUT_MS },
+/** Asserts the completed deepseek tool call reached Codex without structuredContent. */
+function checkShapedResult(
+  lines: string[],
+  events: readonly Event[],
+  run: { readonly stdout: string; readonly stderr: string },
+  tool: string,
+  markdownNeedle: string | undefined,
+): void {
+  const call = events.find(
+    (event) =>
+      event.type === "item.completed" &&
+      event.item?.type === "mcp_tool_call" &&
+      event.item?.server === "deepseek" &&
+      event.item?.tool === tool &&
+      event.item?.status === "completed",
+  )?.item?.result
+  check(call !== undefined, `${tool} was never called to completion`, excerpt(run.stdout))
+  const structured = call?.structured_content ?? null
+  const text = Array.isArray(call?.content)
+    ? String((call.content[0] as { text?: string } | undefined)?.text ?? "")
+    : ""
+  check(
+    structured === null && (markdownNeedle === undefined ? text.length > 0 : text.includes(markdownNeedle)),
+    `${tool} reached Codex with structuredContent (or empty text) — the text-only shaping did not trigger; ` +
+      "Codex may have renamed its codex-mcp-client identity",
+    excerpt(JSON.stringify(call)),
   )
+  lines.push(`shaping: ${tool} reached Codex as Markdown text without structuredContent`)
 }
 
-/** Codex prefixes its output with banner lines; assertions target the reply tail. */
-function finalLines(stdout: string): string {
-  const lines = stdout.trim().split("\n").filter((line) => line.trim().length > 0)
-  return lines.slice(-5).join("\n")
+interface Event {
+  readonly type?: string
+  readonly item?: {
+    readonly type?: string
+    readonly text?: string
+    readonly server?: string
+    readonly tool?: string
+    readonly status?: string
+    readonly result?: {
+      readonly content?: readonly { readonly text?: string }[]
+      readonly structured_content?: unknown
+    }
+  }
+}
+
+/** One JSON event per line from `codex exec --json`; anything unparsable is skipped. */
+function parseEvents(stdout: string): Event[] {
+  const events: Event[] = []
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim()
+    if (trimmed.length === 0) continue
+    try {
+      const parsed = JSON.parse(trimmed) as Event
+      if (typeof parsed.type === "string") events.push(parsed)
+    } catch {
+      // Non-JSON lines are not events; ignore.
+    }
+  }
+  return events
+}
+
+function lastAgentMessage(events: readonly Event[]): string {
+  const messages = events.filter((event) => event.type === "item.completed" && event.item?.type === "agent_message")
+  return messages.at(-1)?.item?.text ?? ""
+}
+
+function runPrompt(runner: Runner, env: Record<string, string>, prompt: string) {
+  return runner.run(
+    ["codex", "exec", "--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox", prompt],
+    { cwd: runner.projectDir.guest, env, timeoutMs: RUN_TIMEOUT_MS },
+  )
 }
