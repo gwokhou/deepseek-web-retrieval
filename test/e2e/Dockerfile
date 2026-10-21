@@ -14,10 +14,25 @@ ARG CODEX_VERSION
 # An empty version would silently resolve to npm "latest", drifting off the
 # pins — fail the build instead.
 RUN test -n "$OPENCODE_VERSION" && test -n "$PI_VERSION" && test -n "$CODEX_VERSION"
-RUN npm install --global --prefix /opt/agents \
-      @opencode/cli@${OPENCODE_VERSION} \
-      @earendil-works/pi-coding-agent@${PI_VERSION} \
-      @openai/codex@${CODEX_VERSION}
+# The trailing version checks make the build fail loudly when npm 10 skips a
+# platform-specific optional dependency (@openai/codex-linux-x64 has flaked:
+# the install reports success and the CLI only fails at first run); the retry
+# recovers from the flake without masking it. The bins are called by absolute
+# path because PATH is only wired in the final stage below.
+RUN (npm install --global --prefix /opt/agents \
+        @opencode/cli@${OPENCODE_VERSION} \
+        @earendil-works/pi-coding-agent@${PI_VERSION} \
+        @openai/codex@${CODEX_VERSION} \
+      && /opt/agents/bin/opencode --version \
+      && /opt/agents/bin/pi --version \
+      && /opt/agents/bin/codex --version) \
+    || (npm install --global --prefix /opt/agents --force \
+        @opencode/cli@${OPENCODE_VERSION} \
+        @earendil-works/pi-coding-agent@${PI_VERSION} \
+        @openai/codex@${CODEX_VERSION} \
+      && /opt/agents/bin/opencode --version \
+      && /opt/agents/bin/pi --version \
+      && /opt/agents/bin/codex --version)
 
 FROM ${NODE_IMAGE}
 COPY --from=agents /opt/agents /opt/agents

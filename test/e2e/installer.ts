@@ -170,7 +170,9 @@ async function uninstall(
 
 /** Warms the npx cache so the later handshake does not pay a cold tarball install inside the server startup timeout. */
 async function prewarmNpx(runner: Runner, env: Record<string, string | undefined>, packageRef: string): Promise<void> {
-  const result = await runner.run(["npx", "-y", packageRef, "list"], { cwd: runner.projectDir.guest, env, timeoutMs: 120_000 })
+  // 300 s: the per-run npm cache starts cold inside the container, and npm 10's
+  // cold dependency resolution has exceeded 120 s on slow links.
+  const result = await runner.run(["npx", "-y", packageRef, "list"], { cwd: runner.projectDir.guest, env, timeoutMs: 300_000 })
   check(result.exitCode === 0, "npx prewarm of the packed tarball failed", excerpt(`${result.stdout}\n${result.stderr}`))
 }
 
