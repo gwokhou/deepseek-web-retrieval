@@ -129,7 +129,7 @@ differences:
    1.0.81+). A v1.x-built server still works today — modern clients fall back to the legacy
    handshake — but it can never offer the stateless era; v2 serves both from one entry
    point.
-4. **Streamable HTTP only for a hosted deployment.** All nine hosts support it (with
+4. **Streamable HTTP only for a hosted deployment.** All seven MCP hosts surveyed here support it (with
    different `type` strings: `http`, `streamable-http`, `streamableHttp`), and OAuth 2.1
    resource-server behavior (RFC 9728 metadata) then applies; prefer pre-registered clients
    over the now-deprecated Dynamic Client Registration.
@@ -138,6 +138,10 @@ differences:
    [per-host reference](control-matrix.md#per-host-reference) — name collisions and
    truncation, environment passing, output caps, and per-host approval surfaces; consult
    it per host rather than this summary.
+
+These protocol findings describe compatibility at the research baseline, not completed
+end-to-end support for every host. The shipped server exposes stdio; supported setup
+guides and installer coverage are listed in the [integration model](../integration.md).
 
 ## Sources
 

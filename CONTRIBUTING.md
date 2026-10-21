@@ -45,8 +45,10 @@ regressions, publishes that exact tarball to npm with OIDC and provenance, verif
 its registry integrity, then creates a GitHub Release from that changelog section.
 Only the final publish job receives npm OIDC and GitHub release permissions.
 
-Configure the package's [npm trusted publisher](https://www.npmjs.com/package/deepseek-web-retrieval/access)
-once, using these exact values:
+The repository's [npm trusted publisher](https://www.npmjs.com/package/deepseek-web-retrieval/access)
+was validated by the real [v0.5.1 release](https://github.com/gwokhou/deepseek-web-retrieval/releases/tag/v0.5.1).
+Routine releases reuse it without npm login.
+If the binding needs to be recreated, use these exact values:
 
 | Field | Value |
 | --- | --- |
@@ -65,13 +67,19 @@ days, so create it shortly before the next release; recreate it if it expires.
 A successful first publish validates the binding. Saving the form or running a
 dry run does not validate OIDC publishing.
 
-Before tagging, update the version and one-sentence changelog entries, commit,
-and push to `main`; then, for example:
+Before tagging, update `package.json` and move the intended `Unreleased` entries into
+one `## X.Y.Z` changelog section, keeping each item to one sentence. Commit the release
+changes on `main`, run `bun run check`, and push `main`. Derive the tag from the updated
+package version so the command stays valid for each release:
 
 ```bash
-git tag -a v0.5.1 -m "Release 0.5.1"
-git push origin refs/tags/v0.5.1
+RELEASE_VERSION=$(node -p "require('./package.json').version")
+git tag -a "v$RELEASE_VERSION" -m "Release $RELEASE_VERSION"
+git push origin "refs/tags/v$RELEASE_VERSION"
 ```
+
+Watch the [Release workflow](https://github.com/gwokhou/deepseek-web-retrieval/actions/workflows/release.yml)
+and confirm the npm `latest` version and GitHub Release after all jobs succeed.
 
 Use **Actions → Release → Run workflow** on `main` for a rehearsal: it builds
 and uploads the candidate and runs all checks, without publishing to npm or
@@ -113,8 +121,8 @@ supply the appropriate SDK itself.
 The release gate needs a temporary directory with enough space for npm caches
 and installed packages; on systems with a small `/tmp`, set `TMPDIR` to an empty
 directory on a disk with sufficient free space before running it. No npm login
-is needed for these public-package checks; publishing credentials are needed
-only for the later, explicit release step.
+is needed for these public-package checks; tag releases obtain publishing authorization
+through GitHub Actions OIDC.
 
 `bun run test:e2e` exercises real coding agents. It only runs
 inside Docker (`test/e2e/Dockerfile`); there is no host-binary mode, so the agent
@@ -202,6 +210,8 @@ error, not a skip.
   should inject it instead of replacing process-wide `fetch`.
 - `src/opencode/` is the OpenCode v2 adapter: plugin setup, credential
   resolution, provider registration, and tools.
+- `src/pi/` is the native Pi extension: tool registration, result formatting,
+  and settings-based capability switches layered over shared environment options.
 - Future agents should add a thin adapter under `src/<agent>/` and reuse
   `src/core/` rather than duplicating retrieval logic. The cross-host MCP
   server lives in `src/mcp/`.
@@ -216,9 +226,9 @@ error, not a skip.
 - Bumping `baseline` or a host `version` in `docs/hosts.jsonc` obliges a
   re-verification pass for that host: re-verify its per-host reference section
   and `control` keys in `docs/research/control-matrix.md`, and re-check the
-  drift list there (Cline's docs already describe the 3.x binary, Codex's
-  config docs have moved, Copilot's `GEMINI.md` support is undated). Version
-  mentions inside prose and `key` strings are provenance anchors, not lock
+  drift list there; Cline's 3.x CLI still needs a separate compatibility pass,
+  while the Codex docs move and Copilot's `GEMINI.md` dating are recorded as resolved.
+  Version mentions inside prose and `key` strings are provenance anchors, not lock
   restatements — they move with the re-verification, not with the bump. Update
   a research note's own baseline date only when its facts were actually
   re-checked.
@@ -237,10 +247,10 @@ Please include:
 
 Use the bug report template and include:
 
-- OpenCode version
-- Plugin version or commit
-- Install mode (global vendor path, project path, or auto-discovery)
-- Redacted `opencode.jsonc`
+- Host and version (OpenCode, Pi, Codex, or another MCP client)
+- Package version or commit
+- Integration path, install method, scope, and selected capability tiers
+- Relevant redacted JSONC, JSON, or TOML configuration
 - Relevant log lines
 - Whether `DEEPSEEK_API_KEY` is set
 

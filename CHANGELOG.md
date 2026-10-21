@@ -5,6 +5,7 @@ All notable changes to this project are documented here, with one sentence per i
 ## Unreleased
 
 - Wait up to five minutes for npm's post-upload processing before finalizing automated releases, with retry guidance if processing takes longer.
+- Clarify OpenCode and Pi native integration and Codex MCP support across setup, upgrade, security, release, and issue-reporting documentation.
 
 ## 0.5.1
 

@@ -25,7 +25,9 @@ shared search/fetch limits, retries, and privacy behavior, see
 
 ## Requirements
 
-- Pi 1.3.0 or newer
+- Pi with host SDKs in the `^1.3.0` peer range (`>=1.3.0 <2.0.0`); the tested
+  version is recorded in [`docs/hosts.jsonc`](../hosts.jsonc)
+- Node.js 20+ and npm when using the installer CLI or MCP fallback
 - A DeepSeek account with access to `/v1/tools/search` and `/v1/tools/fetch`
 - A funded DeepSeek account; Search and Fetch are billed per successful request
 - `DEEPSEEK_API_KEY` set in the shell that launches Pi
@@ -46,8 +48,12 @@ the extension: the plan appends `npm:deepseek-web-retrieval` to the `packages` a
 source at the next session start (the first launch fetches the package from npm;
 `pi update --extensions` refreshes it later). An off capability is written into the
 `deepseekWebRetrieval` settings namespace the extension reads at load. Pass `--path mcp`
-to install the [MCP fallback path](#the-mcp-fallback-path) instead. `uninstall` restores
-exactly what the plan applied.
+to install the [MCP fallback path](#the-mcp-fallback-path) instead. `uninstall` removes
+recorded additions and restores unchanged configuration values from their snapshots.
+
+For upgrades from 0.4.0, select `--path mcp` explicitly to retain the old path, or use
+the extension default to migrate; follow the shared
+[upgrade instructions](../integration.md#upgrading-existing-installs).
 
 ### Manual install
 
@@ -110,9 +116,9 @@ it outranks the environment and is preserved by Pi's own settings rewrites).
 | `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the search tool. Only an explicit `false`/`0`/`no`/`off` disables it; at least one tool must stay enabled. |
 | `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
 | `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50. `0` returns no results. |
-| `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. |
+| `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score (0–3); results without a finite score pass at zero and are dropped at a positive threshold. |
 | `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` | Drop known authorities below this tier. Authority is 0–4. |
-| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0` to drop them. |
+| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0`/`no`/`off` to drop them. |
 | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset | Comma-separated; adds `-site:` operators to the query. |
 | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Comma-separated; restricts results with `site:` operators. |
 | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Adds a `lang:` operator, for example `zh,en`. |
@@ -175,7 +181,9 @@ With the installer CLI:
 npx deepseek-web-retrieval uninstall --host pi --scope <project|global>
 ```
 
-Or remove the source with Pi itself:
+For a manual installation, remove the source with Pi itself; use `--local` for a
+project-local install. Installer-managed installs should use `uninstall` above so
+rules, snapshots, and install records are cleaned up as well:
 
 ```bash
 pi remove npm:deepseek-web-retrieval

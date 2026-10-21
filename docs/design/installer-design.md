@@ -6,6 +6,8 @@ Design note for the install-time flow, shipped as the `deepseek-web-retrieval in
 the design survives between conversations. Research backing lives in
 [control-matrix.md](../research/control-matrix.md); host facts in [hosts.jsonc](../hosts.jsonc).
 Remaining hosts get host modules here as their guides ship.
+Examples involving other hosts describe design requirements for future modules;
+the current CLI accepts only the three shipped hosts above.
 
 ## Principles
 
@@ -27,17 +29,16 @@ of the whole install.
 - **Optional** — registered, the model picks freely.
 - **Preferred** — registered plus rules steering the model toward them.
 - **Forced** — deterministic routing (replacement, exclusion, or de-facto).
-- **Off** — the capability's tool is not registered at all. When the other capability
-  stays on, the MCP entry still lands and carries that capability's server-side
-  false-only switch (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); both off
-  refuses to install anything.
+- **Off** — the DeepSeek capability is hidden from the model through the adapter's
+  registration switch or Codex's host-side `disabled_tools` filter; the mapping below
+  describes each path. Both off refuses to install anything.
 - **Scope** — project-level (this checkout, shareable via VCS) or global (every project
   for that host on the machine).
 
 ## Stock configuration
 
 The tier definitions assume a clean host. Real installs land on configuration that
-already exists, and the installer runs three phases before anything is written:
+already exists, and the installer uses three phases:
 
 1. **Detect.** Read the host config, the rules files, and the registered MCP servers.
    Report the conflict surface: existing rules steering toward another web tool; other
@@ -50,14 +51,15 @@ already exists, and the installer runs three phases before anything is written:
    which entries the installer appended; single-value keys (`websearch.provider`, Pi's
    `exposure`) snapshot the prior value before overwriting; files the installer creates
    are tracked as created. Nothing is written until the user approves the full plan.
-3. **Verify.** After applying, confirm the chosen tier actually holds: the deny rules
-   take effect, no higher layer overrides them, and the model sees exactly the intended
-   tools.
+3. **Verify.** After applying, re-read the files and confirm the planned values and rules
+   were written. Runtime tool visibility and model routing are checked by host-specific
+   end-to-end scenarios, not by the installer itself.
 
 ## Tier semantics against stock configuration
 
-- **Optional is inherently stock-safe**: purely additive — it appends new entries
-  without altering existing keys or values, and removes nothing. It is the safe default.
+- **Optional keeps built-in routing unchanged**: it registers the DeepSeek capability
+  without preference rules or competitor exclusion. An existing DeepSeek registration
+  may still need replacement, which the plan shows and snapshots; inspect the preview.
 - **Preferred** can conflict without any config being touched: existing rules pointing
   at another web tool produce contradictory instructions whose outcome depends on each
   host's load order (Claude Code concatenates every level; Devin ranks team above
@@ -101,16 +103,17 @@ settings hierarchy, OpenCode's global versus project config) under three rules:
   alternative — the global fallback for a kill switch, or a different tier that works
   at project scope — instead of quietly writing to the other scope.
 - **Blast radius is part of the plan.** Global scope changes every project the user
-  opens with that host; project scope is confined to one checkout but is often
-  committed, which shares the config and rules with the whole team — including the
+  opens with that host; project scope normally writes into one checkout, while shared
+  config fallbacks such as Codex's retain user-wide effects. Project-local artifacts are
+  often committed, which shares the config and rules with the whole team — including the
   `${DEEPSEEK_API_KEY}` expansion that relies on each member's environment. The impact
   report states which applies.
 - **Layers above the user still outrank the choice.** Managed, enterprise, and system
   layers override anything the installer writes at either scope; the detect phase
   reports them instead of failing silently.
 
-Uninstall is scope-aware: removing a project-scope install never touches user-scope
-entries and vice versa, and a list mode shows what is installed where. The invariant is
+Uninstall follows the files recorded for the chosen scope, including Codex's user-level
+config even for a project-scope install; list shows those actual paths. The invariant is
 guarded, not just assumed: two records for one host never claim the same file. When a
 scope choice would overlap the other scope's record — Codex's project-scope fallback
 onto `~/.codex/config.toml` beside a global install — the plan refuses with guidance,
@@ -133,10 +136,13 @@ Do not delete an ownership sidecar while its install is still active.
 
 ## Rollback
 
-Uninstall reverses exactly what the plan applied: overwritten values restore their
-snapshots, merged arrays remove only the entries the installer appended, appended rules
-content is removed, and files the installer created are deleted — nothing more, nothing
-less. The [OpenCode v2 guide](../agents/opencode-v2.md) documents the failure mode this
+Uninstall restores overwritten values from their snapshots only while the current value
+still matches what the installer wrote; later user edits are kept and reported. Merged
+arrays lose only matching entries the installer appended, and managed rules blocks are
+removed while surrounding user content is retained. Installer-created config files are
+deleted only when left empty; an empty rules file is also removed. TOML comments are not
+restored because the codec reserializes the document. The
+[OpenCode v2 guide](../agents/opencode-v2.md) documents the failure mode this
 avoids: `plugin remove` deletes the plugin entry but leaves `websearch.provider`
 pointing at the removed plugin, and the user must clean up by hand.
 
@@ -215,8 +221,7 @@ host module; their artifacts (from the tier-to-artifact mapping) remain hand-edi
 config until a module lands here. OpenCode's `opencode plugin add` remains available but
 cannot pass options or manage snapshots; `init` supersedes it for tiered installs.
 
-
-### Persistence and concurrent operations
+## Persistence and concurrent operations
 
 Install records distinguish absent files from invalid or unreadable files. The
 reader validates version, host/scope identity, tiers, file metadata, and recorded

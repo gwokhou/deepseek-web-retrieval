@@ -2,7 +2,7 @@
 
 OpenCode v2 adapter for [DeepSeek Web Retrieval](../../README.md).
 
-Integration mechanism: OpenCode's native plugin API (`@opencode/plugin` 2.0.32+), not MCP.
+Integration mechanism: OpenCode's native plugin API (`@opencode/plugin`), not MCP.
 
 When loaded, it adds:
 
@@ -18,7 +18,9 @@ For shared search/fetch limits, retries, and privacy behavior, see
 
 ## Requirements
 
-- OpenCode v2 with `@opencode/plugin` 2.0.32 or newer
+- OpenCode v2 with `@opencode/plugin` in the `^2.0.32` peer range; the tested version
+  is recorded in [`docs/hosts.jsonc`](../hosts.jsonc)
+- Node.js 20+ and npm when using the installer CLI
 - A DeepSeek account with access to `/v1/tools/search` and `/v1/tools/fetch`
 - A funded DeepSeek account; Search and Fetch are billed per successful request
 - A DeepSeek credential stored in OpenCode, or `DEEPSEEK_API_KEY`
@@ -38,8 +40,9 @@ npx deepseek-web-retrieval init --host opencode --scope <project|global> \
 It prints the full plan — every file, old value → new value — and writes nothing until
 you pass `--apply`. It snapshots the current `websearch.provider` before the forced tier
 replaces it, merges `permissions` without touching yours, preserves comments in
-`opencode.jsonc`, and `uninstall` restores everything. Search has no `preferred` tier on
-OpenCode (the provider is host-level config, never a model choice); the CLI rejects it.
+`opencode.jsonc`, and `uninstall` restores recorded values that have not since been edited.
+Search has no `preferred` tier on OpenCode (the provider is host-level config, never a
+model choice); the CLI rejects it.
 
 ### OpenCode CLI install
 
@@ -100,8 +103,11 @@ A complete global config:
 Use the bare package name (optionally pinned) as the `package` value:
 
 ```jsonc
-"plugins": [{ "package": "deepseek-web-retrieval@0.4.0" }]
+"plugins": [{ "package": "deepseek-web-retrieval" }]
 ```
+
+Append `@X.Y.Z` to pin a published version. For an existing installer-managed setup,
+follow the [upgrade instructions](../integration.md#upgrading-existing-installs).
 
 **Global checkout**
 
@@ -234,7 +240,7 @@ using both an OpenCode-stored DeepSeek credential and `DEEPSEEK_API_KEY`.
 ## Uninstall
 
 With the installer CLI (restores the snapshotted `websearch.provider`, removes only the
-appended permissions, and deletes files it created):
+appended permissions, and deletes installer-created files only when they are left empty):
 
 ```bash
 npx deepseek-web-retrieval uninstall --host opencode --scope <project|global>

@@ -27,7 +27,8 @@ For shared search/fetch limits, retries, and privacy behavior, see
 
 ## Requirements
 
-- Codex 0.163.0 or newer
+- Codex at the tested version in [`docs/hosts.jsonc`](../hosts.jsonc); init reports
+  version drift, and newer versions may require rechecking routing behavior
 - Node.js 20 or newer (`npx` runs the server)
 - A DeepSeek account with access to `/v1/tools/search` and `/v1/tools/fetch`
 - A funded DeepSeek account; Search and Fetch are billed per successful request
@@ -43,9 +44,9 @@ npx deepseek-web-retrieval init --host codex --scope global \
 ```
 
 It prints the full plan — every file, old value → new value, and notes about existing
-MCP servers — and writes nothing until you pass `--apply`. `uninstall` restores exactly
-what the plan applied (snapshots, merged entries, created files). Codex's config lives in
-`~/.codex/config.toml` at the user level only, so the server registration and kill switch
+MCP servers — and writes nothing until you pass `--apply`. `uninstall` removes recorded
+additions and restores snapshotted values that have not since been edited. Codex's config
+lives in `~/.codex/config.toml` at the user level only, so the server registration and kill switch
 are written there even for `--scope project`; the rules file follows the scope. An `off`
 capability is written as the tool's name in the server entry's `disabled_tools` array —
 Codex's own mechanism — merging with any entries you put there yourself. When `codex` is
@@ -53,6 +54,10 @@ on PATH, `init` also probes `codex --version` and adds a plan note when the inst
 release differs from the tested lock (see
 [hosts.jsonc](../hosts.jsonc)) — version-anchored behavior such as the kill switch may
 have drifted between the two.
+
+For an existing installer-managed setup, follow the
+[upgrade instructions](../integration.md#upgrading-existing-installs) from the original
+project directory and scope.
 
 ### Manual install
 
@@ -149,9 +154,9 @@ defaults and clamping match the other adapters. `DEEPSEEK_API_KEY` goes in `env_
 | `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the search tool. Only an explicit `false`/`0`/`no`/`off` disables it; at least one tool must stay enabled. |
 | `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
 | `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50. `0` returns no results. |
-| `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. |
+| `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score (0–3); results without a finite score pass at zero and are dropped at a positive threshold. |
 | `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` | Drop known authorities below this tier. Authority is 0–4. |
-| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0` to drop them. |
+| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0`/`no`/`off` to drop them. |
 | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset | Comma-separated; adds `-site:` operators to the query. |
 | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Comma-separated; restricts results with `site:` operators. |
 | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Adds a `lang:` operator, for example `zh,en`. |
@@ -208,7 +213,9 @@ Tested with Codex 0.163.0 on Linux over stdio.
 npx deepseek-web-retrieval uninstall --host codex --scope global
 ```
 
-This restores the previous `web_search` value, removes the `mcp_servers.deepseek` table
-and the rules block, and deletes files the installer created. Manually, remove the
+This restores snapshotted `web_search` and `mcp_servers.deepseek` values only when their
+current values still match what the installer wrote, removes the managed rules block,
+and deletes installer-created config files only when left empty. Later user edits to
+configuration values are kept and reported. For a manual installation, remove the
 `[mcp_servers.deepseek]` table, any `deepseek-web-retrieval` rules block in your
 `AGENTS.md`, and the top-level `web_search` key if it was only set for the forced tier.

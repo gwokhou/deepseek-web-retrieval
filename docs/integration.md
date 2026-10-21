@@ -48,11 +48,11 @@ Codex are Apache-2.0; OpenCode and Pi are MIT. Claude Code and
 Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish installers and docs, not
 source code, under proprietary terms.
 
-Support for the other popular CLI agents is in progress through the MCP server, which is
-shipped in `src/mcp/` and works with any host that supports MCP tools over stdio. A host is
-listed as supported only after an adapter and guide exist; for the remaining hosts,
-`No adapter yet` means the shipped MCP server already provides the path, but no guide for
-that host exists yet. All version locks live in [hosts.jsonc](hosts.jsonc), the single
+OpenCode, Pi, and Codex have supported setup guides and installer host modules. The
+MCP server in `src/mcp/` provides a possible stdio path for the remaining hosts, but
+protocol compatibility alone does not establish a tested host setup. For those rows,
+`No adapter yet` means no supported host-specific adapter or setup guide is shipped.
+All version locks live in [hosts.jsonc](hosts.jsonc), the single
 source of truth for this table; OpenCode is pinned to the adapter's tested target, not
 necessarily the latest OpenCode release. Control tiers per host and capability — optional,
 preferred, or forced routing — are researched in [control-matrix.md](research/control-matrix.md),
@@ -63,7 +63,7 @@ whose per-host reference also carries MCP registration and rules files.
 One line per host. The [per-host reference](research/control-matrix.md#per-host-reference) carries
 the details: built-in web tools and their kill switches, MCP registration, and rules files.
 
-- **OpenCode v2** — The only shipped adapter. It uses OpenCode's native plugin API and
+- **OpenCode v2** — Uses OpenCode's native plugin API and
   exposes both a websearch provider and a fetch tool/override. See
   [OpenCode v2](agents/opencode-v2.md).
 - **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. See
@@ -82,7 +82,38 @@ the details: built-in web tools and their kill switches, MCP registration, and r
   the native extension adapter (the recommended path), with the MCP server as the fallback;
   see [Pi](agents/pi.md) and [Pi in the per-host reference](research/control-matrix.md#pi).
 
-## Roadmap
+## Upgrading existing installs
+
+For an installation managed by `init`:
+
+1. Run `npx deepseek-web-retrieval@latest list` from the original project directory,
+   using the same home and `XDG_CONFIG_HOME` as the original installation.
+2. Run `npx deepseek-web-retrieval@latest init` with the original `--host`, `--scope`,
+   `--search`, and `--fetch` values, changing only the settings you intend to change.
+   Review the plan and repeat with `--apply`; re-init preserves the original snapshots
+   needed for uninstall. A global install can still claim shared configuration from a
+   particular project, so keep the original working directory for upgrades.
+3. Refresh the package in the host and start or reload a session as described in its
+   guide. For Pi's extension path, use `pi update --extensions`. If you pin the host's
+   package version, pass the desired `--package deepseek-web-retrieval@X.Y.Z` to init;
+   updating the CLI alone does not update an independently pinned host package.
+
+When upgrading from 0.4.0, Pi's default changes from MCP to the native extension.
+Pass `--path mcp` explicitly to retain MCP, or `--path extension` to migrate; the plan
+shows the old path's removals and retains the original uninstall snapshots. OpenCode's
+native plugin and Codex's MCP path remain the same. Standalone MCP installs no longer
+require OpenCode or Pi SDKs; native adapters use the SDKs provided by their hosts.
+
+Keep install records and ownership sidecars: deleting them loses recovery information
+and can cause a later init to refuse an existing registration. If an operation was
+interrupted, follow the [recovery guidance](design/installer-design.md#persistence-and-concurrent-operations)
+before retrying. For manual installations, update the package reference or checkout and
+follow the host guide rather than adopting the config through init.
+
+Code importing the core's removed `formatFetchContent` helper must migrate to
+`formatFetchedContent`, which returns both `content` and `truncated`.
+
+## Available paths and future hosts
 
 - **MCP server** — shipped in `src/mcp/` (the fallback path in the [Pi](agents/pi.md) guide
   and the path in the [Codex](agents/codex.md) guide); the broadest route for hosts that

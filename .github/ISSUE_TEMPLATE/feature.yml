@@ -24,10 +24,13 @@ body:
       label: Area
       options:
         - OpenCode adapter
+        - Pi extension
+        - Codex / MCP adapter
+        - Installer / upgrade / uninstall
         - Search behavior
         - Fetch behavior
         - Auth
-        - MCP / another agent
+        - Another host
         - Documentation
         - Other
     validations:

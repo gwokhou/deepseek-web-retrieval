@@ -1,50 +1,67 @@
 # DeepSeek Web Retrieval
 
-**Bringing [DeepSeek's in-house Search and Fetch APIs](https://api-docs.deepseek.com/guides/search) to coding agents.**
+**DeepSeek Search and Fetch for OpenCode, Pi, and Codex.**
 
-An adapter layer for coding agents. The core is agent-agnostic; each adapter exposes the
-same retrieval behavior to a specific agent. OpenCode v2 has a native plugin adapter, Pi a
-native extension adapter, and an MCP server covers every other MCP-capable host. Guides for
-other coding agents are in progress.
+Search the web and fetch pages as Markdown through
+[DeepSeek's APIs](https://api-docs.deepseek.com/guides/search), using a **native OpenCode
+plugin**, a **native Pi extension**, or **MCP for Codex**. All three share the same retrieval
+core, with results formatted for each host.
 
-This is an unofficial community project. It is not affiliated with OpenCode or DeepSeek.
+This is an unofficial community project, not affiliated with DeepSeek or the supported
+host projects.
 
 ## Features
 
-- **One core, every host** — a native OpenCode v2 plugin, a native Pi extension, plus a
-  stdio MCP server for everything else; identical retrieval behavior on each
+- **Three supported hosts** — OpenCode v2 and Pi use their own plugin and extension APIs;
+  Codex uses the included stdio MCP server
 - **Tiered routing** — optional, preferred, forced, or off, per capability;
   forced refuses when exclusivity is impossible
-- **Plan-then-apply installer** — every write previewed as old → new before
-  touching disk; arrays merge instead of replacing; uninstall reverses
-  exactly what was applied
-- **Trap-aware detection** — catches what the agents' own docs don't warn
-  about: Codex's silent `[tools] web_search` no-op, Pi's codemode hiding MCP
-  tools; conflicting rules and web-capable servers surface in the plan, and
-  `init` notes a Codex release that drifts from the tested lock
+- **Preview and recovery** — review configuration changes before applying them;
+  uninstall uses saved snapshots and preserves subsequent user edits to configuration values
+- **Host-aware setup** — detects conflicting web tools and rules, configures Pi's MCP
+  fallback for direct tool exposure, and reports Codex version drift
 - **Git-safe installs** — the key never enters config files
   (`${DEEPSEEK_API_KEY}` indirection or `env_vars`), so a project-scope
   install commits clean
-- **Fails loudly, never falls back** — no silent provider switches;
-  localhost and private URLs blocked before they leave the machine
+- **Explicit failures** — no silent provider switches; localhost and private URLs are
+  blocked by default before they leave the machine
 
 ## Usage
 
-Shipped adapters:
+Choose your host:
 
-- [OpenCode v2 setup and usage](docs/agents/opencode-v2.md) — native plugin API
-- [Pi setup and usage](docs/agents/pi.md) — native extension API (MCP fallback)
-- [Codex setup and usage](docs/agents/codex.md) — MCP server over stdio
+| Host | Default integration | Setup |
+| --- | --- | --- |
+| OpenCode v2 | Native plugin: search provider and Fetch tools | [OpenCode guide](docs/agents/opencode-v2.md) |
+| Pi | Native extension: Search and Fetch tools; MCP also available | [Pi guide](docs/agents/pi.md) |
+| Codex | MCP server over stdio, with readable text results | [Codex guide](docs/agents/codex.md) |
 
-The MCP server works with any host that supports MCP tools over stdio. The
-`deepseek-web-retrieval init` CLI installs it with plan-then-apply semantics — search and
-fetch tiers chosen per capability, project or global scope, snapshots for rollback. For
-how coding agents integrate—native websearch providers, native fetch tools, MCP, or
-wrappers—see the
-[integration model](docs/integration.md) with its version-locked host support matrix, the
-[control-level research](docs/research/control-matrix.md), and the
-[MCP compatibility research](docs/research/mcp-compatibility.md). A host is listed as supported
-only after an adapter and guide exist.
+The installer CLI requires Node.js 20+ and npm. Retrieval requires a DeepSeek API key
+with access to Search and Fetch and sufficient account balance. Set `DEEPSEEK_API_KEY`
+in the environment that launches your host; OpenCode can also use its stored DeepSeek key.
+
+Run the command for your host to preview a configuration:
+
+```bash
+# OpenCode: select DeepSeek as the search provider and prefer its Fetch tool.
+npx deepseek-web-retrieval init --host opencode --scope project --search forced --fetch preferred
+
+# Pi: use the native extension and prefer both tools.
+npx deepseek-web-retrieval init --host pi --scope project --search preferred --fetch preferred
+
+# Codex: register the MCP server and prefer both tools.
+npx deepseek-web-retrieval init --host codex --scope global --search preferred --fetch preferred
+```
+
+Review the plan, then repeat your chosen command with `--apply` to write it. Choose
+tiers and scope for your workflow; the host guides explain their effects and activation
+steps. Pi defaults to the extension path; add `--path mcp` to use its MCP fallback.
+
+Other stdio MCP hosts may use the server, but the supported setup guides and installer
+currently cover the three hosts above. See the [integration model](docs/integration.md)
+for tested versions and the [control tiers](docs/research/control-matrix.md) for routing
+limits. For an existing installation, follow the
+[upgrade instructions](docs/integration.md#upgrading-existing-installs).
 
 For shared search, fetch, retry, and privacy behavior, see below.
 
@@ -83,9 +100,10 @@ binary files, per-request billing) are documented there.
 
 ### Timeouts and retries
 
-Request timeouts include reading the response body. Retryable responses are 408, 425, 429,
-and 5xx; `Retry-After` is honored up to 10 seconds. Other failures, including 401, timeouts,
-and network errors, fail without retrying.
+Request timeouts include reading the response body. Retries are disabled by default;
+when enabled, retryable responses are 408, 425, 429, and 5xx, and `Retry-After` is honored
+up to 10 seconds. Other failures, including 401, timeouts, and network errors, fail
+without retrying.
 
 ### No automatic fallback
 
@@ -107,9 +125,10 @@ bun run check
 ```
 
 Use `bun run lint:fix` to apply Biome's safe lint fixes and formatting. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the development checks and e2e scenarios.
+[CONTRIBUTING.md](CONTRIBUTING.md) for development checks, e2e scenarios, and
+[automated tag releases](CONTRIBUTING.md#automated-releases).
 
-The test suite mocks the DeepSeek HTTP API and the OpenCode plugin host, and drives the
+The test suite mocks the DeepSeek HTTP API and the OpenCode and Pi host APIs, and drives the
 MCP server with SDK clients pinned to each supported protocol revision. Real API calls
 require a funded DeepSeek account. Shared retrieval logic lives in `src/core/`; adapters
 live in `src/<agent>/` (the cross-host MCP server lives in `src/mcp/`). Adapter docs live

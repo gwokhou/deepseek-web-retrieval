@@ -181,8 +181,8 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   prerequisite for every tier. SSE is rejected. Text results over 20 KB are
   middle-truncated with the full text saved to a file, and the per-request default
   timeout is 60 s. Pi is content-first for the model, with a `structuredContent`
-  fallback used only when a result has no content blocks — the one open-source host that
-  touches `structuredContent` at all — and a re-declared (not validated) tool
+  fallback used only when a result has no content blocks, unlike Codex's preference for
+  `structuredContent`, and a re-declared (not validated) tool
   `outputSchema`.
 - **Rules** — `AGENTS.md`/`CLAUDE.md` context files from the agent dir, the working
   directory, and its parents; `SYSTEM.md` replaces the system prompt and `APPEND_SYSTEM.md`

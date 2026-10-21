@@ -9,19 +9,34 @@ body:
         Do not paste API keys, tokens, private URLs, or full logs with secrets.
         Redact keys as `sk-***`.
 
-  - type: input
-    id: opencode-version
+  - type: dropdown
+    id: host
     attributes:
-      label: OpenCode version
-      placeholder: "2.0.32"
+      label: Host and integration path
+      options:
+        - OpenCode native plugin
+        - Pi native extension
+        - Pi MCP fallback
+        - Codex MCP
+        - Another MCP client
+        - Installer CLI
     validations:
       required: true
 
   - type: input
-    id: plugin-version
+    id: host-version
     attributes:
-      label: Plugin version or commit
-      placeholder: "0.3.0 / commit SHA"
+      label: Host version
+      description: Include Node.js or Bun version when relevant.
+      placeholder: "Host name and version"
+    validations:
+      required: true
+
+  - type: input
+    id: package-version
+    attributes:
+      label: Package version or commit
+      placeholder: "npm package version or commit SHA"
     validations:
       required: true
 
@@ -30,6 +45,10 @@ body:
     attributes:
       label: Install mode
       options:
+        - Installer CLI (project scope)
+        - Installer CLI (global scope)
+        - Host package manager
+        - Manual MCP configuration
         - Global vendor path
         - Project vendor path
         - Auto-discovered plugin directory
@@ -41,8 +60,8 @@ body:
     id: config
     attributes:
       label: Redacted config
-      description: The relevant plugins/websearch/permissions section.
-      render: jsonc
+      description: Include the relevant host config and installer command or capability tiers; redact secrets and private paths.
+      render: text
     validations:
       required: true
 

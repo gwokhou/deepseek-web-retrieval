@@ -22,15 +22,21 @@ You should receive an initial response within a few days.
 
 ## Security model
 
-- The plugin runs inside the OpenCode plugin host and is trusted like other
-  OpenCode plugins.
+- The native OpenCode plugin and Pi extension run inside their host processes and
+  are trusted like other host extensions; the MCP adapter runs as a local stdio process
+  with the permissions of the account that launches it.
 - With `apiKeySource: "auto"` or `"opencode"`, the plugin reads the active
   DeepSeek credential from OpenCode's integration store. It uses the credential
   only for the `Authorization` header sent to `api.deepseek.com`.
-- Queries and URLs are sent to DeepSeek's servers. Do not use this plugin for
+- Pi and the MCP server read `DEEPSEEK_API_KEY` from their process environment;
+  Codex forwards it through `env_vars`, and Pi's MCP fallback uses an environment reference.
+- Queries and URLs are sent to DeepSeek's servers. Do not use these adapters for
   private URLs unless you accept that disclosure.
 - `fetchBlockPrivateHosts` defaults to `true` and rejects localhost, private IPs,
   and common private hostnames before the URL is sent to DeepSeek.
-- The plugin does not write API keys into its own metadata, logs, or files.
+- The adapters do not write API keys into their own metadata, logs, or files, and
+  the installer writes environment references rather than literal keys.
+- Install records retain the original configuration values needed for uninstall;
+  keep those records and ownership sidecars private and intact for recovery.
 - Error bodies are truncated and common key/token patterns are redacted before
   they reach model-visible errors.
