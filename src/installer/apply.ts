@@ -34,7 +34,8 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
   const lines: string[] = []
   for (const item of prepared) {
     item.write()
-    files.push(mergeRecorded(item.recorded, previous?.files.find((file) => file.file === item.edit.file)))
+    const desired = item.edit.format === "rules" ? [] : item.edit.ops
+    files.push(mergeRecorded(item.recorded, previous?.files.find((file) => file.file === item.edit.file), desired))
     lines.push(`${item.recorded.created ? "created" : "updated"} ${item.edit.file}`)
   }
   if ((plan.reverts ?? []).length > 0) {
@@ -121,9 +122,11 @@ function applyReverts(plan: InstallPlan): string[] {
 /**
  * Merges a re-apply with the record it supersedes: a set op whose previous value is
  * what an earlier run applied inherits that run's snapshot, appended arrays
- * accumulate, and the created flag keeps the first install's truth.
+ * accumulate only the entries the new plan still wants (entries it dropped were
+ * reverted as orphans during apply, so claiming them would orphan the record),
+ * and the created flag keeps the first install's truth.
  */
-function mergeRecorded(current: RecordedFile, before: RecordedFile | undefined): RecordedFile {
+function mergeRecorded(current: RecordedFile, before: RecordedFile | undefined, desired: readonly ConfigOp[]): RecordedFile {
   if (before === undefined) return current
   const ops = current.ops.map((op) => {
     const old = before.ops.find((candidate) => candidate.op === op.op && candidate.path.join("\u0000") === op.path.join("\u0000"))
@@ -132,7 +135,13 @@ function mergeRecorded(current: RecordedFile, before: RecordedFile | undefined):
       return { ...op, previous: old.previous }
     }
     if (op.op === "append-array" && old.op === "append-array") {
-      return { ...op, applied: [...(old.applied as unknown[]), ...(op.applied as unknown[])] }
+      const wanted = desired.find(
+        (candidate) => candidate.op === "append-array" && candidate.path.join("\u0000") === op.path.join("\u0000"),
+      )
+      const kept = (Array.isArray(old.applied) ? old.applied : []).filter((entry) =>
+        (wanted?.entries ?? []).some((candidate) => deepEqual(candidate, entry)),
+      )
+      return { ...op, applied: [...kept, ...(Array.isArray(op.applied) ? op.applied : [])] }
     }
     return op
   })

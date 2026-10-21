@@ -799,7 +799,7 @@ describe("drift refusal and CLI edges", () => {
     expect(rendered).toContain("web_search")
   })
 
-  test("re-init with changed entries still uninstalls every accumulated entry", () => {
+  test("re-init with fewer entries reverts the dropped ones and still uninstalls the kept ones", () => {
     const input = makeInput("opencode", "global", "off", "forced")
     const config = join(input.home, ".config/opencode")
     mkdirSync(config, { recursive: true })
@@ -810,12 +810,45 @@ describe("drift refusal and CLI edges", () => {
     applyPlan(planForHost("opencode", input), input)
     const afterFirst = parseJsonc(readFileSync(join(config, "opencode.jsonc"), "utf8")) as { permissions: { action: string }[] }
     expect(afterFirst.permissions.map((entry) => entry.action)).toEqual(["bash", "deepseek_fetch", "webfetch"])
-    // fetch downgrades to optional: webfetch drops out of the plan's entries and
-    // dedup appends nothing new — the record must still remember both.
+    // fetch downgrades to optional: the webfetch permission is an orphaned entry
+    // and reverts immediately — the record claims only what it kept.
     applyPlan(planForHost("opencode", { ...input, fetch: "optional" }), input)
+    const afterDowngrade = parseJsonc(readFileSync(join(config, "opencode.jsonc"), "utf8")) as { permissions: { action: string }[] }
+    expect(afterDowngrade.permissions.map((entry) => entry.action)).toEqual(["bash", "deepseek_fetch"])
     uninstall(input)
     const restored = parseJsonc(readFileSync(join(config, "opencode.jsonc"), "utf8")) as { permissions: { action: string; resource?: string; effect?: string }[] }
     expect(restored.permissions).toEqual([{ action: "bash", resource: "*", effect: "allow" }])
+  })
+
+  test("opencode: a tier change replaces the plugins entry instead of accumulating a second", () => {
+    const input = makeInput("opencode", "global", "forced", "optional")
+    const config = join(input.home, ".config/opencode/opencode.jsonc")
+    mkdirSync(dirname(config), { recursive: true })
+    writeFileSync(config, JSON.stringify({ theme: "dark" }, null, 2))
+    applyPlan(planForHost("opencode", input), input)
+    type Plugins = { plugins: { package: string; options: Record<string, unknown> }[] }
+    const afterForced = parseJsonc(readFileSync(config, "utf8")) as Plugins
+    expect(afterForced.plugins).toEqual([{ package: "deepseek-web-retrieval", options: { setDefaultWebsearch: true } }])
+
+    applyPlan(planForHost("opencode", { ...input, search: "optional" }), input)
+    const afterOptional = parseJsonc(readFileSync(config, "utf8")) as Plugins
+    expect(afterOptional.plugins).toEqual([{ package: "deepseek-web-retrieval", options: {} }])
+
+    uninstall(input)
+    expect(parseJsonc(readFileSync(config, "utf8"))).toEqual({ theme: "dark" })
+  })
+
+  test("pi: changing --package replaces the packages source instead of keeping both", () => {
+    const input = makeInput("pi", "project", "optional", "optional")
+    applyPlan(planForHost("pi", input), input)
+    const settings = join(input.cwd, ".pi/settings.json")
+    expect((parseJsonc(readFileSync(settings, "utf8")) as { packages: string[] }).packages).toEqual(["npm:deepseek-web-retrieval"])
+
+    applyPlan(planForHost("pi", { ...input, packageRef: "deepseek-web-retrieval@canary" }), input)
+    expect((parseJsonc(readFileSync(settings, "utf8")) as { packages: string[] }).packages).toEqual(["npm:deepseek-web-retrieval@canary"])
+
+    uninstall(input)
+    expect(existsSync(settings)).toBe(false)
   })
 
   test("list and uninstall run end to end through the CLI with injectable output", async () => {

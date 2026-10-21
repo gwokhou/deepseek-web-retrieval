@@ -79,7 +79,10 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
     })
   }
   if (previous !== undefined && sources.some((entry) => excused.has(entry))) {
-    notes.push("A previous init wrote the packages entry; re-applying updates it and carries the original snapshots over.")
+    notes.push(
+      "A previous init wrote the packages entry; re-applying reuses it (an unchanged source deduplicates, a changed " +
+        "--package ref replaces the old source) and the original snapshots carry over.",
+    )
   }
 
   const forced = input.search === "forced" || input.fetch === "forced"

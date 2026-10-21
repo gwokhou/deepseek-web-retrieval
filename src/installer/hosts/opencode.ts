@@ -61,7 +61,10 @@ export function planOpenCode(input: InstallerInput, previous: InstallRecord | un
     })
   }
   if (previous !== undefined && pluginPackages.some((entry) => excused.has(entry.package))) {
-    notes.push("A previous init wrote the plugins entry; re-applying updates it and carries the original snapshots over.")
+    notes.push(
+      "A previous init wrote the plugins entry; re-applying keeps it the only entry (a changed package ref or tier " +
+        "options replace it, an unchanged one is a no-op) and the original snapshots carry over.",
+    )
   }
   if (errors.length > 0) {
     return { host: "opencode", scope: input.scope, tiers, edits, notes, errors }

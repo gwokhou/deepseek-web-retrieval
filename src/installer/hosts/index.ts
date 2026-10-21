@@ -2,6 +2,7 @@ import { planCodex } from "./codex"
 import { planOpenCode } from "./opencode"
 import { planPi } from "./pi"
 import { API_KEY_ENV } from "../../core/constants"
+import { deepEqual } from "../formats/value"
 import { claimedByOtherScope, readRecord } from "../state"
 import type { HostName, InstallRecord, InstallerInput, InstallPlan, RecordedFile } from "../types"
 
@@ -111,7 +112,10 @@ function findSecretLike(value: unknown, at: string): string | undefined {
  * that the new plan no longer wants must be reverted explicitly — otherwise it is
  * silently orphaned (and uninstall could never restore it). Whole files missing
  * from the new plan revert entirely; files shared with the new plan revert only
- * the ops whose paths the new plan does not touch.
+ * the ops whose paths the new plan does not touch — and for a same-path
+ * append-array, only the entries the new plan no longer wants (a changed
+ * --package ref, retired tier options) revert, so a replaced entry never
+ * lingers beside its replacement.
  */
 function withOrphanReverts(plan: InstallPlan, input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
   if (plan.errors.length > 0) return plan
@@ -124,9 +128,18 @@ function withOrphanReverts(plan: InstallPlan, input: InstallerInput, previous: I
       continue
     }
     if (edit.format === "rules" || file.format === "rules") continue // the new plan's block supersedes ours
-    const orphanOps = file.ops.filter(
-      (op) => !edit.ops.some((candidate) => candidate.op === op.op && candidate.path.join("\u0000") === op.path.join("\u0000")),
-    )
+    const orphanOps = file.ops.flatMap((op) => {
+      const claimed = edit.ops.find(
+        (candidate) => candidate.op === op.op && candidate.path.join("\u0000") === op.path.join("\u0000"),
+      )
+      if (op.op !== "append-array" || claimed === undefined || claimed.op !== "append-array") {
+        return claimed === undefined ? [op] : []
+      }
+      const dropped = (Array.isArray(op.applied) ? op.applied : []).filter(
+        (entry) => !(claimed.entries ?? []).some((wanted) => deepEqual(wanted, entry)),
+      )
+      return dropped.length > 0 ? [{ ...op, applied: dropped }] : []
+    })
     if (orphanOps.length > 0) reverts.push({ ...file, ops: orphanOps })
   }
   if (reverts.length === 0) return plan
