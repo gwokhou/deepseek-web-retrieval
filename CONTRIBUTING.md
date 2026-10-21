@@ -35,6 +35,54 @@ local validation, so they do not make billed API calls.
 
 ## Release and end-to-end tests
 
+### Automated releases
+
+Push a stable `vX.Y.Z` tag to run `.github/workflows/release.yml`; the tagged
+commit must be on `main`, `package.json` must contain `X.Y.Z`, and `CHANGELOG.md`
+must contain one nonempty `## X.Y.Z` section. Prerelease tags are not supported.
+The workflow builds a tarball, runs the existing CI matrix and keyless Docker
+regressions, publishes that exact tarball to npm with OIDC and provenance, verifies
+its registry integrity, then creates a GitHub Release from that changelog section.
+Only the final publish job receives npm OIDC and GitHub release permissions.
+
+Configure the package's [npm trusted publisher](https://www.npmjs.com/package/deepseek-web-retrieval/access)
+once, using these exact values:
+
+| Field | Value |
+| --- | --- |
+| Provider | GitHub Actions |
+| Organization or user | `gwokhou` |
+| Repository | `deepseek-web-retrieval` |
+| Workflow filename | `release.yml` |
+| Environment name | Leave empty |
+| Allowed actions | Enable direct `npm publish` |
+
+No `NPM_TOKEN`, npm login, or API key is required in Actions. The workflow uses
+GitHub-hosted runners, Node 24 and npm 11.21.0. Per the current
+[npm policy](https://docs.npmjs.com/trusted-publishers/), a new trusted-publisher
+configuration expires unless its first successful publish happens within two
+days, so create it shortly before the next release; recreate it if it expires.
+A successful first publish validates the binding. Saving the form or running a
+dry run does not validate OIDC publishing.
+
+Before tagging, update the version and one-sentence changelog entries, commit,
+and push to `main`; then, for example:
+
+```bash
+git tag -a v0.5.1 -m "Release 0.5.1"
+git push origin refs/tags/v0.5.1
+```
+
+Use **Actions → Release → Run workflow** on `main` for a rehearsal: it builds
+and uploads the candidate and runs all checks, without publishing to npm or
+creating a GitHub Release. For an interrupted tag release, rerun its failed jobs;
+an already-published npm version is accepted only if its integrity matches the
+candidate, and an existing stable GitHub Release is left intact. A conflicting
+npm version fails instead of being overwritten; a new older version cannot move
+`latest` backwards. Do not move or recreate a published tag to retry a release.
+
+### Validation commands
+
 `bun run check:release` runs the full check, the installed-package Node smoke
 test, and all seven keyless Docker scenarios (`pi`, `pi-extension`, `installer`,
 `reinit`, `upgrade`, `pkg`, and `capability-off`).

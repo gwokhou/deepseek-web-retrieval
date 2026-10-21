@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here, with one sentence per item.
 
+## Unreleased
+
+- Automate tag-triggered npm trusted publishing and GitHub Releases after the existing CI gates, with changelog notes and safe retries.
+
 ## 0.5.0
 
 - Add a native Pi extension as the default integration, with shared environment configuration and settings-based capability switches.
