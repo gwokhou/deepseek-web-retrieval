@@ -5,6 +5,7 @@ import { parseJsonc } from "../src/core/jsonc"
 import { findHost, FORCED_FLAVORS, MECHANISMS, readHosts } from "../scripts/hosts"
 import type { HostEntry } from "../scripts/hosts"
 import { renderControlTable, renderHostTable } from "../scripts/render-matrix"
+import { CODEX_TESTED_VERSION } from "../src/installer/hosts/codex"
 import { HOST_PLANNERS } from "../src/installer/hosts"
 
 const repoRoot = join(import.meta.dir, "..")
@@ -149,6 +150,15 @@ describe("installer prose stays anchored to docs/hosts.jsonc", () => {
       }
     }
     expect(seen.length).toBeGreaterThan(0)
+  })
+
+  test("CODEX_TESTED_VERSION equals the codex lock in docs/hosts.jsonc", () => {
+    // The drift note compares a probed CLI against this constant at runtime, so
+    // the literal-anchoring test above is too weak for it: a provenance anchor
+    // elsewhere in hosts.jsonc could keep an old literal alive after the lock
+    // moved, and init would misreport drift on the freshly verified version.
+    const codex = readHosts(repoRoot).hosts.find((host) => host.name === "codex")
+    expect(codex?.version).toBe(CODEX_TESTED_VERSION)
   })
 })
 
