@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented here.
 
+## 0.5.0
+
+- Ship a native Pi extension adapter (`src/pi/`) as Pi's recommended integration
+  path, keeping the MCP server as an explicit fallback. Pi loads
+  `src/pi/extension.ts` in-process through the package's new `pi` manifest field
+  (jiti, no build step), so the tools are declared to the model like built-ins —
+  `exposure: "direct"` is Pi's own default for extension tools, so the MCP path's
+  codemode trap does not exist — results bypass the MCP layer's 20 KB truncation
+  and 60 s request timeout, and the key is read from the Pi process environment
+  with no `env` forwarding. Configuration is the same `DEEPSEEK_*` environment
+  pipeline as the MCP server (moved to `src/core/env.ts`, now shared by both
+  adapters) plus a `deepseekWebRetrieval` settings namespace for the off
+  switches; Pi preserves unknown settings keys on read and on its own rewrites,
+  verified at 1.3.0 against `pi install`'s settings rewrite
+- The installer gains `--path <extension|mcp>` (Pi only; extension by default).
+  The extension path appends an `npm:<package>` source to the `packages` array
+  in `~/.pi/agent/settings.json` / `.pi/settings.json` — Pi resolves package
+  sources at session start, so no host-CLI invocation is needed — writes the
+  off-tier switches into the settings namespace the extension reads at load
+  (outranking the environment), names the unprefixed tool ids in the preferred
+  rules block, disables web-capable MCP servers under the forced tier, and
+  refuses the forced tier when a web-capable `packages`/`extensions` source
+  cannot be excluded (Pi has no per-package kill switch). Re-init across paths
+  migrates through the orphan-revert machinery; `docs/hosts.jsonc` flips Pi to
+  `paths: ["extension", "mcp"]` with `adapter: "src/pi"`
+- e2e: a keyless `pi-extension` scenario proves the settings namespace in both
+  directions through Pi's real load surface (a both-off namespace fails at load
+  with the precheck message; removing it loads the checkout cleanly), the
+  installer scenario now covers both paths end to end, and `pi-billed` moves to
+  the extension path (the MCP path keeps its keyless handshake coverage). Unit
+  tests cover the adapter (tool definitions, execute paths, settings-over-env
+  precedence) and the installer's extension branch (plans, off artifacts,
+  forced refusals, apply/uninstall round-trips, mcp → extension migration,
+  `--path` validation)
+
 ## 0.4.0
 
 - Ground the search defaults in surveyed industry factory defaults
