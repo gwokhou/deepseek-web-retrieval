@@ -4,8 +4,7 @@
 
 ## Tests
 
-- [ ] `bun run typecheck`
-- [ ] `bun test`
+- [ ] `bun run check`
 - [ ] Added or updated tests for behavior changes
 
 ## Checklist

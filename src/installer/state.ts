@@ -1,19 +1,19 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
-import { stateDir } from "./paths"
-import type { FsRoots, InstallerInput, InstallRecord } from "./types"
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { stateDir } from "./paths";
+import type { FsRoots, InstallerInput, InstallRecord } from "./types";
 
 export function statePathFor(input: InstallerInput): string {
-  return join(stateDir(input, input.scope), `install.${input.host}.json`)
+  return join(stateDir(input, input.scope), `install.${input.host}.json`);
 }
 
 export function readRecord(input: InstallerInput): InstallRecord | undefined {
-  const file = statePathFor(input)
-  if (!existsSync(file)) return undefined
+  const file = statePathFor(input);
+  if (!existsSync(file)) return undefined;
   try {
-    return JSON.parse(readFileSync(file, "utf8")) as InstallRecord
+    return JSON.parse(readFileSync(file, "utf8")) as InstallRecord;
   } catch {
-    return undefined
+    return undefined;
   }
 }
 
@@ -22,10 +22,10 @@ export function readRecord(input: InstallerInput): InstallRecord | undefined {
  * same host: returns the subset of `files` the record at the other scope claims.
  */
 export function claimedByOtherScope(input: InstallerInput, files: readonly string[]): string[] {
-  const other = input.scope === "global" ? "project" : "global"
-  const record = readRecord({ ...input, scope: other })
-  if (record === undefined) return []
-  return files.filter((file) => record.files.some((candidate) => candidate.file === file))
+  const other = input.scope === "global" ? "project" : "global";
+  const record = readRecord({ ...input, scope: other });
+  if (record === undefined) return [];
+  return files.filter((file) => record.files.some((candidate) => candidate.file === file));
 }
 
 /**
@@ -33,44 +33,44 @@ export function claimedByOtherScope(input: InstallerInput, files: readonly strin
  * owner-only permissions regardless of umask.
  */
 export function writeRecord(input: InstallerInput, record: InstallRecord): void {
-  const file = statePathFor(input)
-  mkdirSync(join(file, ".."), { recursive: true })
-  writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 })
-  chmodSync(file, 0o600)
+  const file = statePathFor(input);
+  mkdirSync(join(file, ".."), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(file, 0o600);
 }
 
 /** Entries a previous init appended at the given path, across its recorded files. */
 export function appendedByPrevious(record: InstallRecord | undefined, path: readonly string[]): readonly unknown[] {
-  if (record === undefined) return []
-  const entries: unknown[] = []
+  if (record === undefined) return [];
+  const entries: unknown[] = [];
   for (const file of record.files) {
     for (const op of file.ops) {
-      if (op.op !== "append-array" || op.path.join("\u0000") !== path.join("\u0000")) continue
-      if (Array.isArray(op.applied)) entries.push(...op.applied)
+      if (op.op !== "append-array" || op.path.join("\u0000") !== path.join("\u0000")) continue;
+      if (Array.isArray(op.applied)) entries.push(...op.applied);
     }
   }
-  return entries
+  return entries;
 }
 
 export function deleteRecord(input: InstallerInput): void {
-  const file = statePathFor(input)
-  if (existsSync(file)) rmSync(file)
+  const file = statePathFor(input);
+  if (existsSync(file)) rmSync(file);
 }
 
 /** Lists install records found in both scope locations for the given roots. */
 export function listRecords(roots: FsRoots): InstallRecord[] {
-  const records: InstallRecord[] = []
+  const records: InstallRecord[] = [];
   for (const scope of ["global", "project"] as const) {
-    const dir = stateDir(roots, scope)
-    if (!existsSync(dir)) continue
+    const dir = stateDir(roots, scope);
+    if (!existsSync(dir)) continue;
     for (const name of readdirSync(dir)) {
-      if (!name.startsWith("install.") || !name.endsWith(".json")) continue
+      if (!name.startsWith("install.") || !name.endsWith(".json")) continue;
       try {
-        records.push(JSON.parse(readFileSync(join(dir, name), "utf8")) as InstallRecord)
+        records.push(JSON.parse(readFileSync(join(dir, name), "utf8")) as InstallRecord);
       } catch {
         // Unreadable records are skipped; uninstall reports them as absent.
       }
     }
   }
-  return records
+  return records;
 }

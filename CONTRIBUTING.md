@@ -6,13 +6,25 @@ Thanks for helping improve DeepSeek Web Retrieval.
 
 ```bash
 bun install
-bun run typecheck
-bun run build
-bun test
+bun run check
 ```
 
 The project uses Bun for development. OpenCode supplies `@opencode/plugin` at
 runtime; do not bundle it into the plugin.
+
+`bun run check` runs Biome, TypeScript, the generated-docs check, the build, and
+the test suite. Biome checks formatting, recommended lint rules, and import
+ordering; warnings fail both local checks and CI. Its version is pinned in
+`package.json` so local development and CI use the same rules and formatter.
+
+- `bun run lint` — check without changing files.
+- `bun run lint:fix` — apply safe fixes and formatting, then report remaining issues.
+- `bun run format` — format files only.
+
+Biome covers source, tests (including the e2e harness), scripts, and root project
+configuration. Documentation, examples, the vendored e2e model catalog, and
+generated build output are outside its scope. Review fixes before committing;
+resolve remaining diagnostics manually instead of applying unsafe fixes blindly.
 
 ## End-to-end tests (local only)
 
@@ -119,7 +131,7 @@ Please include:
 
 - A focused description of the behavior being changed.
 - Tests for new filtering, auth, retry, URL, or truncation behavior.
-- `bun run typecheck` and `bun test` passing.
+- `bun run check` passing.
 - Documentation updates for new options or changed defaults.
 - No real API keys, tokens, or private URLs in commits, tests, logs, or issues.
 

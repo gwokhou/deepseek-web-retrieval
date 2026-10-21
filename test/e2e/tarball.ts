@@ -1,7 +1,6 @@
-import { readdirSync } from "node:fs"
-import { join } from "node:path"
-import { check, excerpt, ScenarioError } from "./assert"
-import type { Runner } from "./runner"
+import { readdirSync } from "node:fs";
+import { check, excerpt, ScenarioError } from "./assert";
+import type { Runner } from "./runner";
 
 /**
  * Finds the tarball `npm pack` produced in the repo root. The harness packs it
@@ -9,13 +8,13 @@ import type { Runner } from "./runner"
  * exactly what `npx deepseek-web-retrieval` installs for users.
  */
 export function findPackedTarball(repoHostDir: string): string {
-  const matches = readdirSync(repoHostDir).filter((name) => /^deepseek-web-retrieval-.*\.tgz$/.test(name))
+  const matches = readdirSync(repoHostDir).filter((name) => /^deepseek-web-retrieval-.*\.tgz$/.test(name));
   if (matches.length !== 1) {
     throw new ScenarioError(
       `expected exactly one deepseek-web-retrieval-*.tgz in ${repoHostDir}, found ${matches.length}`,
-    )
+    );
   }
-  return matches[0] as string
+  return matches[0] as string;
 }
 
 /**
@@ -30,6 +29,14 @@ export async function prewarmNpx(
   env: Readonly<Record<string, string | undefined>>,
   packageRef: string,
 ): Promise<void> {
-  const result = await runner.run(["npx", "-y", packageRef, "list"], { cwd: runner.projectDir.guest, env, timeoutMs: 300_000 })
-  check(result.exitCode === 0, "npx prewarm of the packed tarball failed", excerpt(`${result.stdout}\n${result.stderr}`))
+  const result = await runner.run(["npx", "-y", packageRef, "list"], {
+    cwd: runner.projectDir.guest,
+    env,
+    timeoutMs: 300_000,
+  });
+  check(
+    result.exitCode === 0,
+    "npx prewarm of the packed tarball failed",
+    excerpt(`${result.stdout}\n${result.stderr}`),
+  );
 }

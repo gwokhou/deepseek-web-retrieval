@@ -103,9 +103,11 @@ see the official docs for pricing and rate limits before enabling a team deploym
 
 ```bash
 bun install
-bun run typecheck
-bun test
+bun run check
 ```
+
+Use `bun run lint:fix` to apply Biome's safe lint fixes and formatting. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the development checks and e2e scenarios.
 
 The test suite mocks the DeepSeek HTTP API and the OpenCode plugin host, and drives the
 MCP server with SDK clients pinned to each supported protocol revision. Real API calls

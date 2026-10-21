@@ -29,7 +29,9 @@
     "./pi": "./src/pi/extension.ts"
   },
   "pi": {
-    "extensions": ["./src/pi/extension.ts"]
+    "extensions": [
+      "./src/pi/extension.ts"
+    ]
   },
   "bin": {
     "deepseek-web-retrieval": "dist/cli.js"
@@ -45,14 +47,18 @@
     "examples"
   ],
   "scripts": {
+    "lint": "biome check --error-on-warnings .",
+    "lint:ci": "biome ci --error-on-warnings .",
+    "lint:fix": "biome check --write --error-on-warnings .",
+    "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "build": "bun build src/mcp/cli.ts --target=node --format=esm --outdir=dist --external @modelcontextprotocol/server --external @modelcontextprotocol/server/stdio --external zod --external zod/v4",
-    "prepublishOnly": "bun run typecheck && bun run build",
+    "prepublishOnly": "bun run lint && bun run typecheck && bun run build",
     "test": "bun test",
     "test:e2e": "bun run test/e2e/run.ts",
     "docs:matrix": "bun run scripts/render-matrix.ts",
     "test:coverage": "bun test --coverage",
-    "check": "bun run typecheck && bun run docs:matrix --check && bun run build && bun test"
+    "check": "bun run lint && bun run typecheck && bun run docs:matrix --check && bun run build && bun test"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
@@ -60,6 +66,7 @@
     "@opencode/plugin": "^2.0.32"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "@earendil-works/pi-ai": "1.3.0",
     "@earendil-works/pi-coding-agent": "1.3.0",
     "@modelcontextprotocol/client": "^2.3.1",

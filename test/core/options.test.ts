@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "bun:test";
 import {
   resolveAuthOptions,
   resolveFetchOptions,
@@ -6,7 +6,7 @@ import {
   resolvePluginOptions,
   resolveRetryOptions,
   resolveSearchOptions,
-} from "../../src/core/options"
+} from "../../src/core/options";
 
 describe("resolve options", () => {
   test("uses documented defaults", () => {
@@ -34,8 +34,8 @@ describe("resolve options", () => {
       },
       auth: { source: "auto" },
       retry: { maxRetries: 0, baseDelayMs: 250 },
-    })
-  })
+    });
+  });
 
   test("clamps numbers and ignores invalid types", () => {
     const options = resolveSearchOptions({
@@ -46,60 +46,60 @@ describe("resolve options", () => {
       maxSummaryChars: -1,
       searchTimeoutMs: 5,
       allowUnknownAuthority: "yes",
-    })
-    expect(options.count).toBe(1)
-    expect(options.maxResults).toBe(50)
-    expect(options.minRerank).toBe(0)
-    expect(options.minAuthority).toBe(0)
-    expect(options.maxSummaryChars).toBe(0)
-    expect(options.timeoutMs).toBe(1000)
-    expect(options.allowUnknownAuthority).toBe(true)
-  })
+    });
+    expect(options.count).toBe(1);
+    expect(options.maxResults).toBe(50);
+    expect(options.minRerank).toBe(0);
+    expect(options.minAuthority).toBe(0);
+    expect(options.maxSummaryChars).toBe(0);
+    expect(options.timeoutMs).toBe(1000);
+    expect(options.allowUnknownAuthority).toBe(true);
+  });
 
   test("keeps unknown-authority results unless disabled explicitly", () => {
-    expect(resolveSearchOptions({}).allowUnknownAuthority).toBe(true)
-    expect(resolveSearchOptions({ allowUnknownAuthority: false }).allowUnknownAuthority).toBe(false)
-  })
+    expect(resolveSearchOptions({}).allowUnknownAuthority).toBe(true);
+    expect(resolveSearchOptions({ allowUnknownAuthority: false }).allowUnknownAuthority).toBe(false);
+  });
 
   test("normalizes domains and language", () => {
     const options = resolveSearchOptions({
       blockedDomains: ["https://Pinterest.com/path", 42],
       includeDomains: ["nodejs.org"],
       language: " zh,en ",
-    })
-    expect(options.blockedDomains).toEqual(["pinterest.com"])
-    expect(options.includeDomains).toEqual(["nodejs.org"])
-    expect(options.language).toBe("zh,en")
-  })
+    });
+    expect(options.blockedDomains).toEqual(["pinterest.com"]);
+    expect(options.includeDomains).toEqual(["nodejs.org"]);
+    expect(options.language).toBe("zh,en");
+  });
 
   test("resolves fetch safety limits", () => {
-    expect(resolveFetchOptions({ fetchBlockPrivateHosts: false }).blockPrivateHosts).toBe(false)
-    expect(resolveFetchOptions({ fetchMaxChars: -1 }).maxChars).toBe(0)
-    expect(resolveFetchOptions({ fetchTimeoutMs: 999_999 }).timeoutMs).toBe(120000)
-  })
+    expect(resolveFetchOptions({ fetchBlockPrivateHosts: false }).blockPrivateHosts).toBe(false);
+    expect(resolveFetchOptions({ fetchMaxChars: -1 }).maxChars).toBe(0);
+    expect(resolveFetchOptions({ fetchTimeoutMs: 999_999 }).timeoutMs).toBe(120000);
+  });
 
   test("keeps capabilities enabled by default and disables them explicitly", () => {
-    expect(resolveSearchOptions({}).enabled).toBe(true)
-    expect(resolveSearchOptions({ searchEnabled: false }).enabled).toBe(false)
-    expect(resolveSearchOptions({ searchEnabled: "false" }).enabled).toBe(true)
-    expect(resolveFetchOptions({}).enabled).toBe(true)
-    expect(resolveFetchOptions({ fetchEnabled: false }).enabled).toBe(false)
-  })
+    expect(resolveSearchOptions({}).enabled).toBe(true);
+    expect(resolveSearchOptions({ searchEnabled: false }).enabled).toBe(false);
+    expect(resolveSearchOptions({ searchEnabled: "false" }).enabled).toBe(true);
+    expect(resolveFetchOptions({}).enabled).toBe(true);
+    expect(resolveFetchOptions({ fetchEnabled: false }).enabled).toBe(false);
+  });
 
   test("validates auth source and retry settings", () => {
-    expect(resolveAuthOptions({ apiKeySource: "env" }).source).toBe("env")
-    expect(resolveAuthOptions({ apiKeySource: "opencode" }).source).toBe("opencode")
-    expect(resolveAuthOptions({ apiKeySource: "nonsense" }).source).toBe("auto")
-    expect(resolveRetryOptions({ maxRetries: 99 }).maxRetries).toBe(5)
-    expect(resolveRetryOptions({ maxRetries: -1 }).maxRetries).toBe(0)
-    expect(resolveRetryOptions({ retryBaseDelayMs: 1 }).baseDelayMs).toBe(1)
-  })
+    expect(resolveAuthOptions({ apiKeySource: "env" }).source).toBe("env");
+    expect(resolveAuthOptions({ apiKeySource: "opencode" }).source).toBe("opencode");
+    expect(resolveAuthOptions({ apiKeySource: "nonsense" }).source).toBe("auto");
+    expect(resolveRetryOptions({ maxRetries: 99 }).maxRetries).toBe(5);
+    expect(resolveRetryOptions({ maxRetries: -1 }).maxRetries).toBe(0);
+    expect(resolveRetryOptions({ retryBaseDelayMs: 1 }).baseDelayMs).toBe(1);
+  });
 
   test("resolves the shorter of the plugin and per-call timeout", () => {
-    expect(resolveFetchTimeoutMs(30000, 5)).toBe(5000)
-    expect(resolveFetchTimeoutMs(30000, 60)).toBe(30000)
-    expect(resolveFetchTimeoutMs(30000, 0.001)).toBe(1)
-    expect(resolveFetchTimeoutMs(30000, 0)).toBe(30000)
-    expect(resolveFetchTimeoutMs(30000, "5")).toBe(30000)
-  })
-})
+    expect(resolveFetchTimeoutMs(30000, 5)).toBe(5000);
+    expect(resolveFetchTimeoutMs(30000, 60)).toBe(30000);
+    expect(resolveFetchTimeoutMs(30000, 0.001)).toBe(1);
+    expect(resolveFetchTimeoutMs(30000, 0)).toBe(30000);
+    expect(resolveFetchTimeoutMs(30000, "5")).toBe(30000);
+  });
+});

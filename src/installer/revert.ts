@@ -1,12 +1,12 @@
-import { existsSync, readFileSync, rmdirSync, unlinkSync } from "node:fs"
-import { dirname } from "node:path"
-import { codecFor, writeConfig } from "./formats"
-import type { HostName, RecordedFile, RulesEdit } from "./types"
+import { existsSync, readFileSync, rmdirSync, unlinkSync } from "node:fs";
+import { dirname } from "node:path";
+import { codecFor, writeConfig } from "./formats";
+import type { HostName, RecordedFile, RulesEdit } from "./types";
 
 /** Removes a directory only when it is empty, so pre-existing dirs with content stay. */
 export function pruneEmptyDir(dir: string): void {
   try {
-    rmdirSync(dir)
+    rmdirSync(dir);
   } catch {
     // Not empty or already gone — nothing to prune.
   }
@@ -19,43 +19,47 @@ export function pruneEmptyDir(dir: string): void {
  * Per-format work belongs to the codecs; this skeleton owns the early-outs, the
  * deletion decisions, the pruning, and the messages.
  */
-export function revertRecordedFile(file: RecordedFile, host: HostName, opts: { label: string; whole: boolean }): string[] {
-  const lines: string[] = []
+export function revertRecordedFile(
+  file: RecordedFile,
+  host: HostName,
+  opts: { label: string; whole: boolean },
+): string[] {
+  const lines: string[] = [];
   if (!existsSync(file.file)) {
-    lines.push(`already absent: ${file.file}${opts.label}`)
-    return lines
+    lines.push(`already absent: ${file.file}${opts.label}`);
+    return lines;
   }
-  const codec = codecFor(file.format, host)
-  const text = readFileSync(file.file, "utf8")
+  const codec = codecFor(file.format, host);
+  const text = readFileSync(file.file, "utf8");
   if (file.format === "rules") {
-    const edit: RulesEdit = { file: file.file, format: "rules", block: file.blockApplied ?? "" }
+    const edit: RulesEdit = { file: file.file, format: "rules", block: file.blockApplied ?? "" };
     if (!codec.verify(text, edit)) {
-      lines.push(`no rules block${opts.label} in ${file.file}; left untouched`)
-      return lines
+      lines.push(`no rules block${opts.label} in ${file.file}; left untouched`);
+      return lines;
     }
-    const updated = codec.revert(text, file).text
+    const updated = codec.revert(text, file).text;
     // Empty after removal proves every line in the file was an installer block;
     // the whole-file gate keeps a still-claimed file safe even if a future
     // planner ever produced a partial rules revert.
     if (opts.whole && codec.isEffectivelyEmpty(updated)) {
-      unlinkSync(file.file)
-      pruneEmptyDir(dirname(file.file))
-      lines.push(`deleted ${file.file} (installer-created, now empty)`)
+      unlinkSync(file.file);
+      pruneEmptyDir(dirname(file.file));
+      lines.push(`deleted ${file.file} (installer-created, now empty)`);
     } else {
-      writeConfig(file.file, updated)
-      lines.push(`removed rules block${opts.label} from ${file.file}`)
+      writeConfig(file.file, updated);
+      lines.push(`removed rules block${opts.label} from ${file.file}`);
     }
-    return lines
+    return lines;
   }
-  const reverted = codec.revert(text, file)
+  const reverted = codec.revert(text, file);
   if (opts.whole && file.created && codec.isEffectivelyEmpty(reverted.text)) {
-    unlinkSync(file.file)
-    pruneEmptyDir(dirname(file.file))
-    lines.push(`deleted ${file.file} (installer-created, now empty)`)
+    unlinkSync(file.file);
+    pruneEmptyDir(dirname(file.file));
+    lines.push(`deleted ${file.file} (installer-created, now empty)`);
   } else {
-    writeConfig(file.file, reverted.text)
-    lines.push(`reverted artifacts${opts.label} in ${file.file}`)
+    writeConfig(file.file, reverted.text);
+    lines.push(`reverted artifacts${opts.label} in ${file.file}`);
   }
-  lines.push(...reverted.notes.map((note) => `  note: ${note}`))
-  return lines
+  lines.push(...reverted.notes.map((note) => `  note: ${note}`));
+  return lines;
 }

@@ -1,16 +1,16 @@
-import { planCodex, probeCodexVersion } from "./codex"
-import { planOpenCode } from "./opencode"
-import { planPi } from "./pi"
-import { API_KEY_ENV } from "../../core/constants"
-import { deepEqual } from "../formats/value"
-import { claimedByOtherScope, readRecord } from "../state"
-import type { HostName, InstallRecord, InstallerInput, InstallPlan, RecordedFile } from "../types"
+import { API_KEY_ENV } from "../../core/constants";
+import { deepEqual } from "../formats/value";
+import { claimedByOtherScope, readRecord } from "../state";
+import type { HostName, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "../types";
+import { planCodex, probeCodexVersion } from "./codex";
+import { planOpenCode } from "./opencode";
+import { planPi } from "./pi";
 
 /**
  * A host planner sees the previous install record for its scope, so it never reads
  * install state itself; planForHost is the one place a record read happens per plan.
  */
-export type HostPlanner = (input: InstallerInput, previous: InstallRecord | undefined) => InstallPlan
+export type HostPlanner = (input: InstallerInput, previous: InstallRecord | undefined) => InstallPlan;
 
 /**
  * The host registry. Key order feeds the CLI's usage string; a new host is one
@@ -22,23 +22,21 @@ export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
   opencode: planOpenCode,
   pi: planPi,
   codex: planCodex,
-}
+};
 
 /**
  * Per-host version probes the CLI edge runs before planning, so "which host
  * needs a probe" is a host-module fact, not a CLI branch. A missing entry means
  * the host's plan never reads hostVersion.
  */
-export const HOST_VERSION_PROBES: Partial<
-  Record<HostName, (err: (line: string) => void) => string | undefined>
-> = {
+export const HOST_VERSION_PROBES: Partial<Record<HostName, (err: (line: string) => void) => string | undefined>> = {
   codex: probeCodexVersion,
-}
+};
 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {
-  const previous = readRecord(input)
-  const planned = withCrossScopeGuard(HOST_PLANNERS[host](input, previous), input)
-  return withSecretGuard(withOrphanReverts(planned, input, previous))
+  const previous = readRecord(input);
+  const planned = withCrossScopeGuard(HOST_PLANNERS[host](input, previous), input);
+  return withSecretGuard(withOrphanReverts(planned, previous));
 }
 
 /**
@@ -48,10 +46,13 @@ export function planForHost(host: HostName, input: InstallerInput): InstallPlan 
  * instead. Hosts whose scope pairs map to disjoint files (Pi, OpenCode) pass through.
  */
 function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallPlan {
-  if (plan.errors.length > 0) return plan
-  const other = input.scope === "global" ? "project" : "global"
-  const overlap = claimedByOtherScope(input, plan.edits.map((edit) => edit.file))
-  if (overlap.length === 0) return plan
+  if (plan.errors.length > 0) return plan;
+  const other = input.scope === "global" ? "project" : "global";
+  const overlap = claimedByOtherScope(
+    input,
+    plan.edits.map((edit) => edit.file),
+  );
+  if (overlap.length === 0) return plan;
   return {
     ...plan,
     edits: [],
@@ -64,7 +65,7 @@ function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallP
           `or re-run with --scope ${other} to update it in place — two scopes must not edit one file.`,
       },
     ],
-  }
+  };
 }
 
 /**
@@ -76,10 +77,10 @@ function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallP
  */
 function withSecretGuard(plan: InstallPlan): InstallPlan {
   for (const edit of plan.edits) {
-    if (edit.format === "rules") continue // rules edits carry no values to snapshot
+    if (edit.format === "rules") continue; // rules edits carry no values to snapshot
     for (const op of edit.ops) {
-      if (op.op !== "set" || op.previous === undefined) continue
-      const offender = findSecretLike(op.previous, op.path.join("."))
+      if (op.op !== "set" || op.previous === undefined) continue;
+      const offender = findSecretLike(op.previous, op.path.join("."));
       if (offender !== undefined) {
         return {
           ...plan,
@@ -93,29 +94,29 @@ function withSecretGuard(plan: InstallPlan): InstallPlan {
                 `environment indirection ("\${${API_KEY_ENV}}" expansion or env_vars) and re-run.`,
             },
           ],
-        }
+        };
       }
     }
   }
-  return plan
+  return plan;
 }
 
 function findSecretLike(value: unknown, at: string): string | undefined {
-  if (typeof value !== "object" || value === null) return undefined
+  if (typeof value !== "object" || value === null) return undefined;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    const path = `${at}.${key}`
+    const path = `${at}.${key}`;
     if (
       /(api[_-]?key|token|secret|password|credential)/i.test(key) &&
       typeof child === "string" &&
       child.length > 0 &&
       !/^\$\{[^}]+\}$/.test(child)
     ) {
-      return path
+      return path;
     }
-    const nested = findSecretLike(child, path)
-    if (nested !== undefined) return nested
+    const nested = findSecretLike(child, path);
+    if (nested !== undefined) return nested;
   }
-  return undefined
+  return undefined;
 }
 
 /**
@@ -128,31 +129,31 @@ function findSecretLike(value: unknown, at: string): string | undefined {
  * --package ref, retired tier options) revert, so a replaced entry never
  * lingers beside its replacement.
  */
-function withOrphanReverts(plan: InstallPlan, input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
-  if (plan.errors.length > 0) return plan
-  if (previous === undefined) return plan
-  const reverts: RecordedFile[] = []
+function withOrphanReverts(plan: InstallPlan, previous: InstallRecord | undefined): InstallPlan {
+  if (plan.errors.length > 0) return plan;
+  if (previous === undefined) return plan;
+  const reverts: RecordedFile[] = [];
   for (const file of previous.files) {
-    const edit = plan.edits.find((candidate) => candidate.file === file.file)
+    const edit = plan.edits.find((candidate) => candidate.file === file.file);
     if (edit === undefined) {
-      reverts.push(file)
-      continue
+      reverts.push(file);
+      continue;
     }
-    if (edit.format === "rules" || file.format === "rules") continue // the new plan's block supersedes ours
+    if (edit.format === "rules" || file.format === "rules") continue; // the new plan's block supersedes ours
     const orphanOps = file.ops.flatMap((op) => {
       const claimed = edit.ops.find(
         (candidate) => candidate.op === op.op && candidate.path.join("\u0000") === op.path.join("\u0000"),
-      )
+      );
       if (op.op !== "append-array" || claimed === undefined || claimed.op !== "append-array") {
-        return claimed === undefined ? [op] : []
+        return claimed === undefined ? [op] : [];
       }
       const dropped = (Array.isArray(op.applied) ? op.applied : []).filter(
         (entry) => !(claimed.entries ?? []).some((wanted) => deepEqual(wanted, entry)),
-      )
-      return dropped.length > 0 ? [{ ...op, applied: dropped }] : []
-    })
-    if (orphanOps.length > 0) reverts.push({ ...file, ops: orphanOps })
+      );
+      return dropped.length > 0 ? [{ ...op, applied: dropped }] : [];
+    });
+    if (orphanOps.length > 0) reverts.push({ ...file, ops: orphanOps });
   }
-  if (reverts.length === 0) return plan
-  return { ...plan, reverts }
+  if (reverts.length === 0) return plan;
+  return { ...plan, reverts };
 }

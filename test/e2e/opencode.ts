@@ -1,9 +1,9 @@
-import { writeFileSync } from "node:fs"
-import { join } from "node:path"
-import { check, excerpt, requireEnv } from "./assert"
-import type { Runner } from "./runner"
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { check, excerpt, requireEnv } from "./assert";
+import type { Runner } from "./runner";
 
-const RUN_TIMEOUT_MS = 180_000
+const RUN_TIMEOUT_MS = 180_000;
 
 /**
  * Runs headless `opencode run` prompts in an isolated project that loads the
@@ -13,13 +13,10 @@ const RUN_TIMEOUT_MS = 180_000
  * billed DeepSeek requests.
  */
 export async function runOpencodeScenario(runner: Runner): Promise<string[]> {
-  const log: string[] = []
-  const apiKey = requireEnv(
-    "DEEPSEEK_API_KEY",
-    "the opencode scenario makes real billed DeepSeek requests",
-  )
+  const log: string[] = [];
+  const apiKey = requireEnv("DEEPSEEK_API_KEY", "the opencode scenario makes real billed DeepSeek requests");
 
-  const env = { HOME: runner.homeDir.guest, DEEPSEEK_API_KEY: apiKey }
+  const env = { HOME: runner.homeDir.guest, DEEPSEEK_API_KEY: apiKey };
   writeFileSync(
     join(runner.projectDir.host, "opencode.jsonc"),
     JSON.stringify(
@@ -51,29 +48,29 @@ export async function runOpencodeScenario(runner: Runner): Promise<string[]> {
       null,
       2,
     ),
-  )
+  );
 
-  const version = await runner.run(["opencode", "--version"], { cwd: runner.projectDir.guest, env })
-  log.push(`opencode version: ${excerpt(version.stdout.trim(), 80)}`)
+  const version = await runner.run(["opencode", "--version"], { cwd: runner.projectDir.guest, env });
+  log.push(`opencode version: ${excerpt(version.stdout.trim(), 80)}`);
 
   const fetchReply = await runPrompt(runner, env, [
     "Fetch https://example.com using the deepseek_fetch tool, then reply with only the page's H1 heading text.",
-  ])
+  ]);
   check(
     fetchReply.includes("Example Domain"),
     "fetch prompt did not return the expected page heading",
     excerpt(fetchReply),
-  )
-  log.push("opencode: deepseek_fetch returned the example.com heading")
+  );
+  log.push("opencode: deepseek_fetch returned the example.com heading");
 
   const searchReply = await runPrompt(runner, env, [
     'Search the web for "opencode plugin api" using websearch, then reply with exactly one source URL and nothing else.',
-  ])
-  check(/https?:\/\/\S+/i.test(searchReply), "search prompt did not return a URL", excerpt(searchReply))
-  log.push("opencode: websearch (provider deepseek) returned a source URL")
+  ]);
+  check(/https?:\/\/\S+/i.test(searchReply), "search prompt did not return a URL", excerpt(searchReply));
+  log.push("opencode: websearch (provider deepseek) returned a source URL");
 
-  log.push("note: real DeepSeek requests were billed by this scenario (LLM + retrieval)")
-  return log
+  log.push("note: real DeepSeek requests were billed by this scenario (LLM + retrieval)");
+  return log;
 }
 
 async function runPrompt(runner: Runner, env: Record<string, string | undefined>, prompt: string[]): Promise<string> {
@@ -81,7 +78,7 @@ async function runPrompt(runner: Runner, env: Record<string, string | undefined>
     cwd: runner.projectDir.guest,
     env,
     timeoutMs: RUN_TIMEOUT_MS,
-  })
-  check(result.exitCode === 0, "`opencode run` failed", excerpt(result.stderr || result.stdout))
-  return result.stdout
+  });
+  check(result.exitCode === 0, "`opencode run` failed", excerpt(result.stderr || result.stdout));
+  return result.stdout;
 }

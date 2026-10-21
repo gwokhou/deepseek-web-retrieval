@@ -48,6 +48,9 @@ jobs:
       - name: Pin @opencode/plugin
         run: bun add --no-save --exact @opencode/plugin@${{ matrix.opencode-plugin }}
 
+      - name: Biome
+        run: bun run lint:ci
+
       - name: Typecheck
         run: bun run typecheck
 

@@ -1,13 +1,16 @@
-import type { Tier } from "./types"
+import type { Tier } from "./types";
 
 /** Full MCP tool ids, per the installer design's rules non-negotiables. */
-export const MCP_TOOL_IDS = { search: "mcp__deepseek__deepseek_web_search", fetch: "mcp__deepseek__deepseek_fetch" } as const
+export const MCP_TOOL_IDS = {
+  search: "mcp__deepseek__deepseek_web_search",
+  fetch: "mcp__deepseek__deepseek_fetch",
+} as const;
 
 /**
  * Raw server-declared tool names (no `mcp__` prefix): what Pi's extension-style tool ids
  * and host per-server tool keys (Codex's `disabled_tools`) match on, verbatim.
  */
-export const RAW_MCP_TOOL_IDS = { search: "deepseek_web_search", fetch: "deepseek_fetch" } as const
+export const RAW_MCP_TOOL_IDS = { search: "deepseek_web_search", fetch: "deepseek_fetch" } as const;
 
 /**
  * Builds the rules block lines for the preferred tier: names the full tool ids,
@@ -15,24 +18,26 @@ export const RAW_MCP_TOOL_IDS = { search: "deepseek_web_search", fetch: "deepsee
  * private-network exclusion. Only mentions capabilities that are not "off".
  * Hosts whose tools are named differently pass their own ids.
  */
-export function rulesLines(ids: { readonly search: string; readonly fetch: string }, search: Tier, fetch: Tier): string[] {
-  const lines: string[] = ["DeepSeek retrieval guidance:"]
+export function rulesLines(
+  ids: { readonly search: string; readonly fetch: string },
+  search: Tier,
+  fetch: Tier,
+): string[] {
+  const lines: string[] = ["DeepSeek retrieval guidance:"];
   if (search !== "off") {
     lines.push(
       `- Use ${ids.search} when the task needs fresh external information: current docs, version numbers,`,
       "  changelogs, or anything you cannot know from the repository alone. Do not search for facts already",
       "  present locally.",
-    )
+    );
   }
   if (fetch !== "off") {
-    lines.push(
-      `- Use ${ids.fetch} to read a specific public web page as Markdown when its content is needed.`,
-    )
+    lines.push(`- Use ${ids.fetch} to read a specific public web page as Markdown when its content is needed.`);
   }
   lines.push(
     "- Never send localhost or private-network URLs to the DeepSeek tools; use local tools for those (the",
     "  server blocks private hosts by default).",
     "- DeepSeek requests are billed per successful call; retrieve only what the task needs.",
-  )
-  return lines
+  );
+  return lines;
 }

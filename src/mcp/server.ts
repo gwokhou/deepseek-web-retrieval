@@ -1,37 +1,37 @@
-import { McpServer } from "@modelcontextprotocol/server"
-import type { CallToolResult, ServerContext } from "@modelcontextprotocol/server"
-import * as z from "zod/v4"
-import { fetchDocument, searchWeb } from "../core/client"
-import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
-import { formatSearchResults, toStructuredResult } from "../core/format"
+import type { CallToolResult, ServerContext } from "@modelcontextprotocol/server";
+import { McpServer } from "@modelcontextprotocol/server";
+import * as z from "zod/v4";
+import pkg from "../../package.json";
+import { fetchDocument, searchWeb } from "../core/client";
+import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants";
 import {
   FETCH_TOOL_DESCRIPTION,
   FETCH_URL_PARAMETER,
   SEARCH_QUERY_PARAMETER,
   SEARCH_TOOL_DESCRIPTION,
-} from "../core/descriptions"
-import type { ResolvedOptions, SearchResult } from "../core/types"
-import pkg from "../../package.json"
-import { requireApiKey } from "./auth"
-import { omitStructuredContent } from "./client"
-import type { Env } from "../core/env"
+} from "../core/descriptions";
+import type { Env } from "../core/env";
+import { formatSearchResults, toStructuredResult } from "../core/format";
+import type { ResolvedOptions } from "../core/types";
+import { requireApiKey } from "./auth";
+import { omitStructuredContent } from "./client";
 
-export const MCP_SERVER_NAME = "deepseek-web-retrieval"
+export const MCP_SERVER_NAME = "deepseek-web-retrieval";
 
 const SEARCH_INPUT = z.object({
   query: z.string().min(1).describe(SEARCH_QUERY_PARAMETER),
-})
+});
 
 const FETCH_INPUT = z.object({
   url: z.string().min(1).describe(FETCH_URL_PARAMETER),
-})
+});
 
 /**
  * Builds the host-agnostic MCP server exposing the two DeepSeek retrieval tools.
  * `serveStdio` and `createMcpHandler` serve both protocol eras from this factory.
  */
 export function createDeepSeekServer(config: ResolvedOptions, env: Env = process.env): McpServer {
-  const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version })
+  const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version });
 
   if (config.search.enabled) {
     server.registerTool(
@@ -44,16 +44,16 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
       },
       async ({ query }, ctx) => {
         try {
-          const request = requestContext(config, env, ctx.mcpReq.signal)
-          const results = await searchWeb(query, config.search, request)
+          const request = requestContext(config, env, ctx.mcpReq.signal);
+          const results = await searchWeb(query, config.search, request);
           return callResult(server, ctx, formatSearchResults(results), {
             results: results.map(toStructuredResult),
-          })
+          });
         } catch (error) {
-          return toErrorResult(error)
+          return toErrorResult(error);
         }
       },
-    )
+    );
   }
 
   if (config.fetch.enabled) {
@@ -67,26 +67,26 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
       },
       async ({ url }, ctx) => {
         try {
-          const request = requestContext(config, env, ctx.mcpReq.signal)
-          const page = await fetchDocument(url, config.fetch, request)
+          const request = requestContext(config, env, ctx.mcpReq.signal);
+          const page = await fetchDocument(url, config.fetch, request);
           return callResult(server, ctx, page.content, {
             url: page.url,
             title: page.title,
             content: page.content,
             truncated: page.truncated,
-          })
+          });
         } catch (error) {
-          return toErrorResult(error)
+          return toErrorResult(error);
         }
       },
-    )
+    );
   }
 
-  return server
+  return server;
 }
 
 function requestContext(config: ResolvedOptions, env: Env, signal: AbortSignal) {
-  return { signal, auth: { apiKey: requireApiKey(env) }, retry: config.retry }
+  return { signal, auth: { apiKey: requireApiKey(env) }, retry: config.retry };
 }
 
 /**
@@ -102,20 +102,20 @@ function callResult(
   text: string,
   structured: Record<string, unknown>,
 ): CallToolResult {
-  if (omitStructuredContent(server, ctx)) return { content: [{ type: "text", text }] }
-  return { content: [{ type: "text", text }], structuredContent: structured }
+  if (omitStructuredContent(server, ctx)) return { content: [{ type: "text", text }] };
+  return { content: [{ type: "text", text }], structuredContent: structured };
 }
 
 /** Returns the both-disabled message, or undefined when a tool stays enabled. */
 export function servePrecheck(config: ResolvedOptions): string | undefined {
-  if (config.search.enabled || config.fetch.enabled) return undefined
+  if (config.search.enabled || config.fetch.enabled) return undefined;
   return (
     `Both tools are disabled (${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false); ` +
     "at least one must stay enabled."
-  )
+  );
 }
 
 function toErrorResult(error: unknown): CallToolResult {
-  const message = error instanceof Error ? error.message : String(error)
-  return { content: [{ type: "text", text: message }], isError: true }
+  const message = error instanceof Error ? error.message : String(error);
+  return { content: [{ type: "text", text: message }], isError: true };
 }

@@ -1,14 +1,14 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-import { isPlainObject } from "../core/object"
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { isPlainObject } from "../core/object";
 
 /** The settings.json namespace the installer writes capability switches into. */
-export const SETTINGS_NAMESPACE = "deepseekWebRetrieval"
+export const SETTINGS_NAMESPACE = "deepseekWebRetrieval";
 
 /** The namespace shape. Only an explicit false is meaningful, mirroring the env switches. */
 export interface ExtensionSettings {
-  readonly enableSearch?: boolean
-  readonly enableFetch?: boolean
+  readonly enableSearch?: boolean;
+  readonly enableFetch?: boolean;
 }
 
 /**
@@ -24,26 +24,26 @@ export function readExtensionSettings(home: string, cwd: string): ExtensionSetti
   const merged: Record<string, unknown> = {
     ...readNamespace(join(home, ".pi", "agent", "settings.json")),
     ...readNamespace(join(cwd, ".pi", "settings.json")),
-  }
+  };
   return {
     ...(merged.enableSearch === false ? { enableSearch: false } : {}),
     ...(merged.enableFetch === false ? { enableFetch: false } : {}),
-  }
+  };
 }
 
 function readNamespace(file: string): Record<string, unknown> {
-  let text: string
+  let text: string;
   try {
-    text = readFileSync(file, "utf8")
+    text = readFileSync(file, "utf8");
   } catch {
-    return {}
+    return {};
   }
   try {
-    const parsed = JSON.parse(text) as unknown
-    if (!isPlainObject(parsed)) return {}
-    const namespace = parsed[SETTINGS_NAMESPACE]
-    return isPlainObject(namespace) ? namespace : {}
+    const parsed = JSON.parse(text) as unknown;
+    if (!isPlainObject(parsed)) return {};
+    const namespace = parsed[SETTINGS_NAMESPACE];
+    return isPlainObject(namespace) ? namespace : {};
   } catch {
-    return {}
+    return {};
   }
 }

@@ -1,17 +1,17 @@
-import { Plugin } from "@opencode/plugin"
-import type { Context } from "@opencode/plugin/promise/plugin"
-import type { ToolContext } from "@opencode/plugin/promise/tool"
-import { fetchDocument, inspectFetchTarget, searchWeb } from "../core/client"
-import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions"
-import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options"
-import type { PluginOptions, ResolvedOptions, SearchResult } from "../core/types"
-import { resolveApiKey } from "./auth"
+import { Plugin } from "@opencode/plugin";
+import type { Context } from "@opencode/plugin/promise/plugin";
+import type { ToolContext } from "@opencode/plugin/promise/tool";
+import { fetchDocument, inspectFetchTarget, searchWeb } from "../core/client";
+import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions";
+import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options";
+import type { PluginOptions, ResolvedOptions, SearchResult } from "../core/types";
+import { resolveApiKey } from "./auth";
 
 type FetchInput = {
-  readonly url: string
-  readonly format?: "markdown" | "text" | "html"
-  readonly timeout?: number
-}
+  readonly url: string;
+  readonly format?: "markdown" | "text" | "html";
+  readonly timeout?: number;
+};
 
 const FETCH_INPUT = {
   type: "object",
@@ -36,23 +36,23 @@ const FETCH_INPUT = {
   },
   required: ["url"],
   additionalProperties: false,
-} as const
+} as const;
 
 const DEEPSEEK_FETCH_DESCRIPTION =
   "Fetch one web page as clean Markdown through DeepSeek's Fetch API. This separate tool remains " +
-    `available when the built-in webfetch is replaced. ${FETCH_MARKDOWN_ONLY} ${FETCH_OUTPUT_TRUNCATED}`
+  `available when the built-in webfetch is replaced. ${FETCH_MARKDOWN_ONLY} ${FETCH_OUTPUT_TRUNCATED}`;
 
 const WEBFETCH_DESCRIPTION =
   "Fetch content from an HTTP or HTTPS URL and return it as Markdown through DeepSeek's Fetch API. " +
-    "This is the built-in webfetch replacement enabled by fetchOverrideWebfetch. DeepSeek does not " +
-    `render JavaScript and some sites return 403/404. ${FETCH_MARKDOWN_ONLY} ${FETCH_OUTPUT_TRUNCATED}`
+  "This is the built-in webfetch replacement enabled by fetchOverrideWebfetch. DeepSeek does not " +
+  `render JavaScript and some sites return 403/404. ${FETCH_MARKDOWN_ONLY} ${FETCH_OUTPUT_TRUNCATED}`;
 
 /** OpenCode's WebSearch.Result shape, which wraps the published date in `time`. */
 interface OpenCodeSearchResult {
-  readonly url: string
-  readonly title?: string
-  readonly content?: string
-  readonly time: { readonly published?: number }
+  readonly url: string;
+  readonly title?: string;
+  readonly content?: string;
+  readonly time: { readonly published?: number };
 }
 
 /** Maps the core's neutral SearchResult onto the shape OpenCode expects. */
@@ -61,17 +61,15 @@ function toOpenCodeResult(result: SearchResult): OpenCodeSearchResult {
     url: result.url,
     ...(result.title ? { title: result.title } : {}),
     ...(result.content ? { content: result.content } : {}),
-    ...(result.published !== undefined
-      ? { time: { published: result.published } }
-      : { time: {} }),
-  }
+    ...(result.published !== undefined ? { time: { published: result.published } } : { time: {} }),
+  };
 }
 
 /** How the plugin registers itself with OpenCode; resolved where it is consumed. */
 export interface Registration {
-  readonly setDefault: boolean
-  readonly overrideWebfetch: boolean
-  readonly registerTool: boolean
+  readonly setDefault: boolean;
+  readonly overrideWebfetch: boolean;
+  readonly registerTool: boolean;
 }
 
 export function resolveRegistration(input?: PluginOptions): Registration {
@@ -79,12 +77,12 @@ export function resolveRegistration(input?: PluginOptions): Registration {
     setDefault: input?.setDefaultWebsearch === true,
     overrideWebfetch: input?.fetchOverrideWebfetch === true,
     registerTool: input?.fetchRegisterTool !== false,
-  }
+  };
 }
 
 /** One place builds the per-request context the core expects. */
 function requestContext(config: ResolvedOptions, apiKey: string, signal: AbortSignal, timeoutMs?: number) {
-  return { signal, auth: { apiKey }, retry: config.retry, ...(timeoutMs === undefined ? {} : { timeoutMs }) }
+  return { signal, auth: { apiKey }, retry: config.retry, ...(timeoutMs === undefined ? {} : { timeoutMs }) };
 }
 
 async function runFetch(
@@ -95,24 +93,24 @@ async function runFetch(
   permission: string,
   saveAll: boolean,
 ) {
-  const format = input.format ?? "markdown"
+  const format = input.format ?? "markdown";
   if (format !== "markdown") {
     throw new Error(
       `DeepSeek Fetch only returns Markdown; format "${format}" is not supported. Omit format or use "markdown".`,
-    )
+    );
   }
 
   if (typeof input.url !== "string") {
-    throw new Error('"url" must be a string')
+    throw new Error('"url" must be a string');
   }
   // Inspect before the permission prompt so an invalid or blocked target fails
   // without asking the user; fetchPage enforces the policy again.
-  const target = inspectFetchTarget(input.url, config.fetch)
-  const timeoutMs = resolveFetchTimeoutMs(config.fetch.timeoutMs, input.timeout)
+  const target = inspectFetchTarget(input.url, config.fetch);
+  const timeoutMs = resolveFetchTimeoutMs(config.fetch.timeoutMs, input.timeout);
 
   // Resolved before the permission prompt so a missing key fails fast instead
   // of asking the user to approve a request that cannot run.
-  const apiKey = await resolveApiKey(ctx, config.auth.source)
+  const apiKey = await resolveApiKey(ctx, config.auth.source);
 
   await ctx.permission.assert({
     sessionID: context.sessionID,
@@ -122,9 +120,9 @@ async function runFetch(
     save: saveAll ? ["*"] : [target.href],
     metadata: saveAll ? { ...input, url: target.href, format } : { url: target.href },
     source: { type: "tool", messageID: context.messageID, id: context.id },
-  })
+  });
 
-  const page = await fetchDocument(target, config.fetch, requestContext(config, apiKey, context.signal, timeoutMs))
+  const page = await fetchDocument(target, config.fetch, requestContext(config, apiKey, context.signal, timeoutMs));
   return {
     content: page.content,
     metadata: {
@@ -132,14 +130,14 @@ async function runFetch(
       title: page.title,
       truncated: page.truncated,
     },
-  }
+  };
 }
 
 export default Plugin.define({
   id: "deepseek-web-retrieval",
   async setup(ctx) {
-    const config = resolvePluginOptions(ctx.options)
-    const registration = resolveRegistration(ctx.options)
+    const config = resolvePluginOptions(ctx.options);
+    const registration = resolveRegistration(ctx.options);
 
     if (config.search.enabled) {
       await ctx.websearch.transform((editor) => {
@@ -147,18 +145,18 @@ export default Plugin.define({
           id: "deepseek",
           name: "DeepSeek",
           execute: async (input, { signal }) => {
-            const apiKey = await resolveApiKey(ctx, config.auth.source)
-            const results = await searchWeb(input.query, config.search, requestContext(config, apiKey, signal))
-            return results.map(toOpenCodeResult)
+            const apiKey = await resolveApiKey(ctx, config.auth.source);
+            const results = await searchWeb(input.query, config.search, requestContext(config, apiKey, signal));
+            return results.map(toOpenCodeResult);
           },
-        })
-        if (registration.setDefault) editor.default.set("deepseek")
-      })
+        });
+        if (registration.setDefault) editor.default.set("deepseek");
+      });
     }
 
     if (config.fetch.enabled) {
       await ctx.tool.transform((editor) => {
-        if (registration.overrideWebfetch) editor.remove("webfetch")
+        if (registration.overrideWebfetch) editor.remove("webfetch");
 
         if (registration.registerTool) {
           editor.add({
@@ -166,9 +164,8 @@ export default Plugin.define({
             description: DEEPSEEK_FETCH_DESCRIPTION,
             input: FETCH_INPUT,
             options: { codemode: false, permission: "deepseek_fetch" },
-            execute: (input, context) =>
-              runFetch(ctx, config, input as FetchInput, context, "deepseek_fetch", false),
-          })
+            execute: (input, context) => runFetch(ctx, config, input as FetchInput, context, "deepseek_fetch", false),
+          });
         }
 
         if (registration.overrideWebfetch) {
@@ -177,11 +174,10 @@ export default Plugin.define({
             description: WEBFETCH_DESCRIPTION,
             input: FETCH_INPUT,
             options: { codemode: false, permission: "webfetch" },
-            execute: (input, context) =>
-              runFetch(ctx, config, input as FetchInput, context, "webfetch", true),
-          })
+            execute: (input, context) => runFetch(ctx, config, input as FetchInput, context, "webfetch", true),
+          });
         }
-      })
+      });
     }
   },
-})
+});
