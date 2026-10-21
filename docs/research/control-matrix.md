@@ -79,14 +79,19 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
 
 - **Positioning** — VSCode-extension agent with an experimental lightweight CLI (`clite`,
   built on the Cline SDKs). Apache-2.0. MCP plus CLI/SDK custom tools; neither replaces the
-  built-in `fetch_web_content`. Current docs.cline.bot describes the newer 3.x `cline`
-  binary — the lock is 0.0.13 `clite`, and everything here is verified against that binary.
+  built-in `fetch_web_content`. `@cline/cli` is frozen at 0.0.13 (last publish 2026-05-11);
+  the next day the unscoped `cline` package superseded it (3.0.0 on 2026-05-12; 3.0.73 at
+  2026-10-21; binary renamed `clite` → `cline`), and docs.cline.bot now describes only the
+  `cline` binary (re-verified 2026-10-21). The lock stays 0.0.13 `clite` and everything
+  here is verified against that binary; adopting 3.x means re-verifying this whole row.
 - **Built-in web tools** — `fetch_web_content` (fetch a URL and analyze it with a prompt);
   no built-in web search (the binary's `web_search` strings are Bedrock provider tool
   versions). Kill switch: `"disabledTools": ["fetch_web_content"]` in
   `~/.cline/data/settings/global-settings.json` (path overridable via
   `CLINE_GLOBAL_SETTINGS_PATH`); a disabled tool is dropped from the available set.
-  `--yolo` mode also deactivates web fetch.
+  `--yolo` mode also deactivates web fetch. Current docs.cline.bot documents the SDK's
+  `toolPolicies: { enabled: false }` as the disable mechanism and no longer mentions the
+  `disabledTools` key, which still exists in the settings file (re-verified 2026-10-21).
 - **MCP registration** — `~/.cline/settings/cline_mcp_settings.json`
   (`CLINE_MCP_SETTINGS_PATH`), written by the `clite mcp` wizard in a nested form:
   `mcpServers.<name>.transport` with `type` (`stdio` | `sse` | `streamableHttp`) plus
@@ -120,6 +125,13 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   Codex identifies itself in the initialize handshake as clientInfo name `codex-mcp-client`
   with title `Codex`
   ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs)).
+  The official docs moved to learn.chatgpt.com
+  ([MCP](https://learn.chatgpt.com/docs/extend/mcp),
+  [config reference](https://learn.chatgpt.com/docs/config-file/config-reference); the old
+  developers.openai.com URLs 308-redirect there) and now document every key above — but
+  state 10 s/60 s timeout defaults, which describe an older release line; the 30 s/300 s
+  constants above are the facts at the locked 0.163.0 (docs discrepancy re-verified
+  2026-10-21).
 - **Rules** — `~/.codex/AGENTS.md` (with `AGENTS.override.md` preferred) at user scope;
   every `AGENTS.md` from the project root down to the cwd, concatenated root→cwd.
   Extensible via `project_doc_fallback_filenames` and `developer_instructions`
@@ -257,7 +269,9 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
 - **Rules** — `~/.copilot/copilot-instructions.md` (user),
   `.github/copilot-instructions.md` (repo) and `.github/instructions/**/*.instructions.md`
   (path-scoped via `applyTo` globs); `AGENTS.md`/`CLAUDE.md` discovery (changelog-dated
-  ≤1.0.86; `GEMINI.md` could not be dated to the lock);
+  ≤1.0.86); `GEMINI.md` is never named in the changelog but the official docs have listed
+  it since the page's creation on 2026-02-16 (docs-history-dated, 0.0.41x era — comfortably
+  ≤1.0.98; re-verified 2026-10-21); `.claude/rules` support is changelog-dated 1.0.89;
   `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` adds directories
   ([custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions)).
 
@@ -270,8 +284,9 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
 - **Replacement is exclusive to native extension points** — only OpenCode. Exclusion is
   the general forced path on MCP hosts. The two structural limits: OpenCode search has no
   middle tier, and Cursor search cannot be forced at all.
-- **Version drift to re-verify on the next baseline pass:** Cline's docs describe the 3.x
-  `cline` binary while the lock is 0.0.13 `clite`; Codex's config docs have moved and
-  describe a newer release; Copilot's `GEMINI.md` support could not be changelog-dated to
-  ≤1.0.98. Protocol-revision evidence for every host lives in
-  [mcp-compatibility.md](mcp-compatibility.md).
+- **Version drift to re-verify on the next baseline pass:** Cline's `cline` 3.x package
+  (3.0.73 at 2026-10-21) has superseded the locked 0.0.13 `clite`; adopting it means
+  re-verifying that host's whole row (the documented kill switch already differs: SDK
+  `toolPolicies`). Codex's docs location and Copilot's `GEMINI.md` dating were re-verified
+  2026-10-21 and are settled in their sections above. Protocol-revision evidence for every
+  host lives in [mcp-compatibility.md](mcp-compatibility.md).

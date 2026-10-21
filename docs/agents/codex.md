@@ -132,7 +132,7 @@ Ask naturally:
 
 ```text
 Search the web for the latest Codex MCP config changes and cite the sources.
-Fetch https://developers.openai.com/codex/mcp and summarize the config keys.
+Fetch https://learn.chatgpt.com/docs/extend/mcp and summarize the config keys.
 ```
 
 The model calls `mcp__deepseek__deepseek_web_search` or `mcp__deepseek__deepseek_fetch`.

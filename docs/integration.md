@@ -98,8 +98,9 @@ the details: built-in web tools and their kill switches, MCP registration, and r
 - OpenCode: [plugin API](https://opencode.ai/v2/docs/build/plugins)
 - Claude Code: [MCP](https://code.claude.com/docs/en/mcp),
   [tools reference](https://code.claude.com/docs/en/tools-reference)
-- Codex: [MCP](https://developers.openai.com/codex/mcp),
-  [CLI](https://developers.openai.com/codex/cli)
+- Codex: [MCP](https://learn.chatgpt.com/docs/extend/mcp),
+  [CLI](https://learn.chatgpt.com/docs/codex/cli),
+  [config reference](https://learn.chatgpt.com/docs/config-file/config-reference)
 - Cursor: [MCP](https://cursor.com/docs/mcp),
   [CLI changelog](https://cursor.com/docs/cli/changelog)
 - Copilot CLI: [repository](https://github.com/github/copilot-cli),
