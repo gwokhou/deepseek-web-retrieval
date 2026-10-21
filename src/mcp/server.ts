@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/server"
-import type { CallToolResult } from "@modelcontextprotocol/server"
+import type { CallToolResult, ServerContext } from "@modelcontextprotocol/server"
 import * as z from "zod/v4"
 import { fetchDocument, searchWeb } from "../core/client"
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants"
@@ -14,6 +14,7 @@ import { formatSearchResults } from "../core/format"
 import type { ResolvedOptions, SearchResult } from "../core/types"
 import pkg from "../../package.json"
 import { requireApiKey } from "./auth"
+import { omitStructuredContent } from "./client"
 import type { Env } from "./config"
 
 export const MCP_SERVER_NAME = "deepseek-web-retrieval"
@@ -27,26 +28,8 @@ const SEARCH_INPUT = z.object({
     ),
 })
 
-const SEARCH_OUTPUT = z.object({
-  results: z.array(
-    z.object({
-      url: z.string(),
-      title: z.string().optional(),
-      content: z.string().optional(),
-      published: z.number().optional(),
-    }),
-  ),
-})
-
 const FETCH_INPUT = z.object({
   url: z.string().min(1).describe("Absolute http:// or https:// URL to fetch. Credentials are rejected."),
-})
-
-const FETCH_OUTPUT = z.object({
-  url: z.string(),
-  title: z.string(),
-  content: z.string(),
-  truncated: z.boolean(),
 })
 
 const SEARCH_DESCRIPTION =
@@ -76,17 +59,15 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
         title: "DeepSeek Web Search",
         description: SEARCH_DESCRIPTION,
         inputSchema: SEARCH_INPUT,
-        outputSchema: SEARCH_OUTPUT,
         annotations: { readOnlyHint: true },
       },
       async ({ query }, ctx) => {
         try {
           const request = requestContext(config, env, ctx.mcpReq.signal)
           const results = await searchWeb(query, config.search, request)
-          return {
-            content: [{ type: "text", text: formatSearchResults(results) }],
-            structuredContent: { results: results.map(toStructuredResult) },
-          }
+          return callResult(server, ctx, formatSearchResults(results), {
+            results: results.map(toStructuredResult),
+          })
         } catch (error) {
           return toErrorResult(error)
         }
@@ -101,22 +82,18 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
         title: "DeepSeek Fetch",
         description: FETCH_DESCRIPTION,
         inputSchema: FETCH_INPUT,
-        outputSchema: FETCH_OUTPUT,
         annotations: { readOnlyHint: true },
       },
       async ({ url }, ctx) => {
         try {
           const request = requestContext(config, env, ctx.mcpReq.signal)
           const page = await fetchDocument(url, config.fetch, request)
-          return {
-            content: [{ type: "text", text: page.content }],
-            structuredContent: {
-              url: page.url,
-              title: page.title,
-              content: page.content,
-              truncated: page.truncated,
-            },
-          }
+          return callResult(server, ctx, page.content, {
+            url: page.url,
+            title: page.title,
+            content: page.content,
+            truncated: page.truncated,
+          })
         } catch (error) {
           return toErrorResult(error)
         }
@@ -129,6 +106,23 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
 
 function requestContext(config: ResolvedOptions, env: Env, signal: AbortSignal) {
   return { signal, auth: { apiKey: requireApiKey(env) }, retry: config.retry }
+}
+
+/**
+ * Text content always reaches the model; the structured mirror is dropped for
+ * clients that would replace the text with its serialized JSON (Codex does).
+ * The tools declare no `outputSchema` on purpose: the SDK rejects text-only
+ * results for a tool with a declared schema ("no structured content was
+ * provided"), and no host in the matrix validates the schema anyway.
+ */
+function callResult(
+  server: McpServer,
+  ctx: ServerContext,
+  text: string,
+  structured: Record<string, unknown>,
+): CallToolResult {
+  if (omitStructuredContent(server, ctx)) return { content: [{ type: "text", text }] }
+  return { content: [{ type: "text", text }], structuredContent: structured }
 }
 
 function toStructuredResult(result: SearchResult) {

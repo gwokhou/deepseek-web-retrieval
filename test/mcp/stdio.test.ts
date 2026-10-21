@@ -13,13 +13,16 @@ beforeAll(() => {
   if (build.status !== 0) throw new Error("`bun run build` failed; cannot run the stdio smoke test")
 })
 
-async function spawnCli(env: Record<string, string>): Promise<Client> {
+async function spawnCli(
+  env: Record<string, string>,
+  clientInfo: { name: string; version: string } = { name: "deepseek-web-retrieval-test", version: "0.0.0" },
+): Promise<Client> {
   const transport = new StdioClientTransport({
     command: "node",
     args: [CLI],
     env: { PATH: process.env.PATH ?? "", ...env },
   })
-  const client = new Client({ name: "deepseek-web-retrieval-test", version: "0.0.0" })
+  const client = new Client(clientInfo)
   await client.connect(transport)
   return client
 }
@@ -32,6 +35,27 @@ describe("built CLI smoke test", () => {
       expect(listed.tools.map((tool) => tool.name).sort()).toEqual(["deepseek_fetch", "deepseek_web_search"])
 
       // Local validation only: rejected before any network request.
+      const result = await client.callTool({
+        name: "deepseek_fetch",
+        arguments: { url: "not-a-url" },
+      })
+      expect(result.isError).toBe(true)
+    } finally {
+      await client.close()
+    }
+  })
+
+  test("handshakes and serves tools when the client identifies as Codex", async () => {
+    const client = await spawnCli(
+      { DEEPSEEK_API_KEY: "sk-test" },
+      { name: "codex-mcp-client", version: "0.163.0" },
+    )
+    try {
+      const listed = await client.listTools()
+      expect(listed.tools.map((tool) => tool.name).sort()).toEqual(["deepseek_fetch", "deepseek_web_search"])
+
+      // The shaping itself is asserted in server.test.ts and modern.test.ts; over real
+      // stdio this guards the initialize handshake against the Codex identity.
       const result = await client.callTool({
         name: "deepseek_fetch",
         arguments: { url: "not-a-url" },

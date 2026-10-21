@@ -16,6 +16,12 @@ The tools appear in Codex as `mcp__deepseek__deepseek_web_search` and
 `mcp__deepseek__deepseek_fetch`. Codex's built-in `web_search` tool is not replaced; see
 [Control tiers](#control-tiers) for routing it away.
 
+The server recognizes Codex's MCP client identity (`codex-mcp-client`, declared in the
+initialize handshake) and returns text-only tool results: Codex replaces the content
+blocks with the serialized `structuredContent` JSON when it is present, so for Codex the
+structured mirror is omitted and the model reads clean Markdown. Other clients receive
+both the text and `structuredContent`.
+
 For shared search/fetch limits, retries, and privacy behavior, see
 [General behavior](../../README.md#general-behavior).
 
@@ -163,7 +169,7 @@ defaults and clamping match the other adapters. `DEEPSEEK_API_KEY` goes in `env_
 | Server fails to start or `HTTP 401` from the tools | `DEEPSEEK_API_KEY` must be set in the shell that launches Codex and forwarded via `env_vars`; stdio children do not inherit the environment. |
 | Both tools missing after startup | At least one of `DEEPSEEK_ENABLE_SEARCH`/`DEEPSEEK_ENABLE_FETCH` must stay enabled; the server exits when both are false. |
 | Search still uses the built-in tool under the forced tier | The kill switch is the top-level `web_search = "disabled"` key; the `[tools] web_search` form is a no-op at 0.163.0. |
-| Tool results look like raw JSON | When a result has `structuredContent`, Codex replaces the content blocks with the serialized JSON — expected behavior. |
+| Tool results look like raw JSON | The server omits `structuredContent` for Codex's `codex-mcp-client` client identity so the model reads Markdown; if JSON still appears, a newer Codex renamed the identity — report it. |
 | Tools time out before the configured DeepSeek timeout | Codex's per-server `tool_timeout_sec` defaults to 300 s — above the 120 s `DEEPSEEK_*_TIMEOUT_MS` maximum — so this only happens if you lowered it; raise it back above the DeepSeek timeout. |
 | Routing not exclusive | Other `[mcp_servers.*]` entries stay registered and are noted in the plan. Under a forced tier, an entry that looks web-capable makes `init` refuse — Codex has no per-server kill switch, so remove the server or restrict its tools via `disabled_tools` by hand. |
 | `HTTP 402`, `HTTP 429` | Top up the DeepSeek account; wait, reduce concurrency, or set `DEEPSEEK_MAX_RETRIES`. |

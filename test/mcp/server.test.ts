@@ -52,12 +52,13 @@ async function connectPersona(
   version?: string,
   env: Record<string, string | undefined> = { DEEPSEEK_API_KEY: "sk-test" },
   config: ResolvedOptions = resolvePluginOptions(),
+  clientInfo: { name: string; version: string } = { name: "deepseek-web-retrieval-test", version: "0.0.0" },
 ): Promise<Persona> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   const server: McpServer = createDeepSeekServer(config, env)
   await server.connect(serverTransport)
   const client = new Client(
-    { name: "deepseek-web-retrieval-test", version: "0.0.0" },
+    clientInfo,
     version ? { supportedProtocolVersions: [version] } : undefined,
   )
   await client.connect(clientTransport)
@@ -304,6 +305,52 @@ describe("MCP server over the legacy protocol eras", () => {
       expect(result.isError).toBe(true)
       expect((result.content[0] as { text: string }).text).toContain("DEEPSEEK_API_KEY")
       expect(captured).toBeUndefined()
+    } finally {
+      await persona.close()
+    }
+  })
+})
+
+describe("client-aware output shaping", () => {
+  test("omits structuredContent for Codex's client identity so the model reads the text blocks", async () => {
+    stubFetch(SEARCH_RESULTS)
+    const persona = await connectPersona("2025-06-18", undefined, undefined, {
+      name: "codex-mcp-client",
+      version: "0.163.0",
+    })
+    try {
+      const search = await persona.client.callTool({
+        name: "deepseek_web_search",
+        arguments: { query: "deepseek mcp" },
+      })
+      expect(search.isError).toBeFalsy()
+      expect((search.content[0] as { text: string }).text).toContain("1. [First](https://a.example/one)")
+      expect((search as { structuredContent?: unknown }).structuredContent).toBeUndefined()
+
+      stubFetch({ title: "Example", content: "Body text." })
+      const fetched = await persona.client.callTool({
+        name: "deepseek_fetch",
+        arguments: { url: "https://a.example/one" },
+      })
+      expect(fetched.isError).toBeFalsy()
+      expect((fetched.content[0] as { text: string }).text).toContain("# Example")
+      expect((fetched as { structuredContent?: unknown }).structuredContent).toBeUndefined()
+    } finally {
+      await persona.close()
+    }
+  })
+
+  test("keeps structuredContent for other clients on the same protocol revision", async () => {
+    stubFetch(SEARCH_RESULTS)
+    const persona = await connectPersona("2025-06-18")
+    try {
+      const search = await persona.client.callTool({
+        name: "deepseek_web_search",
+        arguments: { query: "deepseek mcp" },
+      })
+      expect(
+        (search as { structuredContent?: { results: unknown[] } }).structuredContent?.results,
+      ).toHaveLength(4)
     } finally {
       await persona.close()
     }

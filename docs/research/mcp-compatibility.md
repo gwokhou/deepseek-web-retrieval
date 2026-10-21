@@ -107,12 +107,17 @@ differences:
    capability; do not rely on resources, prompts, sampling, elicitation, or roots — the
    hosts' client capabilities are inconsistent (Codex has elicitation only; Pi serves
    roots). Always return readable
-   text in `content` blocks, and mirror the same data in `structuredContent` for
-   `2025-06-18`+ clients — the spec's own backwards-compat SHOULD. This split matters in
-   practice: Codex *replaces* content with `structuredContent` when present; Cline reads
+   text in `content` blocks, and mirror the same data in `structuredContent` — the
+   spec's own backwards-compat SHOULD — except for clients that would replace the text
+   with its serialized JSON: Codex *replaces* content with `structuredContent` when
+   present, so the shipped server detects its `codex-mcp-client` identity (the
+   initialize `clientInfo` on handshake-era connections, the per-request envelope on
+   `2026-07-28`) and omits the mirror for it. Cline reads
    text content only; Pi is
    content-first, falling back to `structuredContent` only when a result has no content
-   blocks (verified in `tools.ts` at v1.3.0).
+   blocks (verified in `tools.ts` at v1.3.0). No `outputSchema` is declared: the SDK
+   rejects text-only results for a tool with a declared schema, and no host in the
+   matrix validates the schema anyway.
 2. **stdio is the universal transport.** Every host in the matrix launches stdio servers
    with the same conceptual JSON (`mcpServers` → `command`/`args`/`env`), differing only in
    file location and cosmetic field names. stdio needs no OAuth and no URL config, and the
