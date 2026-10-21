@@ -2,9 +2,11 @@
 
 All notable changes to this project are documented here, with one sentence per item.
 
-## Unreleased
+## 0.5.1
 
-- Automate tag-triggered npm trusted publishing and GitHub Releases after the existing CI gates, with changelog notes and safe retries.
+- Publish npm packages through GitHub Actions trusted publishing and create GitHub Releases automatically from version tags.
+- Gate releases on matching versions and changelog entries, the existing CI matrix, and installation tests of the exact release tarball.
+- Resume interrupted releases safely by verifying published package integrity and preserving existing GitHub Releases.
 
 ## 0.5.0
 
