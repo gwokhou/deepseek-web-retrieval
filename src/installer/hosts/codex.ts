@@ -11,7 +11,18 @@ import { API_KEY_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../formats/rules"
 import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent"
 import { planHeader } from "./shared"
-import type { ConfigOp, FileEdit, HostPaths, InstallRecord, InstallerInput, InstallPlan } from "../types"
+import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallRecord, InstallPlan } from "../types"
+
+/**
+ * The Codex release this installer's facts are verified against — the lock in
+ * docs/hosts.jsonc; the drift note fires when the probed CLI differs.
+ */
+export const CODEX_TESTED_VERSION = "0.163.0"
+
+/** Parses `codex --version` output (`codex-cli 0.163.0`) into the bare version. */
+export function parseCodexVersion(output: string): string | undefined {
+  return /\bcodex(?:-cli)?\s+(\d+\.\d+\.\d+)\b/.exec(output)?.[1]
+}
 
 /** Codex config is user-level only; project scope keeps the rules file project-local. */
 function codexPaths(input: InstallerInput): HostPaths {
@@ -32,6 +43,14 @@ export function planCodex(input: InstallerInput, _previous: InstallRecord | unde
   const notes = [...header.notes]
   const errors = [...header.errors]
   const edits: FileEdit[] = []
+
+  if (input.hostVersion !== undefined && input.hostVersion !== CODEX_TESTED_VERSION) {
+    notes.push(
+      `Codex ${input.hostVersion} is installed, but this installer's Codex facts are verified against ` +
+        `${CODEX_TESTED_VERSION} (the docs/hosts.jsonc lock). Kill-switch and trap behavior may have drifted ` +
+        "between the two — re-verify the tiers if routing misbehaves.",
+    )
+  }
 
   const tools = loaded.value.tools
   if (isPlainObject(tools) && "web_search" in tools) {

@@ -20,7 +20,8 @@ This is an unofficial community project. It is not affiliated with OpenCode or D
   exactly what was applied
 - **Trap-aware detection** — catches what the agents' own docs don't warn
   about: Codex's silent `[tools] web_search` no-op, Pi's codemode hiding MCP
-  tools; conflicting rules and web-capable servers surface in the plan
+  tools; conflicting rules and web-capable servers surface in the plan, and
+  `init` notes a Codex release that drifts from the tested lock
 - **Git-safe installs** — the key never enters config files
   (`${DEEPSEEK_API_KEY}` indirection or `env_vars`), so a project-scope
   install commits clean

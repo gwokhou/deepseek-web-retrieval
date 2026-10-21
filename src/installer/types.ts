@@ -42,6 +42,11 @@ export interface InstallerInput {
    * extension, or the MCP server). Undefined means the host's default path.
    */
   readonly path?: "extension" | "mcp"
+  /**
+   * The host CLI's version probed at the CLI edge (for drift notes); undefined
+   * means the probe was not attempted or could not read a version.
+   */
+  readonly hostVersion?: string
 }
 
 /** A mutation on a parsed config object, addressed by a dotted path. */

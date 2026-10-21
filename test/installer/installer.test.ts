@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
@@ -6,7 +6,7 @@ import { applyPlan } from "../../src/installer/apply"
 import { applyJsonOps, revertJsonOps } from "../../src/installer/formats/json"
 import { parseJsonc } from "../../src/core/jsonc"
 import { planForHost } from "../../src/installer/hosts"
-import { planCodex } from "../../src/installer/hosts/codex"
+import { planCodex, parseCodexVersion } from "../../src/installer/hosts/codex"
 import { planOpenCode } from "../../src/installer/hosts/opencode"
 import { planPi } from "../../src/installer/hosts/pi"
 import { buildRulesBlock, hasBlock, removeBlock, upsertBlock } from "../../src/installer/formats/rules"
@@ -169,6 +169,23 @@ describe("plans", () => {
     expect(plan.notes.join(" ")).toContain("user level")
     expect(plan.edits.find((edit) => edit.format === "rules")?.file).toBe(join(input.cwd, "AGENTS.md"))
     expect(plan.edits.find((edit) => edit.format === "toml")?.file).toBe(join(input.home, ".codex/config.toml"))
+  })
+
+  test("codex: notes version drift between the probed CLI and the tested lock", () => {
+    const input = makeInput("codex", "global", "optional", "optional")
+    const drifted = planCodex({ ...input, hostVersion: "0.170.1" }, readRecord(input))
+    expect(drifted.notes.join(" ")).toContain("0.170.1")
+    expect(drifted.notes.join(" ")).toContain("0.163.0")
+    const matching = planCodex({ ...input, hostVersion: "0.163.0" }, readRecord(input))
+    expect(matching.notes.join(" ")).not.toContain("drifted")
+    expect(planCodex(input, readRecord(input)).notes.join(" ")).not.toContain("drifted")
+  })
+
+  test("parseCodexVersion reads the codex-cli version line", () => {
+    expect(parseCodexVersion("codex-cli 0.163.0\n")).toBe("0.163.0")
+    expect(parseCodexVersion("codex 0.163.0\n")).toBe("0.163.0")
+    expect(parseCodexVersion("codex-cli unknown\n")).toBeUndefined()
+    expect(parseCodexVersion("")).toBeUndefined()
   })
 
   test("codex: off tiers disable tools via disabled_tools, keeping the user's own entries", () => {
@@ -695,6 +712,50 @@ describe("format codecs", () => {
 })
 
 describe("drift refusal and CLI edges", () => {
+  test("runInstallerCli probes codex --version and surfaces drift in the plan", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-cli-home-"))
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-cli-cwd-"))
+    const bin = mkdtempSync(join(tmpdir(), "dwr-cli-bin-"))
+    writeFileSync(join(bin, "codex"), "#!/bin/sh\necho 'codex-cli 9.9.9'\n")
+    chmodSync(join(bin, "codex"), 0o755)
+    const logs: string[] = []
+    const errorsOut: string[] = []
+    const originalLog = console.log
+    const originalError = console.error
+    const previousHome = process.env.HOME
+    const previousPath = process.env.PATH
+    console.log = (line: string) => logs.push(line)
+    console.error = (line: string) => errorsOut.push(line)
+    process.env.HOME = home
+    process.env.PATH = bin
+    try {
+      const code = await runInstallerCli([
+        "init", "--host", "codex", "--scope", "global",
+        "--search", "optional", "--fetch", "optional", "--cwd", cwd,
+      ])
+      expect(code).toBe(0)
+      expect(logs.join("\n")).toContain("9.9.9")
+      expect(logs.join("\n")).toContain("0.163.0")
+
+      // Without a codex binary the probe skips with a stderr note, plan unaffected.
+      logs.length = 0
+      process.env.PATH = join(bin, "empty")
+      const code2 = await runInstallerCli([
+        "init", "--host", "codex", "--scope", "global",
+        "--search", "optional", "--fetch", "optional", "--cwd", cwd,
+      ])
+      expect(code2).toBe(0)
+      expect(errorsOut.join("\n")).toContain("version-drift check was skipped")
+      expect(logs.join("\n")).not.toContain("9.9.9")
+    } finally {
+      console.log = originalLog
+      console.error = originalError
+      if (previousHome === undefined) delete process.env.HOME
+      else process.env.HOME = previousHome
+      process.env.PATH = previousPath
+    }
+  })
+
   test("apply refuses when a set-op path changed since the plan was rendered", () => {
     const input = makeInput("pi", "project", "optional", "optional", "mcp")
     mkdirSync(join(input.cwd, ".pi"), { recursive: true })

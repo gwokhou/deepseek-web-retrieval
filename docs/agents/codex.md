@@ -48,7 +48,11 @@ what the plan applied (snapshots, merged entries, created files). Codex's config
 `~/.codex/config.toml` at the user level only, so the server registration and kill switch
 are written there even for `--scope project`; the rules file follows the scope. An `off`
 capability is written as the tool's name in the server entry's `disabled_tools` array —
-Codex's own mechanism — merging with any entries you put there yourself.
+Codex's own mechanism — merging with any entries you put there yourself. When `codex` is
+on PATH, `init` also probes `codex --version` and adds a plan note when the installed
+release differs from the tested lock (see
+[hosts.jsonc](../hosts.jsonc)) — version-anchored behavior such as the kill switch may
+have drifted between the two.
 
 ### Manual install
 
