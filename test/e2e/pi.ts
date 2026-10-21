@@ -81,39 +81,83 @@ export async function runPiScenario(runner: Runner): Promise<string[]> {
 }
 
 /**
- * Billed, invocation-level Pi scenario, at the same depth as the opencode and
- * codex scenarios. Pi 1.3.0 ships DeepSeek as a native provider that reads
- * DEEPSEEK_API_KEY, so one key pays for both legs: the LLM is
- * `deepseek/deepseek-flash` and the MCP server is the same built cli.js. The
- * config keeps the key out of the file (`${DEEPSEEK_API_KEY}` expands from the
- * shell that launches Pi). Runs in an isolated HOME, so the user-level mcp.json
- * never touches a real one, and the working folder has no `.pi` directory, so
- * print mode never needs a project-trust decision.
+ * Keyless Pi extension-path scenario: the repo checkout itself is the package
+ * source (`packages: ["/work"]` — jiti loads src/pi/extension.ts directly), and
+ * the settings namespace is proven against the real runtime in both directions:
+ * a both-off namespace makes the factory throw through Pi's own
+ * "Failed to load extension" surface, and its removal loads cleanly. No
+ * DeepSeek request is made (the model call fails on a placeholder key after
+ * the factory has already run).
+ */
+export async function runPiExtensionScenario(runner: Runner): Promise<string[]> {
+  const log: string[] = []
+  const settingsDir = join(runner.homeDir.host, ".pi", "agent")
+  mkdirSync(settingsDir, { recursive: true })
+  const settingsPath = join(settingsDir, "settings.json")
+  const env = { HOME: runner.homeDir.guest, DEEPSEEK_API_KEY: "sk-e2e-placeholder" }
+  const cwd = runner.projectDir.guest
+
+  writeFileSync(settingsPath, JSON.stringify({ packages: [runner.repoDir] }, null, 2))
+
+  const listed = await runner.run(["pi", "list"], { cwd, env, timeoutMs: RUN_TIMEOUT_MS })
+  check(
+    listed.exitCode === 0 && listed.stdout.includes(runner.repoDir),
+    "`pi list` does not show the checkout package",
+    excerpt(listed.stdout || listed.stderr),
+  )
+
+  // Both capabilities off in the settings namespace: the factory throws at load.
+  writeFileSync(
+    settingsPath,
+    JSON.stringify({ packages: [runner.repoDir], deepseekWebRetrieval: { enableSearch: false, enableFetch: false } }, null, 2),
+  )
+  const refused = await runSession(runner, env, cwd)
+  const refusedText = `${refused.stdout}\n${refused.stderr}`
+  check(refusedText.includes("Failed to load extension"), "the both-off extension did not fail at load", excerpt(refusedText))
+  check(refusedText.includes("at least one must stay enabled"), "the load failure is not the precheck message", excerpt(refusedText))
+
+  // Namespace removed: the same package loads cleanly (the model call's 401 is
+  // expected and arrives after the factory has run).
+  writeFileSync(settingsPath, JSON.stringify({ packages: [runner.repoDir] }, null, 2))
+  const clean = await runSession(runner, env, cwd)
+  const cleanText = `${clean.stdout}\n${clean.stderr}`
+  check(!cleanText.includes("Failed to load extension"), "the extension failed to load from the checkout", excerpt(cleanText))
+
+  log.push("pi-extension: settings namespace both-off refused at load, removal loaded clean (keyless)")
+  return log
+}
+
+async function runSession(
+  runner: Runner,
+  env: Record<string, string | undefined>,
+  cwd: string,
+): Promise<{ readonly stdout: string; readonly stderr: string }> {
+  return runner.run(["pi", "--print", "--no-tools", "--model", "deepseek/deepseek-flash", "hi"], {
+    cwd,
+    env,
+    timeoutMs: RUN_TIMEOUT_MS,
+  })
+}
+
+/**
+ * Billed, invocation-level Pi scenario on the extension path (the recommended
+ * one): the repo checkout is the package source, so jiti loads the adapter's
+ * TypeScript entry directly and the tools run in-process. Pi 1.3.0 ships
+ * DeepSeek as a native provider that reads DEEPSEEK_API_KEY, so one key pays
+ * for both legs: the LLM is `deepseek/deepseek-flash` and the retrieval goes
+ * through the extension's own tool execution. Runs in an isolated HOME, so the
+ * user-level settings.json never touches a real one.
  */
 export async function runPiBilledScenario(runner: Runner): Promise<string[]> {
   const apiKey = requireEnv("DEEPSEEK_API_KEY", "the pi billed scenario makes real billed DeepSeek requests")
   const log: string[] = []
   const env = { HOME: runner.homeDir.guest, DEEPSEEK_API_KEY: apiKey }
 
-  const configDir = join(runner.homeDir.host, ".pi", "agent")
-  mkdirSync(configDir, { recursive: true })
+  const settingsDir = join(runner.homeDir.host, ".pi", "agent")
+  mkdirSync(settingsDir, { recursive: true })
   writeFileSync(
-    join(configDir, "mcp.json"),
-    JSON.stringify(
-      {
-        mcpServers: {
-          deepseek: {
-            command: "node",
-            args: [join(runner.repoDir, "dist", "cli.js")],
-            env: { DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY}" },
-            exposure: "direct",
-            enabled: true,
-          },
-        },
-      },
-      null,
-      2,
-    ),
+    join(settingsDir, "settings.json"),
+    JSON.stringify({ packages: [runner.repoDir] }, null, 2),
   )
 
   const version = await runner.run(["pi", "--version"], { cwd: runner.projectDir.guest, env })
@@ -122,22 +166,22 @@ export async function runPiBilledScenario(runner: Runner): Promise<string[]> {
   const fetchReply = await runPrompt(
     runner,
     env,
-    "Use the mcp__deepseek__deepseek_fetch tool to fetch https://example.com and reply with only the page's H1 heading.",
+    "Use the deepseek_fetch tool to fetch https://example.com and reply with only the page's H1 heading.",
   )
   check(
     /Example Domain/i.test(fetchReply),
     "fetch prompt did not return the example heading",
     excerpt(fetchReply),
   )
-  log.push("pi: model fetched example.com through deepseek_fetch (billed)")
+  log.push("pi: model fetched example.com through the extension's deepseek_fetch (billed)")
 
   const searchReply = await runPrompt(
     runner,
     env,
-    'Use the mcp__deepseek__deepseek_web_search tool to search the web for "pi coding agent" and reply with exactly one source URL and nothing else.',
+    'Use the deepseek_web_search tool to search the web for "pi coding agent" and reply with exactly one source URL and nothing else.',
   )
   check(/https?:\/\/\S+/i.test(searchReply), "search prompt did not return a URL", excerpt(searchReply))
-  log.push("pi: model searched through deepseek_web_search (billed)")
+  log.push("pi: model searched through the extension's deepseek_web_search (billed)")
 
   log.push("note: real DeepSeek requests were billed by this scenario (LLM + retrieval)")
   return log

@@ -9,7 +9,7 @@ import { runCodexScenario } from "./codex"
 import { runInstallerScenario } from "./installer"
 import { runOpencodeScenario } from "./opencode"
 import { runPkgScenario } from "./pkg"
-import { runPiBilledScenario, runPiScenario } from "./pi"
+import { runPiBilledScenario, runPiExtensionScenario, runPiScenario } from "./pi"
 import { runPreferredScenario } from "./preferred"
 import { runReinitScenario } from "./reinit"
 import { createDockerRunner, ensureDockerImage } from "./runner"
@@ -28,6 +28,11 @@ const SCENARIOS: readonly Scenario[] = [
     name: "pi",
     requiresApiKey: false,
     run: (runner) => runPiScenario(runner),
+  },
+  {
+    name: "pi-extension",
+    requiresApiKey: false,
+    run: (runner) => runPiExtensionScenario(runner),
   },
   {
     name: "pi-billed",
