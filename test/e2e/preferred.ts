@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { parseJsonc } from "../../src/core/jsonc"
 import { check, excerpt, requireEnv } from "./assert"
-import { findPackedTarball } from "./tarball"
+import { findPackedTarball, prewarmNpx } from "./tarball"
 import type { Runner } from "./runner"
 
 const RUN_TIMEOUT_MS = 240_000
@@ -51,8 +51,7 @@ export async function runPreferredScenario(runner: Runner): Promise<string[]> {
   )
   log.push("preferred: installer wrote .pi/mcp.json and the AGENTS.md rules block at project scope")
 
-  const prewarm = await runner.run(["npx", "-y", packageRef, "list"], { cwd, env, timeoutMs: 120_000 })
-  check(prewarm.exitCode === 0, "npx prewarm of the packed tarball failed", excerpt(`${prewarm.stdout}\n${prewarm.stderr}`))
+  await prewarmNpx(runner, env, packageRef)
 
   const searchReply = await runPrompt(
     runner,

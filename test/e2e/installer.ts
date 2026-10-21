@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { parse as parseToml } from "smol-toml"
 import { parseJsonc } from "../../src/core/jsonc"
 import { check, excerpt, ScenarioError } from "./assert"
-import { findPackedTarball } from "./tarball"
+import { findPackedTarball, prewarmNpx } from "./tarball"
 import type { Runner } from "./runner"
 
 interface PiListEntry {
@@ -166,14 +166,6 @@ async function uninstall(
 ): Promise<void> {
   const result = await runner.run(["node", cli, "uninstall", "--host", host, "--scope", scope], { cwd, env })
   check(result.exitCode === 0, `installer uninstall failed (--host ${host} --scope ${scope})`, excerpt(`${result.stdout}\n${result.stderr}`))
-}
-
-/** Warms the npx cache so the later handshake does not pay a cold tarball install inside the server startup timeout. */
-async function prewarmNpx(runner: Runner, env: Record<string, string | undefined>, packageRef: string): Promise<void> {
-  // 300 s: the per-run npm cache starts cold inside the container, and npm 10's
-  // cold dependency resolution has exceeded 120 s on slow links.
-  const result = await runner.run(["npx", "-y", packageRef, "list"], { cwd: runner.projectDir.guest, env, timeoutMs: 300_000 })
-  check(result.exitCode === 0, "npx prewarm of the packed tarball failed", excerpt(`${result.stdout}\n${result.stderr}`))
 }
 
 async function piMcpList(runner: Runner, env: Record<string, string | undefined>, cwd: string): Promise<PiListOutput> {
