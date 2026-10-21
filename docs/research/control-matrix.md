@@ -108,11 +108,16 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   <bool>` form parses but discards the value at 0.163.0 — a silent no-op
   ([config source at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/config/src/config_toml.rs)).
 - **MCP registration** — `~/.codex/config.toml` `[mcp_servers.<name>]`: stdio
-  `command`/`args`/`env`/`env_vars`; `startup_timeout_sec` (10 s), `tool_timeout_sec`
-  (60 s); `enabled_tools`/`disabled_tools`, per-tool approval modes, and output limits.
+  `command`/`args`/`env`/`env_vars`; `startup_timeout_sec` (30 s) and `tool_timeout_sec`
+  (300 s) defaults — the `DEFAULT_STARTUP_TIMEOUT`/`DEFAULT_TOOL_TIMEOUT` constants
+  ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs));
+  `enabled_tools`/`disabled_tools`, per-tool approval modes, and output limits.
   stdio children do not inherit the parent environment (only `HOME`, `PATH`, and explicit
   `env`), so `DEEPSEEK_API_KEY` must be passed explicitly. When a tool result has
   `structuredContent`, Codex replaces the content blocks with the serialized JSON. No SSE.
+  Codex identifies itself in the initialize handshake as clientInfo name `codex-mcp-client`
+  with title `Codex`
+  ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs)).
 - **Rules** — `~/.codex/AGENTS.md` (with `AGENTS.override.md` preferred) at user scope;
   every `AGENTS.md` from the project root down to the cwd, concatenated root→cwd.
   Extensible via `project_doc_fallback_filenames` and `developer_instructions`
