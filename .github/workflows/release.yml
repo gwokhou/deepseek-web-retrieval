@@ -47,10 +47,10 @@ jobs:
       - run: bun run build
       - name: Pack the release candidate
         run: npm pack --ignore-scripts --json --pack-destination "$RUNNER_TEMP/release" > "$RUNNER_TEMP/release/pack.json"
-      - name: Check publication payload without publishing
+      - name: Smoke-test the exact release artifact
         env:
           TARBALL: ${{ steps.metadata.outputs.tarball }}
-        run: npm publish "$RUNNER_TEMP/release/$TARBALL" --dry-run --ignore-scripts --access public
+        run: node scripts/test-package.mjs "$RUNNER_TEMP/release/$TARBALL"
       - uses: actions/upload-artifact@v4
         with:
           name: release-candidate

@@ -40,7 +40,7 @@ local validation, so they do not make billed API calls.
 Push a stable `vX.Y.Z` tag to run `.github/workflows/release.yml`; the tagged
 commit must be on `main`, `package.json` must contain `X.Y.Z`, and `CHANGELOG.md`
 must contain one nonempty `## X.Y.Z` section. Prerelease tags are not supported.
-The workflow builds a tarball, runs the existing CI matrix and keyless Docker
+The workflow builds and smoke-tests a tarball, runs the existing CI matrix and keyless Docker
 regressions, publishes that exact tarball to npm with OIDC and provenance, verifies
 its registry integrity, then creates a GitHub Release from that changelog section.
 Only the final publish job receives npm OIDC and GitHub release permissions.
@@ -96,6 +96,9 @@ Node executable using normal npm peer resolution, and fails if any host SDK is
 installed alongside the standalone MCP package; it requires a current build
 (`bun run build`). The Docker `pkg` scenario also loads the packed native adapters
 in the pinned Pi and OpenCode hosts, using the SDKs provided by those hosts.
+To validate an existing artifact without repacking it, run
+`node scripts/test-package.mjs /absolute/path/to/package.tgz`; the release workflow
+uses this mode before uploading the exact candidate for the publish job.
 
 Host SDKs are optional peers because only the corresponding native adapter needs
 them; the MCP CLI does not import them. Pi peers use `^1.3.0` and OpenCode retains

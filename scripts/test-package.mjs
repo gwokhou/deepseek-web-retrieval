@@ -26,21 +26,17 @@ function run(command, args, options = {}) {
 try {
   mkdirSync(home);
   mkdirSync(project);
-  const packed = JSON.parse(
-    run("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch], { cwd: root }),
-  );
+  let tarball = process.argv[2] ? resolve(process.argv[2]) : undefined;
+  if (!tarball) {
+    const packed = JSON.parse(
+      run("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", scratch], { cwd: root }),
+    );
+    tarball = join(scratch, packed[0].filename);
+  }
   // A standalone MCP install must not pull in unrelated host SDKs.
   run(
     "npm",
-    [
-      "install",
-      "--prefix",
-      join(scratch, "installed"),
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      join(scratch, packed[0].filename),
-    ],
+    ["install", "--prefix", join(scratch, "installed"), "--ignore-scripts", "--no-audit", "--no-fund", tarball],
     { cwd: scratch },
   );
   for (const peer of ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent", "@opencode/plugin"]) {
