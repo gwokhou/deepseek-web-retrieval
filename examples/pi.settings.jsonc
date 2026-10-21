@@ -1,0 +1,17 @@
+{
+  // Pi extension config: ~/.pi/agent/settings.json (user) or .pi/settings.json (project).
+  // "packages" sources resolve at session start; the first launch fetches
+  // npm:deepseek-web-retrieval from the registry (pi update --extensions refreshes it).
+  // The key never enters this file: the extension reads DEEPSEEK_API_KEY from the
+  // environment of the Pi process itself.
+  "packages": [
+    "npm:deepseek-web-retrieval"
+  ],
+  // Optional: the off switches the installer writes; they outrank the
+  // DEEPSEEK_ENABLE_* environment variables. Pi preserves unknown keys like
+  // this namespace on read and on its own rewrites.
+  "deepseekWebRetrieval": {
+    // "enableSearch": false,
+    // "enableFetch": false
+  }
+}

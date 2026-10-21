@@ -3,16 +3,16 @@
 **Bringing [DeepSeek's in-house Search and Fetch APIs](https://api-docs.deepseek.com/guides/search) to coding agents.**
 
 An adapter layer for coding agents. The core is agent-agnostic; each adapter exposes the
-same retrieval behavior to a specific agent. OpenCode v2 has a native plugin adapter, and
-an MCP server covers MCP-capable hosts, with Pi as the first guided host. Guides for other
-coding agents are in progress.
+same retrieval behavior to a specific agent. OpenCode v2 has a native plugin adapter, Pi a
+native extension adapter, and an MCP server covers every other MCP-capable host. Guides for
+other coding agents are in progress.
 
 This is an unofficial community project. It is not affiliated with OpenCode or DeepSeek.
 
 ## Features
 
-- **One core, every host** — a native OpenCode v2 plugin plus a stdio MCP
-  server for everything else; identical retrieval behavior on each
+- **One core, every host** — a native OpenCode v2 plugin, a native Pi extension, plus a
+  stdio MCP server for everything else; identical retrieval behavior on each
 - **Tiered routing** — optional, preferred, forced, or off, per capability;
   forced refuses when exclusivity is impossible
 - **Plan-then-apply installer** — every write previewed as old → new before
@@ -32,7 +32,7 @@ This is an unofficial community project. It is not affiliated with OpenCode or D
 Shipped adapters:
 
 - [OpenCode v2 setup and usage](docs/agents/opencode-v2.md) — native plugin API
-- [Pi setup and usage](docs/agents/pi.md) — MCP server over stdio
+- [Pi setup and usage](docs/agents/pi.md) — native extension API (MCP fallback)
 - [Codex setup and usage](docs/agents/codex.md) — MCP server over stdio
 
 The MCP server works with any host that supports MCP tools over stdio. The

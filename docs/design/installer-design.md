@@ -127,14 +127,17 @@ pointing at the removed plugin, and the user must clean up by hand.
 
 ## Tier-to-artifact mapping
 
+Pi has two integration paths (`--path extension` by default, `--path mcp` as the fallback);
+the artifacts below name the path where they differ.
+
 | Choice | Artifacts |
 | --- | --- |
-| Optional | Host config registering the server, plus host-side per-tool filtering where supported (Copilot `tools` whitelist, Codex `enabled_tools`); Pi needs `"exposure": "direct"` |
-| Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](../research/control-matrix.md#per-host-reference)) |
+| Optional | Host config registering the integration: Pi's extension path appends an `npm:<package>` source to `packages` in settings.json; the MCP paths register the server (Pi's MCP entry needs `"exposure": "direct"`; the extension path needs nothing — extension tools are `direct` by Pi's own default) |
+| Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](../research/control-matrix.md#per-host-reference)); the rules name the path's tool ids (`deepseek_web_search` for the extension, `mcp__deepseek__deepseek_web_search` for MCP) |
 | Forced (replacement) | OpenCode plugin options (`setDefaultWebsearch` / `fetchOverrideWebfetch`) |
-| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found — Pi sets their `enabled` key to `false`; Codex, lacking a per-server kill switch, refuses the tier instead |
+| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found — Pi sets their `enabled` key to `false`; Codex, lacking a per-server kill switch, refuses the tier instead; Pi's extension path additionally refuses when a web-capable `packages`/`extensions` source is listed in settings.json (no per-package kill switch exists) |
 | Forced (de-facto) | Nothing beyond the Optional artifacts — no competitor exists |
-| Off | The MCP entry with the capability's false-only server-side switch instead of that tool (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); both capabilities off refuses to install |
+| Off | The MCP entry with the capability's false-only server-side switch instead of that tool (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); Pi's extension path writes the same switches into the `deepseekWebRetrieval` settings namespace the extension reads at load; both capabilities off refuses to install |
 
 OpenCode additionally appends `permissions` allow entries for exactly the tools it
 registers (`websearch`, `deepseek_fetch`, and `webfetch` when fetch is forced), merged
@@ -146,10 +149,10 @@ into any existing `permissions` array rather than replacing it.
   request; deterministic routing removes both the model's discretion and its restraint as
   a cost brake. Every forced-tier plan carries a note naming the README's "Privacy and
   cost" section.
-- **Rules content.** Name the full tool ids (`mcp__deepseek__deepseek_web_search`), state
-  trigger conditions rather than unconditional preference, and list exclusions
-  (localhost/private-network URLs go to local fetch tools; the server blocks them by
-  default).
+- **Rules content.** Name the full tool ids the host will see (`mcp__deepseek__deepseek_web_search`
+  over MCP, `deepseek_web_search` over Pi's extension), state trigger conditions rather than
+  unconditional preference, and list exclusions (localhost/private-network URLs go to local
+  fetch tools; the server blocks them by default).
 
 ## Implementation notes
 

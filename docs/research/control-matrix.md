@@ -136,12 +136,25 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
 
 ### Pi
 
-- **Positioning** — minimal, fully customizable agent (earendil-works). MIT. MCP server
-  plus a TypeScript extension API. See [Pi](../agents/pi.md).
+- **Positioning** — minimal, fully customizable agent (earendil-works). MIT. A TypeScript
+  extension API plus MCP. See [Pi](../agents/pi.md); the shipped adapter is the native
+  extension (`src/pi/`), with the MCP server as the fallback path.
 - **Built-in web tools** — none at 1.3.0. The built-in set is exactly `bash, edit, find,
   grep, ls, powershell, read, write` (default-active: `read, bash, edit, write`); web
   search/fetch arrive via MCP or extensions
   ([tools index at v1.3.0](https://github.com/earendil-works/pi/blob/v1.3.0/packages/coding-agent/src/core/tools/index.ts)).
+- **Extension registration** — `packages` in settings.json (`~/.pi/agent/settings.json` or
+  `.pi/settings.json`): source strings (`npm:<pkg>`, `git:…`, local paths) resolved at
+  session start; `pi install <source>` appends them, and a package's `pi` manifest field
+  names its entry files (loaded via jiti, TypeScript directly). Extension tools default to
+  `exposure: "direct"` — no codemode trap — and run in-process: the key is read from
+  `process.env` (no forwarding), and results bypass the MCP layer entirely, so neither the
+  20 KB truncation nor the 60 s request timeout applies. There is no per-extension options
+  channel: the runtime config surface is the `DEEPSEEK_*` environment (the same pipeline as
+  the MCP server) plus a `deepseekWebRetrieval` settings namespace the installer writes for
+  the off tier — Pi preserves unknown settings keys on read and on its own rewrites
+  (`pi install`), verified at 1.3.0. Action methods such as `getSettings()` cannot be
+  called during extension loading, so the adapter reads the settings files itself.
 - **MCP registration** — `~/.pi/agent/mcp.json` or `.pi/mcp.json`: stdio
   `command`/`args`/`env`/`cwd`, HTTP `url`/`headers`, plus `timeout`, `enabled`,
   `exposure`. MCP tools are hidden from the model by default

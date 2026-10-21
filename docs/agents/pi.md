@@ -2,29 +2,33 @@
 
 Pi adapter for [DeepSeek Web Retrieval](../../README.md).
 
-Integration mechanism: MCP server over stdio, launched from Pi's `mcp.json`. Pi 1.3.0
-negotiates MCP revision `2025-11-25`; the server also accepts clients from `2024-11-05`
-through `2026-07-28`, so the same build works for other MCP hosts (see
-[the compatibility research](../research/mcp-compatibility.md)).
+Integration mechanism: Pi's native extension API — the package's `pi` manifest names
+`src/pi/extension.ts`, and Pi loads it in-process (via jiti, TypeScript directly) at session
+start. The same build also ships an MCP server over stdio as the fallback path
+([below](#the-mcp-fallback-path)); the extension is the recommended one:
 
-When registered, it adds:
+- The tools are declared to the model like built-ins (`exposure: "direct"` is Pi's own
+  default for extension tools — the MCP path's codemode trap does not exist here).
+- Results bypass Pi's MCP layer entirely: no 20 KB middle truncation and no 60 s
+  per-request timeout; the adapter's own output cap is the only limit.
+- The key is read from the Pi process environment — no `env` forwarding, no `${VAR}`
+  indirection in any config file.
+
+When loaded, it adds:
 
 - A `deepseek_web_search` tool backed by DeepSeek Search
 - A `deepseek_fetch` tool backed by DeepSeek Fetch
 
-The tools appear in Pi as `mcp__deepseek__deepseek_web_search` and
-`mcp__deepseek__deepseek_fetch`. Pi's built-in tools are not replaced.
-
-For shared search/fetch limits, retries, and privacy behavior, see
+Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path. For
+shared search/fetch limits, retries, and privacy behavior, see
 [General behavior](../../README.md#general-behavior).
 
 ## Requirements
 
 - Pi 1.3.0 or newer
-- Node.js 20 or newer (`npx` runs the server)
 - A DeepSeek account with access to `/v1/tools/search` and `/v1/tools/fetch`
 - A funded DeepSeek account; Search and Fetch are billed per successful request
-- `DEEPSEEK_API_KEY` set in the server's `env` block
+- `DEEPSEEK_API_KEY` set in the shell that launches Pi
 
 ## Install
 
@@ -36,79 +40,49 @@ npx deepseek-web-retrieval init --host pi --scope <project|global> \
 ```
 
 It prints the full plan — every file, old value → new value, and notes about existing
-MCP servers and the `exposure` requirement — and writes nothing until you pass `--apply`.
-JSON edits preserve comments. `uninstall` restores exactly what the plan applied. Under a
-forced tier, other registered MCP servers that look web-capable are disabled
-(`enabled: false`, prior value snapshotted) so DeepSeek routing is exclusive, and
-`uninstall` restores them. The
-tiers follow the [control matrix](../research/control-matrix.md): Pi ships no built-in web
-tool, so forced is de-facto for both capabilities and `off` writes
-`DEEPSEEK_ENABLE_SEARCH`/`DEEPSEEK_ENABLE_FETCH` into the server's env block.
+packages and MCP servers — and writes nothing until you pass `--apply`. The default path is
+the extension: the plan appends `npm:deepseek-web-retrieval` to the `packages` array in
+`~/.pi/agent/settings.json` (global) or `.pi/settings.json` (project), and Pi resolves the
+source at the next session start (the first launch fetches the package from npm;
+`pi update --extensions` refreshes it later). An off capability is written into the
+`deepseekWebRetrieval` settings namespace the extension reads at load. Pass `--path mcp`
+to install the [MCP fallback path](#the-mcp-fallback-path) instead. `uninstall` restores
+exactly what the plan applied.
 
 ### Manual install
 
-Add the server to `~/.pi/agent/mcp.json` (user) or `.pi/mcp.json` (project):
-
-```jsonc
-{
-  "mcpServers": {
-    "deepseek": {
-      "command": "npx",
-      "args": ["-y", "deepseek-web-retrieval"],
-      "env": { "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}" },
-      "exposure": "direct"
-    }
-  }
-}
-```
-
-`${DEEPSEEK_API_KEY}` expands from the shell that launches Pi, so the key itself stays out
-of the config file. Set it in your shell profile:
+Use Pi's own installer:
 
 ```bash
-export DEEPSEEK_API_KEY="sk-***"
+pi install npm:deepseek-web-retrieval           # ~/.pi/agent/settings.json (user)
+pi install --local npm:deepseek-web-retrieval   # .pi/settings.json (project)
 ```
 
-> [!NOTE]
-> `exposure` matters. Pi 1.3.0 defaults MCP tools to `codemode`, which does not declare
-> them to the model. `"exposure": "direct"` registers the two tools like built-ins so the
-> model can call them. Without it the server connects but the tools are never used.
-
-Verify the registration with `pi mcp list` (or the `/mcp` panel inside a session); Pi
-shows the server's tools when the handshake succeeds. Config changes load with `/reload`
-or a new session.
+Pi reads the package's `pi` manifest and loads `src/pi/extension.ts` at session start. No
+build step and no config entry beyond the `packages` source are needed.
 
 ### Local checkout
 
-To run the server from a checkout instead of the published package (for
-development):
-
 ```bash
 git clone https://github.com/gwokhou/deepseek-web-retrieval.git
-cd deepseek-web-retrieval
-bun install && bun run build
 ```
 
-Then point Pi at the built entry:
+Then point Pi at the checkout (it is itself a valid package):
 
-```jsonc
-{
-  "mcpServers": {
-    "deepseek": {
-      "command": "node",
-      "args": ["/absolute/path/to/deepseek-web-retrieval/dist/cli.js"],
-      "env": { "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}" },
-      "exposure": "direct"
-    }
-  }
-}
+```bash
+pi install /absolute/path/to/deepseek-web-retrieval
 ```
+
+The extension entry imports only host-supplied modules (`@earendil-works/pi-coding-agent`,
+`@earendil-works/pi-ai`) and the package's own `src/core/`, so a plain clone works.
 
 ## Authentication
 
-`DEEPSEEK_API_KEY` is the only source; MCP has no host credential store. The key is read
-per request and sent only to `api.deepseek.com` as a Bearer token. It is not written to
-tool output or logs. Without a key the server exits at startup with a message on stderr.
+`DEEPSEEK_API_KEY` is the only source: the extension runs inside the Pi process and reads
+the environment directly, so the key must be set in the shell that launches Pi (MCP's env
+forwarding does not apply). It is read per request and sent only to `api.deepseek.com` as a
+Bearer token. It is not written to tool output or logs. Without it, the first tool call
+returns an error naming the missing variable.
 
 ## Usage
 
@@ -119,12 +93,15 @@ Search the web for the latest Pi extension API changes and cite the sources.
 Fetch https://pi.dev/docs/latest/extensions and summarize the extension lifecycle.
 ```
 
-The model calls `mcp__deepseek__deepseek_web_search` or `mcp__deepseek__deepseek_fetch`.
+The model calls `deepseek_web_search` or `deepseek_fetch` — the same names over both paths;
+only the MCP fallback prefixes them with `mcp__deepseek__`.
 
 ## Configuration
 
-Set these in the server's `env` block. Values map onto the shared option pipeline, so
-defaults and clamping match the OpenCode adapter.
+The runtime config surface is the same `DEEPSEEK_*` environment the MCP server reads
+(identical defaults and clamping), set in the shell that launches Pi, plus the
+`deepseekWebRetrieval` settings namespace for the off switches (written by the installer;
+it outranks the environment and is preserved by Pi's own settings rewrites).
 
 ### Search
 
@@ -140,15 +117,15 @@ defaults and clamping match the OpenCode adapter.
 | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Comma-separated; restricts results with `site:` operators. |
 | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Adds a `lang:` operator, for example `zh,en`. |
 | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `1200` | Per-result summary cap, 0–1,000,000. |
-| `DEEPSEEK_SEARCH_TIMEOUT_MS` | `30000` | Search timeout, 1,000–120,000 ms. |
+| `DEEPSEEK_SEARCH_TIMEOUT_MS` | `30000` | Search timeout, 1,000–120,000 ms. No host-side cap applies on the extension path. |
 
 ### Fetch
 
 | Env variable | Default | Description |
-| --- | --- |
+| --- | --- | --- |
 | `DEEPSEEK_ENABLE_FETCH` | `true` | Register the fetch tool. Same false-only semantics as `DEEPSEEK_ENABLE_SEARCH`. |
-| `DEEPSEEK_FETCH_MAX_CHARS` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
-| `DEEPSEEK_FETCH_TIMEOUT_MS` | `30000` | Fetch timeout, 1,000–120,000 ms. |
+| `DEEPSEEK_FETCH_MAX_CHARS` | `16000` | Maximum characters returned, including the title, 0–1,000,000. The only output cap on this path. |
+| `DEEPSEEK_FETCH_TIMEOUT_MS` | `30000` | Fetch timeout, 1,000–120,000 ms. No host-side cap applies on the extension path. |
 | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | unset | If set, only these hosts and subdomains may be fetched. |
 | `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | unset | Always block these hosts and subdomains. Blocked wins over allowed. |
 | `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. Set `false`/`0` to disable. |
@@ -157,7 +134,7 @@ defaults and clamping match the OpenCode adapter.
 
 | Env variable | Default | Description |
 | --- | --- | --- |
-| `DEEPSEEK_API_KEY` | required | DeepSeek API key. The server refuses to start without it. |
+| `DEEPSEEK_API_KEY` | required | DeepSeek API key, read from the Pi process environment. |
 | `DEEPSEEK_MAX_RETRIES` | `0` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
 | `DEEPSEEK_RETRY_BASE_DELAY_MS` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
 
@@ -167,30 +144,28 @@ Invalid values fall back to the shared default.
 
 | Error or symptom | What to do |
 | --- | --- |
-| Server connects but the model never calls the tools | Set `"exposure": "direct"`; Pi 1.3.0 defaults to `codemode`, which hides MCP tools from the model. |
-| Server fails to start (`pi mcp list`) | Check `DEEPSEEK_API_KEY`; without it the process exits with a stderr message. |
+| `Failed to load extension ... at least one must stay enabled` | Both capabilities are off (env or the `deepseekWebRetrieval` namespace); keep at least one on. |
+| Tools never appear | Check that the `packages` entry is present (`pi list`) and that the first launch after install could reach npm; `pi update --extensions` re-fetches. |
+| First tool call errors on the key | `DEEPSEEK_API_KEY` must be set in the shell that launches Pi; the extension reads only the process environment. |
 | `HTTP 401, invalid API key` | Check the key and its access to the tools endpoints. |
 | `HTTP 402, insufficient balance` | Top up the DeepSeek account. |
 | `HTTP 429, rate limited` | Wait, reduce concurrency, or set `DEEPSEEK_MAX_RETRIES`. |
 | Search query too long | Shorten the query or reduce configured domain/language operators. |
 | Fetch fails on localhost or an internal URL | Use a local fetch tool; DeepSeek cannot reach private networks. |
-| Long fetch results look cut in the middle | Pi truncates text results over 20 KB (full text is saved to a file). Keep `DEEPSEEK_FETCH_MAX_CHARS` at or below 20000 to truncate deterministically. |
-| Request fails around 60 seconds | Pi's per-request default timeout is 60 s; raise the server's `timeout` if you raise `DEEPSEEK_*_TIMEOUT_MS` beyond it. |
-| Config change does not take effect | Run `/reload` in the session or start a new one. |
+| Project-scope install does not load | Pi gates project-local files behind project trust; approve the project when prompted (or launch with `--approve`). |
 
 ## Compatibility
 
 | Component | Version |
 | --- | --- |
 | Pi | locked in [`docs/hosts.jsonc`](../hosts.jsonc) |
-| MCP revision | `2025-11-25` negotiated; server accepts `2024-11-05`–`2026-07-28` |
-| MCP SDK | `@modelcontextprotocol/server` 2.3.1 |
-| Runtime | Node.js 20+ (stdio) |
+| Extension entry | `src/pi/extension.ts` via the package's `pi` manifest (jiti, no build step) |
+| Runtime | Inside the Pi process (Node, host-provided) |
 | DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
 
-Pi 1.3.0 supports stdio and Streamable HTTP servers; this guide uses stdio. Tested with
-Pi 1.3.0 on Linux over stdio; the dual-era protocol behavior is covered by the SDK client
-test personas (`2024-11-05`, `2025-06-18`, `2025-11-25`, `2026-07-28`).
+Tested with Pi 1.3.0 on Linux. The extension API is version-locked research surface: the
+`ToolDefinition` shape and the settings `packages` key are verified at the locked version
+(see [the per-host reference](../research/control-matrix.md#pi)).
 
 ## Uninstall
 
@@ -200,10 +175,37 @@ With the installer CLI:
 npx deepseek-web-retrieval uninstall --host pi --scope <project|global>
 ```
 
-Or remove the `deepseek` entry from `~/.pi/agent/mcp.json` or `.pi/mcp.json`, or run:
+Or remove the source with Pi itself:
 
 ```bash
-pi mcp remove deepseek
+pi remove npm:deepseek-web-retrieval
 ```
 
 For a local-checkout install, also delete the cloned directory.
+
+## The MCP fallback path
+
+The same package ships a stdio MCP server (`npx deepseek-web-retrieval`). It works on Pi
+through `~/.pi/agent/mcp.json` or `.pi/mcp.json`:
+
+```jsonc
+{
+  "mcpServers": {
+    "deepseek": {
+      "command": "npx",
+      "args": ["-y", "deepseek-web-retrieval"],
+      "env": { "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}" },
+      "exposure": "direct"
+    }
+  }
+}
+```
+
+The tools appear as `mcp__deepseek__deepseek_web_search` and `mcp__deepseek__deepseek_fetch`,
+and the MCP layer's limits apply instead: text results over 20 KB are middle-truncated with
+the full text saved to a file (keep `DEEPSEEK_FETCH_MAX_CHARS` at or below 20000 to truncate
+deterministically), and the per-request default timeout is 60 s (raise the entry's `timeout`
+if you raise `DEEPSEEK_*_TIMEOUT_MS` beyond it). `pi mcp list` verifies the handshake, and
+config changes load with `/reload` or a new session. `npx deepseek-web-retrieval init
+--host pi --path mcp ...` installs this shape with plan-then-apply semantics; see
+[`examples/pi.mcp.jsonc`](../../examples/pi.mcp.jsonc).

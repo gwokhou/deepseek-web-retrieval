@@ -11,7 +11,7 @@ A coding agent the project serves (OpenCode, Pi, Codex, …); the unit of compat
 _Avoid_: agent (ambiguous with the coding agent itself), client
 
 **Adapter**:
-The per-host exposure of the retrieval core (a native plugin, or the MCP server for MCP-capable hosts).
+The per-host exposure of the retrieval core (a native plugin or extension, or the MCP server for MCP-capable hosts).
 _Avoid_: integration, wrapper
 
 **Host module**:
