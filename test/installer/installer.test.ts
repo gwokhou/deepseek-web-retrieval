@@ -18,7 +18,7 @@ import { claimedByOtherScope, readRecord, writeRecord } from "../../src/installe
 import { listRecords } from "../../src/installer/state"
 import { uninstall } from "../../src/installer/uninstall"
 import { codecFor } from "../../src/installer/formats"
-import type { InstallerInput, JsonEdit, RecordedFile, RulesEdit, TomlEdit } from "../../src/installer/types"
+import type { ConfigOp, InstallerInput, JsonEdit, RecordedFile, RulesEdit, TomlEdit } from "../../src/installer/types"
 
 const homes: string[] = []
 const cwds: string[] = []
@@ -29,12 +29,12 @@ afterEach(() => {
   cwds.length = 0
 })
 
-function makeInput(host: InstallerInput["host"], scope: InstallerInput["scope"], search: InstallerInput["search"], fetch: InstallerInput["fetch"]): InstallerInput {
+function makeInput(host: InstallerInput["host"], scope: InstallerInput["scope"], search: InstallerInput["search"], fetch: InstallerInput["fetch"], path?: "extension" | "mcp"): InstallerInput {
   const home = mkdtempSync(join(tmpdir(), "dwr-home-"))
   const cwd = mkdtempSync(join(tmpdir(), "dwr-cwd-"))
   homes.push(home)
   cwds.push(cwd)
-  return { host, scope, search, fetch, packageRef: "deepseek-web-retrieval", home, cwd }
+  return { host, scope, search, fetch, packageRef: "deepseek-web-retrieval", home, cwd, ...(path !== undefined ? { path } : {}) }
 }
 
 describe("json config editing", () => {
@@ -84,7 +84,7 @@ describe("rules blocks", () => {
 
 describe("plans", () => {
   test("pi: registers with direct exposure, notes other servers, and adds rules for preferred", () => {
-    const input = makeInput("pi", "project", "preferred", "optional")
+    const input = makeInput("pi", "project", "preferred", "optional", "mcp")
     mkdirSync(join(input.cwd, ".pi"), { recursive: true })
     writeFileSync(
       join(input.cwd, ".pi/mcp.json"),
@@ -101,7 +101,7 @@ describe("plans", () => {
   })
 
   test("pi: off tiers write DEEPSEEK_ENABLE flags into the env block", () => {
-    const input = makeInput("pi", "global", "off", "optional")
+    const input = makeInput("pi", "global", "off", "optional", "mcp")
     const plan = planPi(input, readRecord(input))
     const setOp = plan.edits.find((edit) => edit.format === "json")?.ops[0]
     const env = setOp && "value" in setOp ? ((setOp.value as { env: Record<string, string> }).env ?? {}) : {}
@@ -174,7 +174,7 @@ describe("plans", () => {
 
 describe("apply and uninstall round-trips", () => {
   test("pi project: creates, verifies, and fully removes on uninstall", () => {
-    const input = makeInput("pi", "project", "optional", "optional")
+    const input = makeInput("pi", "project", "optional", "optional", "mcp")
     const plan = planPi(input, readRecord(input))
     const applied = applyPlan(plan, input)
     expect(applied.ok).toBe(true)
@@ -247,7 +247,7 @@ describe("apply and uninstall round-trips", () => {
   })
 
   test("pi forced disables web-capable competitors and restores them on uninstall", () => {
-    const input = makeInput("pi", "project", "forced", "optional")
+    const input = makeInput("pi", "project", "forced", "optional", "mcp")
     mkdirSync(join(input.cwd, ".pi"), { recursive: true })
     writeFileSync(
       join(input.cwd, ".pi/mcp.json"),
@@ -282,7 +282,7 @@ describe("apply and uninstall round-trips", () => {
   })
 
   test("preferred notes existing rules steering toward another web tool", () => {
-    const input = makeInput("pi", "project", "preferred", "optional")
+    const input = makeInput("pi", "project", "preferred", "optional", "mcp")
     writeFileSync(join(input.cwd, "AGENTS.md"), "# Rules\n\nAlways use the built-in webfetch tool for pages.\n")
     const plan = planForHost("pi", input)
     expect(plan.errors).toEqual([])
@@ -297,12 +297,12 @@ describe("apply and uninstall round-trips", () => {
   })
 
   test("uninstall refuses when nothing is recorded", () => {
-    const input = makeInput("pi", "global", "optional", "optional")
+    const input = makeInput("pi", "global", "optional", "optional", "mcp")
     expect(() => uninstall(input)).toThrow(/No pi install is recorded/)
   })
 
   test("pi rejects installing with both capabilities off", () => {
-    const input = makeInput("pi", "global", "off", "off")
+    const input = makeInput("pi", "global", "off", "off", "mcp")
     const plan = planPi(input, readRecord(input))
     expect(plan.errors.length).toBe(1)
     expect(plan.errors[0]?.message).toContain("Both capabilities are off")
@@ -349,7 +349,7 @@ describe("apply and uninstall round-trips", () => {
 
 describe("review fixes", () => {
   test("plan renders old values for set ops and existing counts for appends", () => {
-    const input = makeInput("pi", "global", "optional", "optional")
+    const input = makeInput("pi", "global", "optional", "optional", "mcp")
     mkdirSync(join(input.home, ".pi/agent"), { recursive: true })
     writeFileSync(
       join(input.home, ".pi/agent/mcp.json"),
@@ -378,7 +378,7 @@ describe("review fixes", () => {
   })
 
   test("install records are written owner-only", () => {
-    const input = makeInput("pi", "global", "optional", "optional")
+    const input = makeInput("pi", "global", "optional", "optional", "mcp")
     applyPlan(planForHost("pi", input), input)
     const { statePathFor } = require("../../src/installer/state") as typeof import("../../src/installer/state")
     const mode = statSync(statePathFor(input)).mode & 0o777
@@ -400,7 +400,7 @@ describe("review fixes", () => {
   })
 
   test("re-init over the installer's own ${VAR} indirection is not treated as a secret", () => {
-    const input = makeInput("pi", "global", "optional", "optional")
+    const input = makeInput("pi", "global", "optional", "optional", "mcp")
     applyPlan(planForHost("pi", input), input)
     // The written entry carries env.DEPSEEK_API_KEY = "${DEEPSEEK_API_KEY}"; a
     // re-init must snapshot that indirection form, not refuse it as a literal key.
@@ -413,7 +413,7 @@ describe("review fixes", () => {
   })
 
   test("per-host markers let pi and codex share one AGENTS.md", () => {
-    const piInput = makeInput("pi", "project", "preferred", "off")
+    const piInput = makeInput("pi", "project", "preferred", "off", "mcp")
     applyPlan(planForHost("pi", piInput), piInput)
     const codexInput = { ...piInput, host: "codex" as const }
     applyPlan(planForHost("codex", codexInput), codexInput)
@@ -503,7 +503,7 @@ describe("scope isolation", () => {
   })
 
   test("pi and opencode scope pairs map to disjoint files and install side by side", () => {
-    const piGlobal = makeInput("pi", "global", "optional", "optional")
+    const piGlobal = makeInput("pi", "global", "optional", "optional", "mcp")
     applyPlan(planForHost("pi", piGlobal), piGlobal)
     const piProject = planForHost("pi", { ...piGlobal, scope: "project" })
     expect(piProject.errors).toEqual([])
@@ -573,7 +573,7 @@ describe("revert ownership", () => {
   })
 
   test("a whole-file orphan revert deletes a created file it leaves empty", () => {
-    const input = makeInput("pi", "project", "optional", "optional")
+    const input = makeInput("pi", "project", "optional", "optional", "mcp")
     const extra = join(input.cwd, ".pi/extra.json")
     mkdirSync(dirname(extra), { recursive: true })
     writeFileSync(extra, '{"a":1}\n')
@@ -650,7 +650,7 @@ describe("format codecs", () => {
 
 describe("drift refusal and CLI edges", () => {
   test("apply refuses when a set-op path changed since the plan was rendered", () => {
-    const input = makeInput("pi", "project", "optional", "optional")
+    const input = makeInput("pi", "project", "optional", "optional", "mcp")
     mkdirSync(join(input.cwd, ".pi"), { recursive: true })
     writeFileSync(
       join(input.cwd, ".pi/mcp.json"),
@@ -726,6 +726,7 @@ describe("drift refusal and CLI edges", () => {
       const code = await runInstallerCli(
         [
           "init", "--host", "pi", "--scope", "project", "--search", "optional", "--fetch", "optional",
+          "--path", "mcp",
           "--package", "deepseek-web-retrieval@canary", "--cwd", cwd, "--apply",
         ],
         io,
@@ -774,6 +775,133 @@ describe("drift refusal and CLI edges", () => {
       if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME
       else process.env.XDG_CONFIG_HOME = previousXdg
     }
+  })
+})
+
+describe("pi extension path", () => {
+  test("default path registers the package in settings.json and leaves mcp.json alone", () => {
+    const input = makeInput("pi", "project", "optional", "optional")
+    mkdirSync(join(input.cwd, ".pi"), { recursive: true })
+    writeFileSync(join(input.cwd, ".pi/mcp.json"), JSON.stringify({ mcpServers: { github: { command: "npx" } } }))
+    const plan = planPi(input, readRecord(input))
+    expect(plan.errors).toEqual([])
+    expect(plan.edits.map((edit) => edit.file)).toEqual([join(input.cwd, ".pi/settings.json")])
+    const append = plan.edits
+      .find((edit): edit is JsonEdit => edit.format === "json")
+      ?.ops.find((op) => op.op === "append-array")
+    expect(append && "entries" in append ? append.entries : undefined).toEqual(["npm:deepseek-web-retrieval"])
+    expect(plan.notes.join(" ")).toContain("session start")
+    expect(plan.notes.join(" ")).toContain("no env forwarding")
+  })
+
+  test("off tiers write the settings namespace switches the extension reads", () => {
+    const input = makeInput("pi", "global", "off", "optional")
+    const plan = planPi(input, readRecord(input))
+    const ops = plan.edits.find((edit) => edit.format === "json")?.ops ?? []
+    expect(
+      ops.find((op) => op.op === "set" && op.path.join(".") === "deepseekWebRetrieval.enableSearch"),
+    ).toMatchObject({ value: false })
+    expect(ops.some((op) => op.path.join(".") === "deepseekWebRetrieval.enableFetch")).toBe(false)
+    expect(plan.notes.join(" ")).toContain("deepseekWebRetrieval")
+  })
+
+  test("preferred rules name the unprefixed extension tool ids", () => {
+    const input = makeInput("pi", "project", "preferred", "optional")
+    const plan = planForHost("pi", input)
+    expect(plan.errors).toEqual([])
+    const rules = plan.edits.find((edit) => edit.format === "rules")
+    expect(rules && "block" in rules ? rules.block : "").toContain("- Use deepseek_web_search")
+    expect(rules && "block" in rules ? rules.block : "").not.toContain("mcp__deepseek")
+  })
+
+  test("forced disables mcp.json competitors and refuses web-capable package sources", () => {
+    const refused = makeInput("pi", "global", "forced", "optional")
+    mkdirSync(join(refused.home, ".pi/agent"), { recursive: true })
+    writeFileSync(
+      join(refused.home, ".pi/agent/settings.json"),
+      JSON.stringify({ packages: ["npm:@example/web-search-helper"] }),
+    )
+    const refusedPlan = planPi(refused, readRecord(refused))
+    expect(refusedPlan.errors[0]?.message).toContain("npm:@example/web-search-helper")
+    expect(refusedPlan.errors[0]?.message).toContain("no per-package kill switch")
+
+    const input = makeInput("pi", "project", "forced", "optional")
+    mkdirSync(join(input.cwd, ".pi"), { recursive: true })
+    writeFileSync(
+      join(input.cwd, ".pi/mcp.json"),
+      JSON.stringify({ mcpServers: { tavily: { command: "npx", enabled: true } } }),
+    )
+    const plan = planForHost("pi", input)
+    expect(plan.errors).toEqual([])
+    expect(plan.edits.map((edit) => edit.file)).toContain(join(input.cwd, ".pi/mcp.json"))
+    const exclusion = plan.edits
+      .find((edit): edit is JsonEdit => edit.format === "json" && edit.file.endsWith("mcp.json"))
+      ?.ops.find((op: ConfigOp) => op.path.join(".") === "mcpServers.tavily.enabled")
+    expect(exclusion && "value" in exclusion ? exclusion.value : undefined).toBe(false)
+  })
+
+  test("a foreign packages entry without a record is refused", () => {
+    const input = makeInput("pi", "global", "optional", "optional")
+    mkdirSync(join(input.home, ".pi/agent"), { recursive: true })
+    writeFileSync(
+      join(input.home, ".pi/agent/settings.json"),
+      JSON.stringify({ packages: ["npm:deepseek-web-retrieval"] }),
+    )
+    const plan = planPi(input, readRecord(input))
+    expect(plan.errors[0]?.message).toContain("did not write")
+    expect(plan.errors[0]?.message).toContain("pi remove")
+  })
+
+  test("apply and uninstall round-trip restores settings.json exactly", () => {
+    const input = makeInput("pi", "project", "off", "optional")
+    mkdirSync(join(input.cwd, ".pi"), { recursive: true })
+    const original = JSON.stringify({ theme: "dark" })
+    writeFileSync(join(input.cwd, ".pi/settings.json"), original)
+    const applied = applyPlan(planForHost("pi", input), input)
+    expect(applied.ok).toBe(true)
+    const after = JSON.parse(readFileSync(join(input.cwd, ".pi/settings.json"), "utf8")) as {
+      theme: string
+      packages: string[]
+      deepseekWebRetrieval: { enableSearch: boolean }
+    }
+    expect(after.theme).toBe("dark")
+    expect(after.packages).toEqual(["npm:deepseek-web-retrieval"])
+    expect(after.deepseekWebRetrieval.enableSearch).toBe(false)
+    uninstall(input)
+    // The JSON codec restores the value, re-serialized with its own formatting.
+    expect(JSON.parse(readFileSync(join(input.cwd, ".pi/settings.json"), "utf8"))).toEqual({ theme: "dark" })
+  })
+
+  test("re-init from the mcp path migrates: the mcp.json entry reverts as a whole-file orphan", () => {
+    const input = makeInput("pi", "project", "optional", "optional", "mcp")
+    applyPlan(planForHost("pi", input), input)
+    expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(true)
+
+    const migrated = { ...input, path: undefined } as InstallerInput
+    const plan = planForHost("pi", migrated)
+    expect(plan.errors).toEqual([])
+    expect(plan.reverts?.map((file) => file.file)).toEqual([join(input.cwd, ".pi/mcp.json")])
+    applyPlan(plan, migrated)
+    expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(false)
+    const settings = JSON.parse(readFileSync(join(input.cwd, ".pi/settings.json"), "utf8")) as { packages: string[] }
+    expect(settings.packages).toEqual(["npm:deepseek-web-retrieval"])
+    uninstall(migrated)
+    expect(existsSync(join(input.cwd, ".pi/settings.json"))).toBe(false)
+  })
+
+  test("CLI --path validation refuses bad values and non-pi hosts", async () => {
+    const out: string[] = []
+    const io = { out: (line: string) => out.push(line), err: (line: string) => out.push(line) }
+    const base = ["--scope", "global", "--search", "optional", "--fetch", "optional", "--cwd", "/tmp"]
+    expect(
+      await runInstallerCli(["init", "--host", "pi", ...base, "--path", "bogus"], io),
+    ).toBe(1)
+    expect(out.join("\n")).toContain('invalid --path value "bogus"')
+    out.length = 0
+    expect(
+      await runInstallerCli(["init", "--host", "codex", ...base, "--path", "mcp"], io),
+    ).toBe(1)
+    expect(out.join("\n")).toContain("--path is only supported for host pi")
   })
 })
 

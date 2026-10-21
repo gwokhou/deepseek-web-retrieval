@@ -15,12 +15,14 @@ const TIERS: readonly Tier[] = ["optional", "preferred", "forced", "off"]
 const USAGE = `Usage:
   deepseek-web-retrieval init --host ${HOST_CHOICES} --scope <project|global> \
 --search <optional|preferred|forced|off> --fetch <optional|preferred|forced|off> \
-[--package <npm ref>] [--cwd <dir>] [--apply]
+[--path <extension|mcp>] [--package <npm ref>] [--cwd <dir>] [--apply]
   deepseek-web-retrieval uninstall --host ${HOST_CHOICES} --scope <project|global> [--cwd <dir>]
   deepseek-web-retrieval list [--cwd <dir>]
 
 init prints the full plan (every file, old value → new value) and writes nothing
-until --apply is passed. uninstall restores what the plan applied.`
+until --apply is passed. uninstall restores what the plan applied. --path picks
+the integration mechanism for hosts with more than one (Pi: extension by
+default, mcp for the stdio MCP server).`
 
 interface Flags {
   readonly values: Map<string, string>
@@ -28,8 +30,9 @@ interface Flags {
   readonly problems: readonly string[]
 }
 
-const VALUE_FLAGS = new Set(["host", "scope", "search", "fetch", "package", "cwd"])
+const VALUE_FLAGS = new Set(["host", "scope", "search", "fetch", "path", "package", "cwd"])
 const BOOLEAN_FLAGS = new Set(["apply"])
+const PATHS: readonly ["extension", "mcp"] = ["extension", "mcp"]
 
 function parseFlags(args: readonly string[]): Flags {
   const values = new Map<string, string>()
@@ -177,10 +180,18 @@ function requireInput(
   const scope = flags.values.get("scope")
   const search = needsTiers ? (flags.values.get("search") ?? "") : "optional"
   const fetch = needsTiers ? (flags.values.get("fetch") ?? "") : "optional"
+  const path = flags.values.get("path")
   if (host === undefined) problems.push(`--host is required (one of: ${HOSTS.join(", ")})`)
   else if (!HOSTS.includes(host as HostName)) problems.push(`invalid --host value "${host}" (one of: ${HOSTS.join(", ")})`)
   if (scope === undefined) problems.push(`--scope is required (one of: ${SCOPES.join(", ")})`)
   else if (!SCOPES.includes(scope as Scope)) problems.push(`invalid --scope value "${scope}" (one of: ${SCOPES.join(", ")})`)
+  if (path !== undefined) {
+    if (host !== "pi") {
+      problems.push(`--path is only supported for host pi (${host ?? "no host"} has a single integration path)`)
+    } else if (!(PATHS as readonly string[]).includes(path)) {
+      problems.push(`invalid --path value "${path}" (one of: ${PATHS.join(", ")})`)
+    }
+  }
   if (needsTiers) {
     if (!TIERS.includes(search as Tier)) {
       problems.push(
@@ -210,6 +221,7 @@ function requireInput(
       home,
       cwd,
       configHome,
+      ...(path !== undefined ? { path: path as "extension" | "mcp" } : {}),
     },
   }
 }

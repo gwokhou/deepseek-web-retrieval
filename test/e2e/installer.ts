@@ -38,8 +38,38 @@ export async function runInstallerScenario(runner: Runner): Promise<string[]> {
   const env = { HOME: runner.homeDir.guest, DEEPSEEK_API_KEY: "sk-e2e-placeholder" }
   const cwd = runner.projectDir.guest
 
-  // --- Pi, global scope, optional tiers: init -> real handshake -> uninstall.
+  // --- Pi, global scope, extension path (the default): init -> settings.json
+  // packages entry -> the extension factory loads cleanly -> uninstall.
   await install(runner, cli, ["--host", "pi", "--scope", "global", "--search", "optional", "--fetch", "optional"], packageRef, cwd, env)
+  const settingsPath = join(runner.homeDir.host, ".pi/agent/settings.json")
+  const settings = parseJsonc(readFileSync(settingsPath, "utf8")) as { packages?: string[] }
+  check(
+    Array.isArray(settings.packages) && settings.packages.includes(`npm:${packageRef}`),
+    "installer did not append the npm package source to the pi settings packages array",
+    JSON.stringify(settings),
+  )
+  const piList = await runner.run(["pi", "list"], { cwd, env, timeoutMs: 120_000 })
+  check(piList.exitCode === 0 && piList.stdout.includes("deepseek-web-retrieval"), "`pi list` does not show the installed package", excerpt(piList.stdout || piList.stderr))
+  // The extension factory runs at session start, before the model call: with a
+  // placeholder key the session fails on model auth but must NOT fail on
+  // extension loading — that is the keyless load proof.
+  const session = await runner.run(
+    ["pi", "--print", "--no-tools", "--model", "deepseek/deepseek-flash", "hi"],
+    { cwd, env, timeoutMs: 120_000 },
+  )
+  check(
+    !`${session.stdout}\n${session.stderr}`.includes("Failed to load extension"),
+    "the pi extension failed to load from the installer-written settings",
+    excerpt(`${session.stdout}\n${session.stderr}`),
+  )
+  log.push("installer: pi global extension-path init verified by `pi list` and a clean extension load")
+
+  await uninstall(runner, cli, "pi", "global", cwd, env)
+  check(!existsSync(settingsPath), "pi extension-path uninstall left settings.json behind")
+  log.push("installer: pi extension-path uninstall removed the settings file it created")
+
+  // --- Pi, global scope, MCP fallback (`--path mcp`): init -> real handshake -> uninstall.
+  await install(runner, cli, ["--host", "pi", "--scope", "global", "--search", "optional", "--fetch", "optional", "--path", "mcp"], packageRef, cwd, env)
   await prewarmNpx(runner, env, packageRef)
   const server = requirePiServer(await piMcpList(runner, env, cwd))
   check(server.state === "connected", "installer-registered pi server did not connect", JSON.stringify(server))
@@ -54,7 +84,7 @@ export async function runInstallerScenario(runner: Runner): Promise<string[]> {
     "connected pi server does not expose both tools",
     JSON.stringify(server),
   )
-  log.push("installer: pi global init verified by a real `pi mcp list` handshake (npx tarball, exposure direct)")
+  log.push("installer: pi global mcp-path init verified by a real `pi mcp list` handshake (npx tarball, exposure direct)")
 
   await uninstall(runner, cli, "pi", "global", cwd, env)
   const afterPiUninstall = piServer(await piMcpList(runner, env, cwd))

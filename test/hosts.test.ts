@@ -75,7 +75,8 @@ describe("docs/hosts.jsonc", () => {
   test("the MCP server covers every host that lists mcp as a path", () => {
     const mcpHosts = hosts.hosts.filter((host) => host.paths.includes("mcp"))
     expect(mcpHosts.length).toBeGreaterThanOrEqual(7)
-    expect(findHost(hosts, "pi").paths[0]).toBe("mcp")
+    // Pi's recommended path is the native extension adapter; MCP stays as the fallback.
+    expect(findHost(hosts, "pi").paths).toEqual(["extension", "mcp"])
   })
 
   test("every host declares control tiers for search and fetch", () => {

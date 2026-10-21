@@ -32,6 +32,7 @@ export async function runPreferredScenario(runner: Runner): Promise<string[]> {
       "node", cli, "init",
       "--host", "pi", "--scope", "project",
       "--search", "preferred", "--fetch", "preferred",
+      "--path", "mcp",
       "--package", packageRef, "--apply",
     ],
     { cwd, env },

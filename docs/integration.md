@@ -16,8 +16,8 @@ ship built-in web tools. MCP tools can add equivalent tools, but do not replace 
 | Native websearch provider | Yes | No | Host plugin API | OpenCode v2 adapter |
 | Native tool / fetch override | No | Yes | Host tool API | OpenCode v2 adapter |
 | Custom tool plugin | Yes | Yes | Host plugin API | Cline CLI/SDK; no adapter yet |
-| Extension API | Yes | Yes | Host extension API | Pi; no adapter yet |
-| MCP server | Yes | Yes | Host MCP client | Shipped (`src/mcp/`; Pi guide first) |
+| Extension API | Yes | Yes | Host extension API | Pi adapter (`src/pi/`) |
+| MCP server | Yes | Yes | Host MCP client | Shipped (`src/mcp/`; Pi and Codex guides) |
 | CLI/HTTP wrapper | Yes | Yes | Host can call external tools | Not shipped |
 
 MCP is a protocol, not an agent. It is one possible transport for hosts that support MCP
@@ -34,7 +34,7 @@ Rows are sorted with open-source hosts first, then by host name alphabetically.
 | Cline | 0.0.13 | Yes (Apache-2.0) | No | No | MCP server or custom tool plugin | No adapter yet |
 | Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | Supported |
 | OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | native websearch provider or native tool/fetch override | Supported |
-| Pi | 1.3.0 | Yes (MIT) | No | No | MCP server or extension API | Supported |
+| Pi | 1.3.0 | Yes (MIT) | No | No | extension API or MCP server | Supported |
 | Claude Code | 2.1.303 | No | No | No | MCP server | No adapter yet |
 | Cursor | 2026.10.08 | No | No | No | MCP server | No adapter yet |
 | Devin | 3000.11.92 | No | No | No | MCP server | No adapter yet |
@@ -78,14 +78,18 @@ the details: built-in web tools and their kill switches, MCP registration, and r
   [Cline](research/control-matrix.md#cline).
 - **Devin** — Ships built-in `web_search` and `webfetch` tools. See
   [Devin](research/control-matrix.md#devin).
-- **Pi** — No built-in web tools; MCP plus a TypeScript extension API. Supported through
-  the MCP server; see [Pi](agents/pi.md) and [Pi in the per-host reference](research/control-matrix.md#pi).
+- **Pi** — No built-in web tools; a TypeScript extension API plus MCP. Supported through
+  the native extension adapter (the recommended path), with the MCP server as the fallback;
+  see [Pi](agents/pi.md) and [Pi in the per-host reference](research/control-matrix.md#pi).
 
 ## Roadmap
 
-- **MCP server** — shipped in `src/mcp/` with the [Pi](agents/pi.md) guide; the broadest path for
-  hosts that support MCP tools. Protocol compatibility across these hosts is researched in
+- **MCP server** — shipped in `src/mcp/` (the fallback path in the [Pi](agents/pi.md) guide
+  and the path in the [Codex](agents/codex.md) guide); the broadest route for hosts that
+  support MCP tools. Protocol compatibility across these hosts is researched in
   [mcp-compatibility.md](research/mcp-compatibility.md).
+- **Native extension adapters** — the Pi extension adapter ships in `src/pi/`; a host whose
+  extension point can register tools directly gets a native path alongside MCP.
 - **Host-specific guides** — added as requests and testing land; the server itself is
   host-agnostic.
 

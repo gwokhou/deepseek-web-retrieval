@@ -3,6 +3,9 @@ import type { Tier } from "./types"
 /** Full MCP tool ids, per the installer design's rules non-negotiables. */
 export const MCP_TOOL_IDS = { search: "mcp__deepseek__deepseek_web_search", fetch: "mcp__deepseek__deepseek_fetch" } as const
 
+/** Pi extension tool ids: native tools carry no mcp__ prefix. */
+export const PI_TOOL_IDS = { search: "deepseek_web_search", fetch: "deepseek_fetch" } as const
+
 /**
  * Builds the rules block lines for the preferred tier: names the full tool ids,
  * states trigger conditions rather than unconditional preference, and lists the

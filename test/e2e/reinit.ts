@@ -74,14 +74,14 @@ export async function runReinitScenario(runner: Runner): Promise<string[]> {
 
   // --- Pi project, preferred → optional: the orphaned, installer-created rules
   // file reverts wholly and is deleted; the registration stays.
-  await init(["--host", "pi", "--scope", "project", "--search", "optional", "--fetch", "preferred"])
+  await init(["--host", "pi", "--scope", "project", "--search", "optional", "--fetch", "preferred", "--path", "mcp"])
   const piConfig = join(runner.projectDir.host, ".pi", "mcp.json")
   const piAgents = join(runner.projectDir.host, "AGENTS.md")
   check(existsSync(piAgents), "pi preferred init did not create the rules file")
   const piServers = () =>
     (parseJsonc(readFileSync(piConfig, "utf8")) as { mcpServers: Record<string, unknown> }).mcpServers
   check("deepseek" in piServers(), "pi preferred init did not register the server")
-  await init(["--host", "pi", "--scope", "project", "--search", "optional", "--fetch", "optional"])
+  await init(["--host", "pi", "--scope", "project", "--search", "optional", "--fetch", "optional", "--path", "mcp"])
   check(!existsSync(piAgents), "the downgrade left the orphaned rules file behind instead of deleting it")
   check("deepseek" in piServers(), "the downgrade dropped the pi registration")
   log.push("reinit: pi preferred → optional deleted the orphaned rules file and kept the registration")

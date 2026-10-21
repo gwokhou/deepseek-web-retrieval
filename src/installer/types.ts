@@ -37,6 +37,11 @@ export interface InstallerInput {
   readonly home: string
   readonly cwd: string
   readonly configHome?: string
+  /**
+   * Integration mechanism for hosts with more than one (Pi: the native
+   * extension, or the MCP server). Undefined means the host's default path.
+   */
+  readonly path?: "extension" | "mcp"
 }
 
 /** A mutation on a parsed config object, addressed by a dotted path. */

@@ -2,6 +2,7 @@ import { codecFor } from "../formats"
 import { isPlainObject } from "../formats/value"
 import {
   FORCED_COST_NOTE,
+  looksWebCapable,
   othersStayRegisteredNote,
   replacingExistingEntryNote,
   splitCompetitors,
@@ -9,18 +10,199 @@ import {
 import { join } from "../paths"
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/constants"
 import { buildRulesBlock } from "../formats/rules"
-import { MCP_TOOL_IDS, rulesLines } from "../rulesContent"
+import { MCP_TOOL_IDS, PI_TOOL_IDS, rulesLines } from "../rulesContent"
+import { SETTINGS_NAMESPACE } from "../../pi/settings"
 import { planHeader } from "./shared"
-import type { ConfigOp, FileEdit, HostPaths, InstallRecord, InstallerInput, InstallPlan } from "../types"
+import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallRecord, InstallPlan, PlanError } from "../types"
 
-/** Pi config and rules files per scope; the host module owns this mapping. */
+/** Pi config and rules files per scope and path; the host module owns this mapping. */
 function piPaths(input: InstallerInput): HostPaths {
-  return input.scope === "global"
-    ? { config: join(input.home, ".pi/agent/mcp.json"), rules: join(input.home, ".pi/agent/AGENTS.md") }
-    : { config: join(input.cwd, ".pi/mcp.json"), rules: join(input.cwd, "AGENTS.md") }
+  const mcp = input.scope === "global"
+    ? join(input.home, ".pi/agent/mcp.json")
+    : join(input.cwd, ".pi/mcp.json")
+  const settings = input.scope === "global"
+    ? join(input.home, ".pi/agent/settings.json")
+    : join(input.cwd, ".pi/settings.json")
+  const rules = input.scope === "global" ? join(input.home, ".pi/agent/AGENTS.md") : join(input.cwd, "AGENTS.md")
+  return { config: input.path === "mcp" ? mcp : settings, rules }
 }
 
-export function planPi(input: InstallerInput, _previous: InstallRecord | undefined): InstallPlan {
+export function planPi(input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
+  return input.path === "mcp" ? planPiMcp(input) : planPiExtension(input, previous)
+}
+
+/**
+ * The native-extension path (Pi's default): registers the package in
+ * settings.json's `packages` array; Pi resolves the source at session start
+ * and loads `src/pi/extension.ts` through the package's `pi` manifest.
+ */
+function planPiExtension(input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
+  const paths = piPaths(input)
+  const loaded = codecFor("json", input.host).load(paths.config)
+  const tiers = { search: input.search, fetch: input.fetch }
+  const header = planHeader(input, paths, loaded, "JSON")
+  if (header.abort) {
+    return { host: "pi", scope: input.scope, tiers, edits: [], notes: header.notes, errors: header.errors }
+  }
+  const notes = [...header.notes]
+  const errors = [...header.errors]
+  const edits: FileEdit[] = []
+
+  const packages = Array.isArray(loaded.value.packages) ? loaded.value.packages : []
+  const alreadyListed = packages.some(
+    (entry) => typeof entry === "string" && entry.includes("deepseek-web-retrieval"),
+  )
+  if (alreadyListed && previous === undefined) {
+    errors.push({
+      message:
+        `${paths.config} already lists a deepseek-web-retrieval package source that this installer did not ` +
+        "write. Remove it (pi remove <source>, or uninstall if it came from a previous init), then retry.",
+    })
+  }
+  if (alreadyListed && errors.length === 0) {
+    notes.push("A previous init wrote the packages entry; re-applying updates it and carries the original snapshots over.")
+  }
+
+  const forced = input.search === "forced" || input.fetch === "forced"
+  if (forced) {
+    // Pi has no per-package kill switch in settings.json, so a web-capable
+    // package or extension source cannot be excluded from the plan — refuse the
+    // tier instead of promising routing that is not actually forced.
+    const unexcludable = [...collectSources(loaded.value.packages), ...collectSources(loaded.value.extensions)]
+      .filter((source) => source.includes("deepseek-web-retrieval") === false && looksWebCapable(source, undefined))
+    if (unexcludable.length > 0) {
+      errors.push({
+        message:
+          `Forced cannot deliver exclusive routing: settings sources ${unexcludable.join(", ")} look web-capable, ` +
+          "and Pi offers no per-package kill switch. Remove them (pi remove <source>) or choose a lower tier.",
+      })
+    }
+  }
+
+  if (errors.length > 0) {
+    return { host: "pi", scope: input.scope, tiers, edits: [], notes, errors }
+  }
+
+  const ops: ConfigOp[] = [
+    { op: "append-array", path: ["packages"], entries: [`npm:${input.packageRef}`], existingCount: packages.length },
+  ]
+  const namespace = isPlainObject(loaded.value[SETTINGS_NAMESPACE]) ? loaded.value[SETTINGS_NAMESPACE] : {}
+  if (input.search === "off") {
+    ops.push({
+      op: "set",
+      path: [SETTINGS_NAMESPACE, "enableSearch"],
+      value: false,
+      previous: typeof namespace.enableSearch === "boolean" ? namespace.enableSearch : undefined,
+    })
+  }
+  if (input.fetch === "off") {
+    ops.push({
+      op: "set",
+      path: [SETTINGS_NAMESPACE, "enableFetch"],
+      value: false,
+      previous: typeof namespace.enableFetch === "boolean" ? namespace.enableFetch : undefined,
+    })
+  }
+  edits.push({ file: paths.config, format: "json", ops })
+
+  notes.push(
+    "Pi resolves the packages source at session start; the first launch after apply fetches the package from npm " +
+      "(pi update --extensions refreshes it later).",
+  )
+  notes.push(
+    `The extension reads ${API_KEY_ENV} from the Pi process environment; no env forwarding is needed. ` +
+      "Set it in the shell that launches Pi.",
+  )
+  if (input.search === "off" || input.fetch === "off") {
+    notes.push(
+      `Off capability switches are written into the "${SETTINGS_NAMESPACE}" settings namespace; the extension ` +
+        "reads them at load (they outrank the DEEPSEEK_ENABLE_* environment variables).",
+    )
+  }
+  notes.push(
+    "Extension tools are declared to the model with exposure \"direct\" by Pi's own default; no exposure key is needed.",
+  )
+  if (loaded.lossy) {
+    notes.push(`${paths.config} contains comments; the JSON edit preserves them.`)
+  }
+
+  if (forced) {
+    edits.push(...planMcpCompetitorDisables(input, notes, errors))
+  }
+  if (errors.length > 0) {
+    return { host: "pi", scope: input.scope, tiers, edits: [], notes, errors }
+  }
+
+  if (input.search === "preferred" || input.fetch === "preferred") {
+    edits.push({
+      file: paths.rules,
+      format: "rules",
+      block: buildRulesBlock(input.host, rulesLines(PI_TOOL_IDS, input.search, input.fetch)),
+    })
+    notes.push(`Rules block upserted in ${paths.rules}; Pi loads AGENTS.md context files from the working directory and its parents.`)
+  }
+
+  if (forced) {
+    notes.push(
+      "Forced tier: Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path (de-facto). " +
+        FORCED_COST_NOTE,
+    )
+  }
+
+  return { host: "pi", scope: input.scope, tiers, edits, notes, errors }
+}
+
+/** Disables web-capable MCP servers for the forced tier; the extension path still shares the field with them. */
+function planMcpCompetitorDisables(input: InstallerInput, notes: string[], errors: PlanError[]): FileEdit[] {
+  const mcpFile = input.scope === "global" ? join(input.home, ".pi/agent/mcp.json") : join(input.cwd, ".pi/mcp.json")
+  const loaded = codecFor("json", input.host).load(mcpFile)
+  if (loaded.parseError) {
+    errors.push({ message: `${mcpFile} does not parse: ${loaded.parseError}` })
+    return []
+  }
+  const servers = isPlainObject(loaded.value.mcpServers) ? loaded.value.mcpServers : undefined
+  if (!isPlainObject(servers)) return []
+
+  const { competitors, bystanders } = splitCompetitors(servers)
+  const edits: FileEdit[] = []
+  if (competitors.length > 0) {
+    // Forced demands exclusivity: disable the web-capable competitors (Pi entries
+    // carry an `enabled` key), snapshotting each prior value for uninstall.
+    const ops: ConfigOp[] = []
+    const excluded: string[] = []
+    const unexcludable: string[] = []
+    for (const name of competitors) {
+      const current = servers[name]
+      if (!isPlainObject(current)) {
+        unexcludable.push(name)
+        continue
+      }
+      const previous = typeof current.enabled === "boolean" ? current.enabled : undefined
+      if (previous === false) continue // already excluded
+      ops.push({ op: "set", path: ["mcpServers", name, "enabled"], value: false, previous })
+      excluded.push(name)
+    }
+    if (ops.length > 0) {
+      edits.push({ file: mcpFile, format: "json", ops })
+      notes.push(
+        `Forced tier: web-capable MCP servers are disabled so DeepSeek routing is exclusive (${excluded.join(", ")}; ` +
+          "prior enabled values are snapshotted for uninstall).",
+      )
+    }
+    if (unexcludable.length > 0) {
+      errors.push({
+        message:
+          `Forced cannot deliver exclusive routing: mcpServers entries ${unexcludable.join(", ")} look web-capable ` +
+          "but are not objects, so the plan cannot set their enabled key. Fix or remove them, or choose a lower tier.",
+      })
+    }
+  }
+  if (bystanders.length > 0) notes.push(othersStayRegisteredNote(bystanders))
+  return edits
+}
+
+/** The MCP-server path (`--path mcp`): registers the stdio server in mcp.json. */
+function planPiMcp(input: InstallerInput): InstallPlan {
   const paths = piPaths(input)
   const loaded = codecFor("json", input.host).load(paths.config)
   const tiers = { search: input.search, fetch: input.fetch }
@@ -112,4 +294,9 @@ export function planPi(input: InstallerInput, _previous: InstallRecord | undefin
   }
 
   return { host: "pi", scope: input.scope, tiers, edits, notes, errors }
+}
+
+/** Pulls the string sources out of a settings packages/extensions array. */
+function collectSources(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []
 }
