@@ -5,6 +5,7 @@ import {
   readFileSync as fsReadFileSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -1357,3 +1358,203 @@ describe("self-package detection", () => {
 function relativePath(from: string, to: string): string {
   return to.startsWith(from) ? to.slice(from.length + 1) : to;
 }
+
+describe("whole-repo review regressions", () => {
+  const begin = "<!-- deepseek-web-retrieval:pi:rules:begin -->";
+  const end = "<!-- deepseek-web-retrieval:pi:rules:end -->";
+
+  for (const malformed of [begin, end, `${end}\n${begin}`, `${begin}\n${begin}\n${end}`, `${begin}\n${end}\n${end}`]) {
+    test(`refuses malformed rules without losing user content: ${malformed}`, () => {
+      const input = makeInput("pi", "project", "preferred", "optional");
+      const rules = join(input.cwd, "AGENTS.md");
+      const original = `# Project rules\n${malformed}\n# User policy\nNever touch production.\n`;
+      writeFileSync(rules, original);
+      const plan = planForHost("pi", input);
+      expect(plan.errors.map((error) => error.message).join(" ")).toContain("malformed rules block");
+      expect(() => applyPlan(plan, input)).toThrow();
+      expect(readFileSync(rules, "utf8")).toBe(original);
+      expect(existsSync(join(input.cwd, ".pi/settings.json"))).toBe(false);
+      expect(readRecord(input)).toBeUndefined();
+    });
+  }
+
+  test("rules damaged after planning refuse before any configuration is written", () => {
+    const input = makeInput("pi", "project", "preferred", "optional");
+    const plan = planForHost("pi", input);
+    const rules = join(input.cwd, "AGENTS.md");
+    const damaged = `${begin}\n# User policy\nNever touch production.\n`;
+    writeFileSync(rules, damaged);
+    expect(() => applyPlan(plan, input)).toThrow("malformed rules block");
+    expect(readFileSync(rules, "utf8")).toBe(damaged);
+    expect(existsSync(join(input.cwd, ".pi/settings.json"))).toBe(false);
+  });
+
+  test("uninstall preserves all files and the record while a rules block is malformed", () => {
+    const input = makeInput("pi", "project", "preferred", "optional");
+    applyPlan(planForHost("pi", input), input);
+    const rules = join(input.cwd, "AGENTS.md");
+    const settings = join(input.cwd, ".pi/settings.json");
+    const configBefore = readFileSync(settings, "utf8");
+    const recordBefore = readRecord(input);
+    const damaged = `${readFileSync(rules, "utf8").replace(end, "")}\n# User policy\n`;
+    writeFileSync(rules, damaged);
+    expect(() => uninstall(input)).toThrow("malformed rules block");
+    expect(readFileSync(rules, "utf8")).toBe(damaged);
+    expect(readFileSync(settings, "utf8")).toBe(configBefore);
+    expect(readRecord(input)).toEqual(recordBefore);
+  });
+
+  for (const path of ["extension", "mcp"] as const) {
+    test(`Pi ${path} forced re-init preserves exclusions and original enabled values`, () => {
+      const input = makeInput("pi", "project", "forced", "optional", path);
+      const file = join(input.cwd, ".pi/mcp.json");
+      const original = {
+        mcpServers: {
+          tavily: { command: "npx", enabled: true },
+          brave: { command: "npx" },
+          exa: { command: "npx", enabled: false },
+        },
+      };
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, JSON.stringify(original));
+      for (let run = 0; run < 3; run += 1) {
+        expect(applyPlan(planForHost("pi", input), input).ok).toBe(true);
+        const servers = JSON.parse(readFileSync(file, "utf8")).mcpServers;
+        for (const name of ["tavily", "brave", "exa"]) expect(servers[name].enabled).toBe(false);
+      }
+      // A real downgrade still restores competitors, and uninstall restores the original config.
+      const optional = { ...input, search: "optional" as const };
+      expect(applyPlan(planForHost("pi", optional), optional).ok).toBe(true);
+      const servers = JSON.parse(readFileSync(file, "utf8")).mcpServers;
+      for (const name of ["tavily", "brave", "exa"] as const) expect(servers[name]).toEqual(original.mcpServers[name]);
+      uninstall(optional);
+      expect(parseJsonc(readFileSync(file, "utf8"))).toEqual(original);
+    });
+  }
+
+  for (const secondScope of ["project", "global"] as const) {
+    test(`Codex rejects another project's ${secondScope} install and permits it after uninstall`, () => {
+      const first = makeInput("codex", "project", "optional", "optional");
+      const second = { ...first, scope: secondScope, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+      applyPlan(planForHost("codex", first), first);
+      const config = join(first.home, ".codex/config.toml");
+      const before = readFileSync(config, "utf8");
+      const plan = planForHost("codex", second);
+      expect(plan.errors.length).toBeGreaterThan(0);
+      expect(plan.errors[0]?.message).toContain(first.cwd);
+      expect(() => applyPlan(plan, second)).toThrow();
+      expect(readFileSync(config, "utf8")).toBe(before);
+      uninstall(first);
+      const afterUninstall = planForHost("codex", second);
+      expect(afterUninstall.errors).toEqual([]);
+      expect(applyPlan(afterUninstall, second).ok).toBe(true);
+      uninstall(second);
+      expect(existsSync(config)).toBe(false);
+    });
+  }
+
+  test("Codex apply rechecks ownership acquired after the plan was rendered", () => {
+    const first = makeInput("codex", "project", "optional", "optional");
+    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    const stalePlan = planForHost("codex", second);
+    applyPlan(planForHost("codex", first), first);
+    const config = join(first.home, ".codex/config.toml");
+    const before = readFileSync(config, "utf8");
+    expect(() => applyPlan(stalePlan, second)).toThrow();
+    expect(readFileSync(config, "utf8")).toBe(before);
+    expect(readRecord(second)).toBeUndefined();
+    uninstall(first);
+  });
+
+  test("Codex uninstall rejects a copied record owned by a different project", () => {
+    const first = makeInput("codex", "project", "optional", "optional");
+    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    applyPlan(planForHost("codex", first), first);
+    const record = readRecord(first);
+    expect(record).toBeDefined();
+    if (!record) throw new Error("missing fixture record");
+    writeRecord(second, record);
+    const file = join(first.home, ".codex/config.toml");
+    const before = readFileSync(file, "utf8");
+    expect(() => uninstall(second)).toThrow();
+    expect(readFileSync(file, "utf8")).toBe(before);
+    expect(readRecord(second)).toEqual(record);
+    uninstall(first);
+  });
+
+  for (const host of ["pi", "codex"] as const) {
+    for (const search of ["preferred", "optional"] as const) {
+      test(`${host} only steers the preferred capability when search is ${search}`, () => {
+        const input = makeInput(host, "project", search, search === "preferred" ? "optional" : "preferred");
+        const plan = planForHost(host, input);
+        const block = plan.edits.find((edit): edit is RulesEdit => edit.format === "rules")?.block ?? "";
+        expect(block.includes("deepseek_web_search")).toBe(input.search === "preferred");
+        expect(block.includes("deepseek_fetch")).toBe(input.fetch === "preferred");
+        expect(applyPlan(plan, input).ok).toBe(true);
+        expect(readFileSync(join(input.cwd, "AGENTS.md"), "utf8")).toContain(block);
+        uninstall(input);
+      });
+    }
+  }
+});
+
+describe("shared config ownership lifecycle", () => {
+  test("a failed first apply releases its claim so another project can install", () => {
+    const first = makeInput("codex", "project", "optional", "optional");
+    mkdirSync(join(first.cwd, ".deepseek-web-retrieval/install.codex.json"), { recursive: true });
+    expect(() => applyPlan(planForHost("codex", first), first)).toThrow("apply failed and was rolled back");
+    expect(existsSync(join(first.home, ".codex"))).toBe(false);
+    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    expect(applyPlan(planForHost("codex", second), second).ok).toBe(true);
+    uninstall(second);
+  });
+
+  test("a failed re-init retains the previous owner's claim and original undo state", () => {
+    const first = makeInput("codex", "project", "optional", "optional");
+    applyPlan(planForHost("codex", first), first);
+    const config = join(first.home, ".codex/config.toml");
+    const before = readFileSync(config, "utf8");
+    const recorded = readRecord(first);
+    symlinkSync("missing-directory/AGENTS.md", join(first.cwd, "AGENTS.md"));
+    const reinit = { ...first, search: "preferred" as const };
+    expect(() => applyPlan(planForHost("codex", reinit), reinit)).toThrow("apply failed and was rolled back");
+    expect(readFileSync(config, "utf8")).toBe(before);
+    expect(readRecord(first)).toEqual(recorded);
+    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    expect(planForHost("codex", second).errors[0]?.message).toContain(first.cwd);
+    uninstall(first);
+  });
+
+  test("ownership is independent of XDG config home and follows a symlinked home", () => {
+    const first = makeInput("codex", "project", "optional", "optional");
+    applyPlan(planForHost("codex", first), first);
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-other-project-"));
+    const alias = join(cwd, "home-alias");
+    symlinkSync(first.home, alias);
+    const second = { ...first, cwd, home: alias, configHome: join(cwd, "other-config-home") };
+    expect(planForHost("codex", second).errors[0]?.message).toContain(first.cwd);
+    uninstall(first);
+  });
+
+  test("legacy generated registrations cannot be adopted from another project, and re-init migrates the owner", () => {
+    const first = makeInput("codex", "project", "optional", "optional");
+    applyPlan(planForHost("codex", first), first);
+    const directory = join(first.home, ".codex");
+    // Recreate the older on-disk format: a project record with no ownership metadata.
+    for (const name of readdirSync(directory)) {
+      if (name.endsWith(".owner.json")) rmSync(join(directory, name));
+    }
+    const record = readRecord(first);
+    if (!record) throw new Error("missing fixture record");
+    writeRecord(first, { ...record, files: record.files.map(({ shared: _shared, ...file }) => file) });
+    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    expect(planForHost("codex", second).errors[0]?.message).toContain("older install");
+    expect(applyPlan(planForHost("codex", first), first).ok).toBe(true);
+    const claims = readdirSync(directory).filter((name) => name.endsWith(".owner.json"));
+    expect(claims.length).toBe(1);
+    expect(statSync(join(directory, claims[0])).mode & 0o777).toBe(0o600);
+    expect(planForHost("codex", second).errors[0]?.message).toContain(first.cwd);
+    uninstall(first);
+    expect(existsSync(directory)).toBe(false);
+  });
+});

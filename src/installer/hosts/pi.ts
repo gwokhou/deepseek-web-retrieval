@@ -194,7 +194,8 @@ function planCompetitorDisables(
       continue;
     }
     const previous = typeof current.enabled === "boolean" ? current.enabled : undefined;
-    if (previous === false) continue; // already excluded
+    // Keep the op even when already disabled: a re-init must retain the claim
+    // and original snapshot, otherwise orphan reverts would re-enable it.
     ops.push({ op: "set", path: ["mcpServers", name, "enabled"], value: false, previous });
     excluded.push(name);
   }

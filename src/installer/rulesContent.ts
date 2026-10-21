@@ -15,7 +15,7 @@ export const RAW_MCP_TOOL_IDS = { search: "deepseek_web_search", fetch: "deepsee
 /**
  * Builds the rules block lines for the preferred tier: names the full tool ids,
  * states trigger conditions rather than unconditional preference, and lists the
- * private-network exclusion. Only mentions capabilities that are not "off".
+ * private-network exclusion. Only steers capabilities whose tier is preferred.
  * Hosts whose tools are named differently pass their own ids.
  */
 export function rulesLines(
@@ -24,14 +24,14 @@ export function rulesLines(
   fetch: Tier,
 ): string[] {
   const lines: string[] = ["DeepSeek retrieval guidance:"];
-  if (search !== "off") {
+  if (search === "preferred") {
     lines.push(
       `- Use ${ids.search} when the task needs fresh external information: current docs, version numbers,`,
       "  changelogs, or anything you cannot know from the repository alone. Do not search for facts already",
       "  present locally.",
     );
   }
-  if (fetch !== "off") {
+  if (fetch === "preferred") {
     lines.push(`- Use ${ids.fetch} to read a specific public web page as Markdown when its content is needed.`);
   }
   lines.push(

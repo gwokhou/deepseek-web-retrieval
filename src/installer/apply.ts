@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { codecFor, writeConfig } from "./formats";
 import { deepEqual, valueAt } from "./formats/value";
+import { acquireFileOwnership, assertFileOwnership, releaseFileOwnership } from "./ownership";
 import { pruneEmptyDir, revertRecordedFile } from "./revert";
 import { deleteRecord, readRecord, writeRecord } from "./state";
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "./types";
@@ -32,12 +33,15 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
   if (plan.errors.length > 0) {
     throw new Error(`refusing to apply a plan with errors: ${plan.errors.map((error) => error.message).join("; ")}`);
   }
+  const touched = [...plan.edits, ...(plan.reverts ?? [])];
+  assertFileOwnership(input, touched);
   assertNoDrift(plan);
   const previous = readRecord(input);
   const prepared = plan.edits.map((edit) => prepareEdit(edit, plan.host));
   const snapshots = snapshotTouchedFiles(plan);
   const files: RecordedFile[] = [];
   const lines: string[] = [];
+  const releaseNewClaims = acquireFileOwnership(input, touched);
   try {
     for (const item of prepared) {
       item.write();
@@ -64,8 +68,14 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
     };
     writeRecord(input, record);
   } catch (error) {
-    throw rollbackApply(input, previous, snapshots, error);
+    const rolledBack = rollbackApply(input, previous, snapshots, error);
+    releaseNewClaims();
+    throw rolledBack;
   }
+  releaseFileOwnership(
+    input,
+    (previous?.files ?? []).filter((file) => !files.some((current) => current.file === file.file)),
+  );
   const verification = verifyEdits(plan.edits, plan.host);
   lines.push(...verification.lines);
   return { lines, ok: verification.ok };
@@ -181,6 +191,7 @@ function prepareEdit(edit: FileEdit, host: InstallPlan["host"]): PreparedEdit {
           file: edit.file,
           format: edit.format,
           created: !loaded.exists,
+          ...(edit.shared ? { shared: true as const } : {}),
           ops: applied.recorded,
           createdParents: applied.createdParents,
         };

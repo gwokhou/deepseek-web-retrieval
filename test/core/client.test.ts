@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import assert from "node:assert/strict";
-import { DeepSeekApiError, fetchPage, searchWeb } from "../../src/core/client";
+import { DeepSeekApiError, fetchDocument, fetchPage, searchWeb } from "../../src/core/client";
 import { resolveFetchOptions, resolveSearchOptions } from "../../src/core/options";
 import type { RequestAuth, RetryOptions } from "../../src/core/types";
 
@@ -95,6 +95,29 @@ describe("DeepSeek client", () => {
       "local/private",
     );
     expect(calls).toBe(0);
+  });
+
+  test("URL objects enforce the same protocol, credentials, and length limits as strings", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return Response.json({ title: "Example", content: "body" });
+    }) as unknown as typeof fetch;
+    const options = resolveFetchOptions();
+    const invalid = [
+      ["https://user:review-password@example.com/page", "credentials"],
+      ["ftp://example.com/file", "http:// or https://"],
+      [`https://example.com/${"x".repeat(8192)}`, "8192"],
+    ];
+    for (const [url, message] of invalid) {
+      await expect(fetchDocument(url, options, request())).rejects.toThrow(message);
+      await expect(fetchDocument(new URL(url), options, request())).rejects.toThrow(message);
+      await expect(fetchPage(new URL(url), options, request())).rejects.toThrow(message);
+    }
+    expect(calls).toBe(0);
+    const document = await fetchDocument(new URL("https://example.com/page"), options, request());
+    expect(document.url).toBe("https://example.com/page");
+    expect(calls).toBe(1);
   });
 
   test("rejects empty and overlong queries before making a request", async () => {

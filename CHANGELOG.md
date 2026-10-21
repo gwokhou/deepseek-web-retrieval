@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Installer: refuse incomplete, reversed, or duplicate rules-block markers before
+  modifying files, preserving user content and uninstall state.
+- Installer: repeated Pi forced installs retain competitor exclusions and their
+  original snapshots; lowering the tier still restores those values.
+- Installer: shared config ownership is recorded beside the actual config, so
+  Codex installs from different projects cannot overwrite or uninstall one another.
+  Claims are previewed, acquired before writes, retained on failed re-init, and
+  released on failed first apply or successful uninstall. Older installations migrate
+  by re-running init from their original project and scope; an unowned installer-style
+  registration is refused instead of silently adopted.
+- Installer: preferred rules steer only the selected capability, leaving the other
+  capability's optional tier unchanged.
+- Core: URL-object Fetch inputs now enforce the same protocol, credential, and
+  length restrictions as string inputs before making any request.
 - Search: a result without a (finite) `rerank_score` now passes while
   `minRerank` is `0`, making the default the pass-through the 0.4.0 research
   intended — the README's "thresholds are off by default" now covers missing

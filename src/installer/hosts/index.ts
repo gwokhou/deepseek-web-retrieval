@@ -1,5 +1,6 @@
 import { API_KEY_ENV } from "../../core/constants";
-import { deepEqual } from "../formats/value";
+import { deepEqual, isPlainObject } from "../formats/value";
+import { assertFileOwnership, fileOwnershipNotes } from "../ownership";
 import { claimedByOtherScope, readRecord } from "../state";
 import type { HostName, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "../types";
 import { planCodex, probeCodexVersion } from "./codex";
@@ -36,7 +37,7 @@ export const HOST_VERSION_PROBES: Partial<Record<HostName, (err: (line: string) 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {
   const previous = readRecord(input);
   const planned = withCrossScopeGuard(HOST_PLANNERS[host](input, previous), input);
-  return withSecretGuard(withOrphanReverts(planned, previous));
+  return withSecretGuard(withOrphanReverts(withLegacySharedConfigGuard(planned, previous), previous));
 }
 
 /**
@@ -47,12 +48,17 @@ export function planForHost(host: HostName, input: InstallerInput): InstallPlan 
  */
 function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallPlan {
   if (plan.errors.length > 0) return plan;
+  try {
+    assertFileOwnership(input, plan.edits);
+  } catch (error) {
+    return { ...plan, edits: [], reverts: undefined, errors: [{ message: String(error) }] };
+  }
   const other = input.scope === "global" ? "project" : "global";
   const overlap = claimedByOtherScope(
     input,
     plan.edits.map((edit) => edit.file),
   );
-  if (overlap.length === 0) return plan;
+  if (overlap.length === 0) return { ...plan, notes: [...plan.notes, ...fileOwnershipNotes(input, plan.edits)] };
   return {
     ...plan,
     edits: [],
@@ -66,6 +72,45 @@ function withCrossScopeGuard(plan: InstallPlan, input: InstallerInput): InstallP
       },
     ],
   };
+}
+
+/**
+ * Old installers had no shared ownership sidecar. A generated registration
+ * without this scope's record may belong to an unknown project; adopting it
+ * would snapshot installed values and recreate the cross-project undo bug.
+ */
+function withLegacySharedConfigGuard(plan: InstallPlan, previous: InstallRecord | undefined): InstallPlan {
+  if (plan.errors.length > 0 || previous !== undefined) return plan;
+  for (const edit of plan.edits) {
+    if (edit.format === "rules" || !edit.shared) continue;
+    for (const op of edit.ops) {
+      const old = op.previous;
+      if (
+        op.op !== "set" ||
+        !isPlainObject(old) ||
+        old.command !== "npx" ||
+        !Array.isArray(old.args) ||
+        old.args[0] !== "-y" ||
+        !Array.isArray(old.env_vars) ||
+        !old.env_vars.includes(API_KEY_ENV)
+      )
+        continue;
+      return {
+        ...plan,
+        edits: [],
+        reverts: undefined,
+        errors: [
+          {
+            message:
+              `${edit.file} contains an installer-style registration without an install record for this location. ` +
+              "It may belong to an older install in another project. Re-run init or uninstall from that original project and scope first; " +
+              "if the registration was created manually, remove it before retrying. No existing registration was adopted.",
+          },
+        ],
+      };
+    }
+  }
+  return plan;
 }
 
 /**

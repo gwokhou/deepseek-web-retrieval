@@ -66,6 +66,8 @@ export interface JsonEdit {
   readonly file: string;
   readonly format: "json";
   readonly ops: readonly ConfigOp[];
+  /** The host maps multiple install locations onto this one config file. */
+  readonly shared?: true;
 }
 
 /** A TOML file edit: ops on the parsed value, serialized on write. */
@@ -73,6 +75,8 @@ export interface TomlEdit {
   readonly file: string;
   readonly format: "toml";
   readonly ops: readonly ConfigOp[];
+  /** The host maps multiple install locations onto this one config file. */
+  readonly shared?: true;
 }
 
 /** A rules file edit: upserts the host's marked block; it carries no ops. */
@@ -119,6 +123,8 @@ export interface RecordedFile {
   readonly file: string;
   readonly format: "json" | "toml" | "rules";
   readonly created: boolean;
+  /** Shared config ownership must be discoverable from every project. */
+  readonly shared?: true;
   readonly ops: readonly RecordedOp[];
   readonly blockApplied?: string;
   /** Path prefixes the apply step had to create; uninstall removes them when left empty. */

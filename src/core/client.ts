@@ -79,11 +79,12 @@ export async function searchWeb(
 }
 
 export async function fetchPage(url: URL, options: FetchOptions, request: RequestOptions): Promise<FetchedPage> {
-  // Enforced here so direct core consumers cannot bypass the policy. Adapters
-  // may also pre-check to reject before a permission prompt.
-  assertFetchHostPolicy(url, options);
+  // A URL object is parsed, not necessarily safe: direct core callers must pass
+  // the same protocol, credentials, length and host checks as string callers.
+  const target = parseFetchUrl(url.href);
+  assertFetchHostPolicy(target, options);
   const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs);
-  const payload = await postJson<FetchResponse>(FETCH_ENDPOINT, { url: url.href }, "DeepSeek Fetch", {
+  const payload = await postJson<FetchResponse>(FETCH_ENDPOINT, { url: target.href }, "DeepSeek Fetch", {
     signal: request.signal,
     auth: request.auth,
     retry: request.retry,
@@ -94,7 +95,7 @@ export async function fetchPage(url: URL, options: FetchOptions, request: Reques
   if (!content.trim()) {
     throw new Error("DeepSeek Fetch returned no page content (the page may be empty or unavailable)");
   }
-  return { url: url.href, title, content };
+  return { url: target.href, title, content };
 }
 
 /** Parses the URL and enforces the host policy in one call, returning the fetch target. */

@@ -130,7 +130,7 @@ export function planCodex(input: InstallerInput, _previous: InstallRecord | unde
         : `web_search is being set to "disabled"; the previous value "${previous}" is snapshotted for uninstall.`,
     );
   }
-  edits.push({ file: paths.config, format: "toml", ops });
+  edits.push({ file: paths.config, format: "toml", shared: true, ops });
 
   notes.push(
     `Codex stdio children do not inherit the parent environment, so the entry forwards ${API_KEY_ENV} explicitly ` +

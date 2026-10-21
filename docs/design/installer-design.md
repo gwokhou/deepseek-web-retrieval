@@ -116,6 +116,21 @@ scope choice would overlap the other scope's record — Codex's project-scope fa
 onto `~/.codex/config.toml` beside a global install — the plan refuses with guidance,
 and uninstall runs the same check defensively before touching anything.
 
+Shared config files also carry an owner-only sidecar beside the actual file
+(`.config.toml.deepseek-web-retrieval.codex.owner.json` for Codex). It points to the
+owning install record and project directory, so two different project directories
+cannot both claim the same global config, even with different `XDG_CONFIG_HOME`
+values. Planning reports this metadata write; apply acquires the claim before
+writing config and rechecks ownership, and uninstall releases it. A failed first
+apply releases its new claim; a failed re-init retains the previous owner's claim.
+Project-local configs and shared rules blocks do not need these sidecars.
+
+For installs created before this ownership metadata existed, re-run init from the
+original project and scope to establish the claim. An installer-style registration
+without a record at the requested location is refused rather than adopted as a new
+snapshot. If an identical registration was created manually, remove it before init.
+Do not delete an ownership sidecar while its install is still active.
+
 ## Rollback
 
 Uninstall reverses exactly what the plan applied: overwritten values restore their
@@ -152,7 +167,10 @@ into any existing `permissions` array rather than replacing it.
 - **Rules content.** Name the full tool ids the host will see (`mcp__deepseek__deepseek_web_search`
   over MCP, `deepseek_web_search` over Pi's extension), state trigger conditions rather than
   unconditional preference, and list exclusions (localhost/private-network URLs go to local
-  fetch tools; the server blocks them by default).
+  fetch tools; the server blocks them by default). Emit routing guidance only for the
+  capability selected as preferred; an optional capability stays optional even when the
+  other capability is preferred. Missing, reversed, or duplicate block markers refuse
+  planning, apply, and uninstall without deleting the ambiguous surrounding text.
 
 ## Implementation notes
 
@@ -165,7 +183,9 @@ into any existing `permissions` array rather than replacing it.
   records snapshots, appended entries, created files, and created path prefixes — never
   full file contents, so other servers' secrets stay out of the state file.
 - Re-applying over a previous init inherits the original snapshots instead of recording
-  the installer's own output as the "previous" value.
+  the installer's own output as the "previous" value. Pi forced re-inits keep their
+  competitor-disable ops even when those servers are already disabled, so orphan
+  reverts cannot re-enable a still-excluded competitor.
 - Verify is file-level: after apply it re-reads each written file and asserts every op
   holds (set values in place, appended entries present, rules block present). Higher
   layers would be a plan-time detect concern, and none of the three shipped hosts

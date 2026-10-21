@@ -1,5 +1,5 @@
 import { BOTH_CAPABILITIES_OFF, competitorSteeringNote, findCompetitorSteering } from "../detect";
-import type { LoadedConfig } from "../formats";
+import { codecFor, type LoadedConfig } from "../formats";
 import type { HostPaths, InstallerInput, PlanError } from "../types";
 
 /** What the shared plan header accumulated: notes and errors so far, and whether to stop. */
@@ -24,6 +24,11 @@ export function planHeader(input: InstallerInput, paths: HostPaths, loaded: Load
   }
   if (input.search === "off" && input.fetch === "off") {
     errors.push({ message: BOTH_CAPABILITIES_OFF });
+  }
+  const rules = codecFor("rules", input.host).load(paths.rules);
+  if (rules.parseError) {
+    errors.push({ message: `${paths.rules}: ${rules.parseError}` });
+    return { notes, errors, abort: true };
   }
   const steering = findCompetitorSteering(input.host, paths.rules);
   if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering));
