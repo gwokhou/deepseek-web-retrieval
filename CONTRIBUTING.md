@@ -80,6 +80,9 @@ an already-published npm version is accepted only if its integrity matches the
 candidate, and an existing stable GitHub Release is left intact. A conflicting
 npm version fails instead of being overwritten; a new older version cannot move
 `latest` backwards. Do not move or recreate a published tag to retry a release.
+After npm accepts an upload, the workflow waits up to five minutes for the
+version to become available; if npm processing takes longer, wait until the
+version appears in the registry and rerun the failed jobs to finish the release.
 
 ### Validation commands
 

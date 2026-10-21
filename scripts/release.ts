@@ -61,6 +61,21 @@ export async function registryState(
   return publicationState(packed, metadata);
 }
 
+export async function waitForPublication(
+  readState: () => Promise<ReturnType<typeof publicationState>>,
+  pause: () => Promise<void> = () => Bun.sleep(10_000),
+) {
+  // npm may accept an upload before its processing pipeline exposes the version.
+  for (let attempt = 0; attempt < 31; attempt++) {
+    const state = await readState();
+    if (state.exists) return state;
+    if (attempt < 30) await pause();
+  }
+  throw new Error(
+    "Published version is still missing after five minutes; wait for npm processing, then rerun failed jobs",
+  );
+}
+
 function output(values: Record<string, string | boolean>) {
   const lines = Object.entries(values)
     .map(([key, value]) => `${key}=${value}\n`)
@@ -98,15 +113,7 @@ async function main() {
     .update(readFileSync(join(directory, packed.filename)))
     .digest("base64")}`;
   if (integrity !== packed.integrity) throw new Error("Packed artifact integrity mismatch");
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const state = await registryState(packed);
-    if (command === "status" || state.exists) {
-      output(state);
-      return;
-    }
-    if (attempt < 5) await Bun.sleep(5000);
-  }
-  throw new Error("Published version is still missing from the npm registry");
+  output(command === "status" ? await registryState(packed) : await waitForPublication(() => registryState(packed)));
 }
 
 if (import.meta.main) await main();

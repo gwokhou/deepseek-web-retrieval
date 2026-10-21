@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here, with one sentence per item.
 
+## Unreleased
+
+- Wait up to five minutes for npm's post-upload processing before finalizing automated releases, with retry guidance if processing takes longer.
+
 ## 0.5.1
 
 - Publish npm packages through GitHub Actions trusted publishing and create GitHub Releases automatically from version tags.
