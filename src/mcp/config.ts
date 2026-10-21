@@ -30,12 +30,9 @@ const DOMAINS_ENV = {
   fetchBlockedDomains: "DEEPSEEK_FETCH_BLOCKED_DOMAINS",
 } as const
 
-const FLAG_ENV = {
-  allowUnknownAuthority: "DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY",
-} as const
-
 /** Shared defaults are true; only an explicit false value disables them. */
 const FALSE_ONLY_ENV = {
+  allowUnknownAuthority: "DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY",
   fetchBlockPrivateHosts: "DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS",
   searchEnabled: ENABLE_SEARCH_ENV,
   fetchEnabled: ENABLE_FETCH_ENV,
@@ -58,7 +55,7 @@ export function pluginOptionsFromEnv(env: Env): PluginOptions {
   putNumber(options, "maxResults", env)
   putNumber(options, "minRerank", env)
   putNumber(options, "minAuthority", env)
-  putBoolean(options, "allowUnknownAuthority", env)
+  putFalseOnly(options, "allowUnknownAuthority", env)
   putDomains(options, "blockedDomains", env)
   putDomains(options, "includeDomains", env)
   putText(options, "language", env)
@@ -95,10 +92,6 @@ function putText(target: Record<string, unknown>, key: keyof typeof TEXT_ENV, en
   if (trimmed) target[key] = trimmed
 }
 
-function putBoolean(target: Record<string, unknown>, key: keyof typeof FLAG_ENV, env: Env): void {
-  if (isTrueValue(env[FLAG_ENV[key]])) target[key] = true
-}
-
 function putFalseOnly(target: Record<string, unknown>, key: keyof typeof FALSE_ONLY_ENV, env: Env): void {
   if (isFalseValue(env[FALSE_ONLY_ENV[key]])) target[key] = false
 }
@@ -111,11 +104,6 @@ function putDomains(target: Record<string, unknown>, key: keyof typeof DOMAINS_E
     .map((domain) => domain.trim())
     .filter((domain) => domain.length > 0)
   if (domains.length > 0) target[key] = domains
-}
-
-function isTrueValue(value: string | undefined): boolean {
-  const trimmed = value?.trim().toLowerCase()
-  return trimmed === "true" || trimmed === "1" || trimmed === "yes" || trimmed === "on"
 }
 
 function isFalseValue(value: string | undefined): boolean {

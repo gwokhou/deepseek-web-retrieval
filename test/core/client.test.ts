@@ -52,7 +52,10 @@ describe("DeepSeek client", () => {
 
     const results = await searchWeb("bun", resolveSearchOptions({ count: 20 }), request())
 
-    expect(results).toEqual([{ url: "https://a/", title: "A", content: "summary" }])
+    expect(results).toEqual([
+      { url: "https://a/", title: "A", content: "summary" },
+      { url: "https://b/", title: "B", content: "low" },
+    ])
     expect(captured!.url).toBe("https://api.deepseek.com/v1/tools/search")
     expect(JSON.parse(String(captured!.init.body))).toEqual({
       query: "bun",

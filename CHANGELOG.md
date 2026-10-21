@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- Ground the search defaults in surveyed industry factory defaults
+  ([research](docs/research/search-api-defaults.md)): every surveyed AI-native search API
+  returns ten results by default and none filters results client-side by score or
+  authority, so `maxResults` moves 5 → 10 (matching the API `count` default) and the
+  `minRerank`/`minAuthority` thresholds move to 0 with `allowUnknownAuthority` flipping
+  to `true` — the pass-through default returns what DeepSeek ranked, and the thresholds
+  remain available as opt-ins. `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` becomes a
+  false-only switch (`false`/`0`/`no`/`off` disables) since the default is now on.
+  Unchanged and now evidence-backed: `maxRetries=0` (search-API SDK cohort: tavily-python
+  and Linkup ship no retries; the 2-retry defaults belong to chat-completion SDKs), the
+  30 s timeout, and the 1,200/16,000-character truncations
+
 ## 0.3.0
 
 - Close the lifecycle gaps in the keyless e2e coverage with a `reinit` scenario: tier

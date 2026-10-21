@@ -38,7 +38,12 @@ describe("processResults", () => {
     date: "2026-06-01T00:00:00+00:00",
   }
 
-  test("filters quality, authority, missing scores, unsafe URLs, and empty URLs", () => {
+  test("filters quality, authority, missing scores, unsafe URLs, and empty URLs when thresholds are set", () => {
+    const options = resolveSearchOptions({
+      minRerank: 1.5,
+      minAuthority: 2,
+      allowUnknownAuthority: false,
+    })
     const raw: DeepSeekSearchResult[] = [
       passing,
       { url: "https://low-rerank", rerank_score: 1.2, authority: 4 },
@@ -51,7 +56,7 @@ describe("processResults", () => {
       { url: "", rerank_score: 2, authority: 4 },
     ]
 
-    expect(processResults(raw, defaults)).toEqual([
+    expect(processResults(raw, options)).toEqual([
       {
         url: "https://example.com/a",
         title: "Example",
@@ -99,7 +104,7 @@ describe("processResults", () => {
       "https://duplicate/",
       "https://second/",
     ])
-    expect(processResults(raw, options)[0]?.content).toBe("winner")
+    expect(processResults(raw, options)[0]?.content).toBeUndefined()
   })
 
   test("maxResults zero returns no results", () => {

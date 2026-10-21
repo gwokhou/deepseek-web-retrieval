@@ -49,14 +49,15 @@ describe("pluginOptionsFromEnv", () => {
     })
   })
 
-  test("parses booleans", () => {
-    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "true" })).toEqual({
-      allowUnknownAuthority: true,
+  test("maps DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY as a false-only switch", () => {
+    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "true" })).toEqual({})
+    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "1" })).toEqual({})
+    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "false" })).toEqual({
+      allowUnknownAuthority: false,
     })
-    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "1" })).toEqual({
-      allowUnknownAuthority: true,
+    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "0" })).toEqual({
+      allowUnknownAuthority: false,
     })
-    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "no" })).toEqual({})
   })
 
   test("keeps fetchBlockPrivateHosts on by default and only disables it explicitly", () => {
@@ -95,7 +96,7 @@ describe("resolveEnvOptions", () => {
 
   test("uses shared defaults for an empty environment", () => {
     const resolved = resolveEnvOptions({})
-    expect(resolved.search.maxResults).toBe(5)
+    expect(resolved.search.maxResults).toBe(10)
     expect(resolved.fetch.maxChars).toBe(16000)
     expect(resolved.retry.maxRetries).toBe(0)
   })

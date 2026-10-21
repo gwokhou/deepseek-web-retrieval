@@ -132,10 +132,10 @@ defaults and clamping match the OpenCode adapter.
 | --- | --- | --- |
 | `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the search tool. Only an explicit `false`/`0`/`no`/`off` disables it; at least one tool must stay enabled. |
 | `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
-| `DEEPSEEK_SEARCH_MAX_RESULTS` | `5` | Results returned to the model after filtering, 0–50. `0` returns no results. |
-| `DEEPSEEK_SEARCH_MIN_RERANK` | `1.5` | Drop results below this relevance score. DeepSeek scores are 0–3. |
-| `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `2` | Drop known authorities below this tier. Authority is 0–4. |
-| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `false` | Keep results whose authority is missing or unknown. Set `true`/`1`. |
+| `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50. `0` returns no results. |
+| `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. |
+| `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` | Drop known authorities below this tier. Authority is 0–4. |
+| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0` to drop them. |
 | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset | Comma-separated; adds `-site:` operators to the query. |
 | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Comma-separated; restricts results with `site:` operators. |
 | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Adds a `lang:` operator, for example `zh,en`. |

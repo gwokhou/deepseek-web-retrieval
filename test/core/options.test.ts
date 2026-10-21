@@ -13,10 +13,10 @@ describe("resolve options", () => {
     expect(resolvePluginOptions(undefined)).toEqual({
       search: {
         count: 10,
-        maxResults: 5,
-        minRerank: 1.5,
-        minAuthority: 2,
-        allowUnknownAuthority: false,
+        maxResults: 10,
+        minRerank: 0,
+        minAuthority: 0,
+        allowUnknownAuthority: true,
         blockedDomains: [],
         includeDomains: [],
         language: undefined,
@@ -49,11 +49,16 @@ describe("resolve options", () => {
     })
     expect(options.count).toBe(1)
     expect(options.maxResults).toBe(50)
-    expect(options.minRerank).toBe(1.5)
-    expect(options.minAuthority).toBe(2)
+    expect(options.minRerank).toBe(0)
+    expect(options.minAuthority).toBe(0)
     expect(options.maxSummaryChars).toBe(0)
     expect(options.timeoutMs).toBe(1000)
-    expect(options.allowUnknownAuthority).toBe(false)
+    expect(options.allowUnknownAuthority).toBe(true)
+  })
+
+  test("keeps unknown-authority results unless disabled explicitly", () => {
+    expect(resolveSearchOptions({}).allowUnknownAuthority).toBe(true)
+    expect(resolveSearchOptions({ allowUnknownAuthority: false }).allowUnknownAuthority).toBe(false)
   })
 
   test("normalizes domains and language", () => {

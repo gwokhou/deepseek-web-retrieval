@@ -1,10 +1,16 @@
 export const SEARCH_ENDPOINT = "https://api.deepseek.com/v1/tools/search"
 export const FETCH_ENDPOINT = "https://api.deepseek.com/v1/tools/fetch"
 
+/**
+ * Search defaults are benchmarked against surveyed AI-native search APIs and
+ * DeepSeek's own factory defaults; see docs/research/search-api-defaults.md.
+ * Result caps cluster at 10 across vendors, and no surveyed vendor filters
+ * results client-side by score or authority — thresholds stay opt-in.
+ */
 export const DEFAULT_SEARCH_COUNT = 10
-export const DEFAULT_MAX_RESULTS = 5
-export const DEFAULT_MIN_RERANK = 1.5
-export const DEFAULT_MIN_AUTHORITY = 2
+export const DEFAULT_MAX_RESULTS = 10
+export const DEFAULT_MIN_RERANK = 0
+export const DEFAULT_MIN_AUTHORITY = 0
 export const DEFAULT_MAX_SUMMARY_CHARS = 1200
 
 export const DEFAULT_FETCH_MAX_CHARS = 16000

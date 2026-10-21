@@ -16,6 +16,7 @@ import {
 } from "../../src/core/descriptions"
 import { resolvePluginOptions } from "../../src/core/options"
 import type { ResolvedOptions } from "../../src/core/types"
+import { resolveEnvOptions } from "../../src/mcp/config"
 import { createDeepSeekServer, servePrecheck } from "../../src/mcp/server"
 
 const originalFetch = globalThis.fetch
@@ -120,9 +121,15 @@ describe("MCP server over the legacy protocol eras", () => {
     })
   }
 
-  test("search returns filtered results as text and structured content", async () => {
+  test("search returns filtered results as text and structured content when thresholds are set via env", async () => {
     stubFetch(SEARCH_RESULTS)
-    const persona = await connectPersona("2025-11-25")
+    const env = {
+      DEEPSEEK_API_KEY: "sk-test",
+      DEEPSEEK_SEARCH_MIN_RERANK: "1.5",
+      DEEPSEEK_SEARCH_MIN_AUTHORITY: "2",
+      DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "false",
+    }
+    const persona = await connectPersona("2025-11-25", env, resolveEnvOptions(env))
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",

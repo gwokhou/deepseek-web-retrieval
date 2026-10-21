@@ -40,7 +40,7 @@ export function resolveSearchOptions(input?: PluginOptions): SearchOptions {
     maxResults: clampInt(input?.maxResults, DEFAULT_MAX_RESULTS, 0, 50),
     minRerank: finiteNumber(input?.minRerank, DEFAULT_MIN_RERANK),
     minAuthority: finiteNumber(input?.minAuthority, DEFAULT_MIN_AUTHORITY),
-    allowUnknownAuthority: input?.allowUnknownAuthority === true,
+    allowUnknownAuthority: input?.allowUnknownAuthority !== false,
     blockedDomains: normalizeDomains(input?.blockedDomains),
     includeDomains: normalizeDomains(input?.includeDomains),
     language: optionalText(input?.language),

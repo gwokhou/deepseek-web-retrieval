@@ -13,9 +13,6 @@ This is an unofficial community project. It is not affiliated with OpenCode or D
 
 - **One core, every host** — a native OpenCode v2 plugin plus a stdio MCP
   server for everything else; identical retrieval behavior on each
-- **Token- and cost-efficient** — filtered summaries and capped fetch
-  budgets, not raw page dumps; retries off by default, because every
-  successful retry is a billed request
 - **Tiered routing** — optional, preferred, forced, or off, per capability;
   forced refuses when exclusivity is impossible
 - **Plan-then-apply installer** — every write previewed as old → new before
@@ -61,8 +58,10 @@ binary files, per-request billing) are documented there.
 
 - Requests summaries only (`need_content: false`, `summary` falling back to `snippet`);
   full page content never enters the results.
-- Filters by `rerank_score` and `authority`, deduplicates URLs, and returns at most five
-  results by default.
+- Returns at most ten results by default (matching the API's `count` default and the
+  industry norm for AI-native search APIs), deduplicating URLs. Optional
+  `rerank_score` and `authority` thresholds are off by default; when enabled they
+  drop results below the configured score or tier.
 - Builds `blockedDomains`, `includeDomains`, and `language` into query operators and
   rejects the final query locally when it exceeds the API's 128-character limit.
 - An empty result set is normal and is not an error.

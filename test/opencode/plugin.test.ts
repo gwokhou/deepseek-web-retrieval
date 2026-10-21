@@ -167,6 +167,7 @@ describe("OpenCode plugin wiring", () => {
 
     expect(results).toEqual([
       { url: "https://a/", title: "A", content: "summary", time: {} },
+      { url: "https://b/", title: "B", content: "low", time: {} },
     ])
     expect(request!.url).toBe("https://api.deepseek.com/v1/tools/search")
     expect(JSON.parse(String(request!.init.body))).toEqual({
