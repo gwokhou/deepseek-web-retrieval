@@ -1012,6 +1012,91 @@ describe("pi extension path", () => {
   })
 })
 
+describe("self-package detection", () => {
+  test("pi: an unrelated similarly-named package is not refused and stays untouched", () => {
+    const input = makeInput("pi", "global", "optional", "optional")
+    mkdirSync(join(input.home, ".pi/agent"), { recursive: true })
+    writeFileSync(
+      join(input.home, ".pi/agent/settings.json"),
+      JSON.stringify({ packages: ["npm:deepseek-web-retrieval-extra"] }),
+    )
+    const plan = planPi(input, readRecord(input))
+    expect(plan.errors).toEqual([])
+    const append = plan.edits
+      .find((edit): edit is JsonEdit => edit.format === "json")
+      ?.ops.find((op) => op.op === "append-array")
+    expect(append && "entries" in append ? append.entries : undefined).toEqual(["npm:deepseek-web-retrieval"])
+  })
+
+  test("pi: untracked forks, pinned versions, and tarballs of this package are refused", () => {
+    const input = makeInput("pi", "global", "optional", "optional")
+    mkdirSync(join(input.home, ".pi/agent"), { recursive: true })
+    writeFileSync(
+      join(input.home, ".pi/agent/settings.json"),
+      JSON.stringify({
+        packages: [
+          "npm:deepseek-web-retrieval@0.3.0",
+          "github:gwokhou/deepseek-web-retrieval",
+          "npm:file:/tmp/deepseek-web-retrieval-0.5.0.tgz",
+        ],
+      }),
+    )
+    const plan = planPi(input, readRecord(input))
+    expect(plan.errors.length).toBe(1)
+    expect(plan.errors[0]?.message).toContain("did not write")
+    expect(plan.errors[0]?.message).toContain("pi remove")
+    expect(plan.edits).toEqual([])
+  })
+
+  test("pi: the installer's own tracked fork source is never flagged as an unexcludable competitor", () => {
+    const fork = makeInput("pi", "project", "optional", "optional")
+    const withFork = { ...fork, packageRef: "my-web-search-fork" }
+    applyPlan(planForHost("pi", withFork), withFork)
+
+    // Without a record the same web-capable-looking source is refused…
+    const untracked = makeInput("pi", "project", "forced", "optional")
+    mkdirSync(join(untracked.cwd, ".pi"), { recursive: true })
+    writeFileSync(join(untracked.cwd, ".pi/settings.json"), JSON.stringify({ packages: ["npm:my-web-search-fork"] }))
+    expect(planPi(untracked, readRecord(untracked)).errors[0]?.message).toContain("npm:my-web-search-fork")
+
+    // …but once the install is tracked, forced does not flag its own source.
+    expect(planForHost("pi", { ...withFork, search: "forced" }).errors).toEqual([])
+  })
+
+  test("pi: a web-capable package whose name merely contains ours cannot bypass the forced refusal", () => {
+    const input = makeInput("pi", "global", "forced", "optional")
+    mkdirSync(join(input.home, ".pi/agent"), { recursive: true })
+    writeFileSync(
+      join(input.home, ".pi/agent/settings.json"),
+      JSON.stringify({ packages: ["npm:deepseek-web-retrieval-search-fork"] }),
+    )
+    const plan = planPi(input, readRecord(input))
+    expect(plan.errors[0]?.message).toContain("Forced cannot deliver exclusive routing")
+    expect(plan.errors[0]?.message).toContain("npm:deepseek-web-retrieval-search-fork")
+  })
+
+  test("pi: a --package ref already carrying the npm: source prefix is written as-is", () => {
+    const input = makeInput("pi", "project", "optional", "optional")
+    const plan = planPi({ ...input, packageRef: "npm:deepseek-web-retrieval@canary" }, readRecord(input))
+    expect(plan.errors).toEqual([])
+    const append = plan.edits
+      .find((edit): edit is JsonEdit => edit.format === "json")
+      ?.ops.find((op) => op.op === "append-array")
+    expect(append && "entries" in append ? append.entries : undefined).toEqual(["npm:deepseek-web-retrieval@canary"])
+  })
+
+  test("opencode: an unrelated similarly-named plugin package is not refused", () => {
+    const input = makeInput("opencode", "global", "forced", "optional")
+    const config = join(input.home, ".config/opencode")
+    mkdirSync(config, { recursive: true })
+    writeFileSync(
+      join(config, "opencode.jsonc"),
+      JSON.stringify({ plugins: [{ package: "deepseek-web-retrieval-extra" }] }, null, 2),
+    )
+    expect(planOpenCode(input, readRecord(input)).errors).toEqual([])
+  })
+})
+
 function relativePath(from: string, to: string): string {
   return to.startsWith(from) ? to.slice(from.length + 1) : to
 }

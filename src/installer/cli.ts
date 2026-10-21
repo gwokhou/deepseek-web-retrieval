@@ -24,7 +24,10 @@ const USAGE = `Usage:
 init prints the full plan (every file, old value → new value) and writes nothing
 until --apply is passed. uninstall restores what the plan applied. --path picks
 the integration mechanism for hosts with more than one (Pi: extension by
-default, mcp for the stdio MCP server).`
+default, mcp for the stdio MCP server). --package overrides the package ref
+written into host config; the Pi extension path turns it into the packages
+source (a bare name is prefixed with npm:, a ref that already starts with npm:
+is written as-is).`
 
 interface Flags {
   readonly values: Map<string, string>

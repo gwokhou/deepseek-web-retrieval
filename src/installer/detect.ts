@@ -42,6 +42,18 @@ export function looksWebCapable(name: string, entry: unknown): boolean {
   return WEB_TOOL_HINT.test(`${command} ${args} ${url}`)
 }
 
+/**
+ * Matches a source or package ref that is this package in another form — a fork
+ * (`github:owner/deepseek-web-retrieval`), a pinned version
+ * (`npm:deepseek-web-retrieval@<version>`), a packed tarball
+ * (`npm:file:…/deepseek-web-retrieval-<version>.tgz`) — but not an unrelated
+ * package whose name merely contains ours (`deepseek-web-retrieval-extra`).
+ * The match is on the package-name boundary, not a raw substring.
+ */
+export function looksLikeOwnPackage(source: string): boolean {
+  return /(^|[/:@])deepseek-web-retrieval($|[@/]|-\d)/.test(source)
+}
+
 const STEERING_HINT =
   /(web[_ ]?(search|fetch)|websearch|webfetch|tavily|exa|brave|perplexity|firecrawl|jina|serp|duckduckgo|google|bing)/i
 

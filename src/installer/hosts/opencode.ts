@@ -1,6 +1,7 @@
 import { codecFor } from "../formats"
 import { isPlainObject } from "../formats/value"
-import { FORCED_COST_NOTE } from "../detect"
+import { looksLikeOwnPackage, FORCED_COST_NOTE } from "../detect"
+import { appendedByPrevious } from "../state"
 import { configHome, join } from "../paths"
 import { buildRulesBlock } from "../formats/rules"
 import { rulesLines } from "../rulesContent"
@@ -39,17 +40,27 @@ export function planOpenCode(input: InstallerInput, previous: InstallRecord | un
   }
 
   const plugins = Array.isArray(loaded.value.plugins) ? loaded.value.plugins : []
-  const alreadyInstalled = plugins.some(
-    (entry) => isPlainObject(entry) && typeof entry.package === "string" && entry.package.includes("deepseek-web-retrieval"),
+  // Precisely ours: plugin packages a tracked init appended, plus this init's ref.
+  // Without a record nothing is excused — an untracked same-name plugin (a fork
+  // registers the same tool ids and would collide) must be removed first.
+  const trackedPackages = new Set(
+    appendedByPrevious(previous, ["plugins"])
+      .filter((entry): entry is { package: string } => isPlainObject(entry) && typeof entry.package === "string")
+      .map((entry) => entry.package),
   )
-  if (alreadyInstalled && previous === undefined) {
+  const pluginPackages = plugins.filter(
+    (entry): entry is { package: string } => isPlainObject(entry) && typeof entry.package === "string",
+  )
+  const excused = previous === undefined ? new Set<string>() : new Set<string>([...trackedPackages, input.packageRef])
+  const foreignOwn = pluginPackages.filter((entry) => looksLikeOwnPackage(entry.package) && !excused.has(entry.package))
+  if (foreignOwn.length > 0) {
     errors.push({
       message:
         `${paths.config} already has a plugins entry referencing deepseek-web-retrieval that this installer did not ` +
         "write. Remove it (or run uninstall if it came from a previous init), then retry.",
     })
   }
-  if (alreadyInstalled && errors.length === 0) {
+  if (previous !== undefined && pluginPackages.some((entry) => excused.has(entry.package))) {
     notes.push("A previous init wrote the plugins entry; re-applying updates it and carries the original snapshots over.")
   }
   if (errors.length > 0) {

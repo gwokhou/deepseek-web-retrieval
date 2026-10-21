@@ -39,6 +39,19 @@ export function writeRecord(input: InstallerInput, record: InstallRecord): void 
   chmodSync(file, 0o600)
 }
 
+/** Entries a previous init appended at the given path, across its recorded files. */
+export function appendedByPrevious(record: InstallRecord | undefined, path: readonly string[]): readonly unknown[] {
+  if (record === undefined) return []
+  const entries: unknown[] = []
+  for (const file of record.files) {
+    for (const op of file.ops) {
+      if (op.op !== "append-array" || op.path.join("\u0000") !== path.join("\u0000")) continue
+      if (Array.isArray(op.applied)) entries.push(...op.applied)
+    }
+  }
+  return entries
+}
+
 export function deleteRecord(input: InstallerInput): void {
   const file = statePathFor(input)
   if (existsSync(file)) rmSync(file)

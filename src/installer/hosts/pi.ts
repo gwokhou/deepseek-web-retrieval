@@ -2,6 +2,7 @@ import { codecFor } from "../formats"
 import { isPlainObject } from "../formats/value"
 import {
   FORCED_COST_NOTE,
+  looksLikeOwnPackage,
   looksWebCapable,
   othersStayRegisteredNote,
   replacingExistingEntryNote,
@@ -12,6 +13,7 @@ import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../core/con
 import { buildRulesBlock } from "../formats/rules"
 import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent"
 import { SETTINGS_NAMESPACE } from "../../pi/settings"
+import { appendedByPrevious } from "../state"
 import { planHeader } from "./shared"
 import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallRecord, InstallPlan, PlanError } from "../types"
 
@@ -25,6 +27,16 @@ function piPaths(input: InstallerInput): HostPaths {
     : join(input.cwd, ".pi/settings.json")
   const rules = input.scope === "global" ? join(input.home, ".pi/agent/AGENTS.md") : join(input.cwd, "AGENTS.md")
   return { config: input.path === "mcp" ? mcp : settings, rules }
+}
+
+/**
+ * The packages source this init writes: a ref that already carries Pi's `npm:`
+ * source prefix goes through as-is (wrapping it again would produce the broken
+ * `npm:npm:…` form); anything else — bare names, name@spec, npm specs like
+ * `file:` or `github:` — becomes an npm source.
+ */
+function piSourceRef(packageRef: string): string {
+  return packageRef.startsWith("npm:") ? packageRef : `npm:${packageRef}`
 }
 
 export function planPi(input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
@@ -49,17 +61,24 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
   const edits: FileEdit[] = []
 
   const packages = Array.isArray(loaded.value.packages) ? loaded.value.packages : []
-  const alreadyListed = packages.some(
-    (entry) => typeof entry === "string" && entry.includes("deepseek-web-retrieval"),
+  const source = piSourceRef(input.packageRef)
+  // Precisely ours: what a tracked init appended, plus what this init would write.
+  // Only a tracked init can excuse a same-name source — without a record, even an
+  // exact match is an untracked install this installer must not adopt silently.
+  const trackedSources = appendedByPrevious(previous, ["packages"]).filter(
+    (entry): entry is string => typeof entry === "string",
   )
-  if (alreadyListed && previous === undefined) {
+  const excused = previous === undefined ? new Set<string>() : new Set<string>([...trackedSources, source])
+  const sources = packages.filter((entry): entry is string => typeof entry === "string")
+  const foreignOwn = sources.filter((entry) => looksLikeOwnPackage(entry) && !excused.has(entry))
+  if (foreignOwn.length > 0) {
     errors.push({
       message:
-        `${paths.config} already lists a deepseek-web-retrieval package source that this installer did not ` +
+        `${paths.config} already lists ${foreignOwn.join(", ")} — this package (or a fork of it) that this installer did not ` +
         "write. Remove it (pi remove <source>, or uninstall if it came from a previous init), then retry.",
     })
   }
-  if (alreadyListed && errors.length === 0) {
+  if (previous !== undefined && sources.some((entry) => excused.has(entry))) {
     notes.push("A previous init wrote the packages entry; re-applying updates it and carries the original snapshots over.")
   }
 
@@ -68,8 +87,9 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
     // Pi has no per-package kill switch in settings.json, so a web-capable
     // package or extension source cannot be excluded from the plan — refuse the
     // tier instead of promising routing that is not actually forced.
+    const ownSources = new Set<string>([...trackedSources, source])
     const unexcludable = [...collectSources(loaded.value.packages), ...collectSources(loaded.value.extensions)]
-      .filter((source) => source.includes("deepseek-web-retrieval") === false && looksWebCapable(source, undefined))
+      .filter((entry) => !ownSources.has(entry) && looksWebCapable(entry, undefined))
     if (unexcludable.length > 0) {
       errors.push({
         message:
@@ -84,7 +104,7 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
   }
 
   const ops: ConfigOp[] = [
-    { op: "append-array", path: ["packages"], entries: [`npm:${input.packageRef}`], existingCount: packages.length },
+    { op: "append-array", path: ["packages"], entries: [source], existingCount: packages.length },
   ]
   const namespace = isPlainObject(loaded.value[SETTINGS_NAMESPACE]) ? loaded.value[SETTINGS_NAMESPACE] : {}
   if (input.search === "off") {
