@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+- Installer: validate install-record structure, version, host, and scope; corrupt
+  or unreadable records now refuse init, list, and uninstall with repair guidance.
+- Installer: atomically replace config and install-record files, preserve existing
+  permissions and valid symlinks, and keep records private. Operation locks serialize
+  writes to the same install or config; stale plans refuse after another operation.
+  Interrupted locks require inspection before manual removal.
+- CI/release: require the full check, installed-package Node smoke, and keyless
+  installer/reinit/pkg Docker scenarios before publishing. CI also checks the
+  packaged CLI on Node 20, 22, 24, and 26.
+- Docs: `docs:matrix --check` detects drift without rewriting generated documents.
+- Core/adapters: expose an injectable retrieval-client factory; core and adapter
+  tests use independent HTTP dependencies instead of replacing global `fetch`.
+
+- Installer: reject values on the `--apply` switch, including `--apply=false`,
+  before writing anything; use a bare `--apply` to apply the preview.
+- Tests: rebuild the CLI for stdio smoke tests, check Node child-process streams
+  before MCP startup, and include captured stderr in handshake failures.
 - Installer: refuse incomplete, reversed, or duplicate rules-block markers before
   modifying files, preserving user content and uninstall state.
 - Installer: repeated Pi forced installs retain competitor exclusions and their
@@ -11,7 +28,7 @@ All notable changes to this project are documented here.
 - Installer: shared config ownership is recorded beside the actual config, so
   Codex installs from different projects cannot overwrite or uninstall one another.
   Claims are previewed, acquired before writes, retained on failed re-init, and
-  released on failed first apply or successful uninstall. Older installations migrate
+  released on fully rolled-back first apply or successful uninstall. Older installations migrate
   by re-running init from their original project and scope; an unowned installer-style
   registration is refused instead of silently adopted.
 - Installer: preferred rules steer only the selected capability, leaving the other
@@ -24,12 +41,13 @@ All notable changes to this project are documented here.
   scores too, symmetric with `allowUnknownAuthority`. A positive threshold
   still drops unscored results (they cannot be compared against it); a present
   score always compares
-- Installer: `apply` now rolls back on failure. Any error after the first
-  write — a later file write, an orphan revert, or the install-record write —
-  restores every touched file to its pre-apply bytes (files the apply created
-  are deleted) and rewrites the previous record, so a half-applied install can
-  no longer leave the failed run's values as the snapshots a re-init would
-  inherit. The thrown error carries the original cause plus a restore report
+- Installer: `apply` verifies written files before committing the install record.
+  Write, orphan-revert, and verification failures restore touched files and the
+  previous record, then verify that recovery. `ApplyError.status` distinguishes
+  `rolled_back` from `recovery_required`; incomplete recovery retains new config
+  ownership claims and reports the original failure plus recovery errors. If
+  obsolete ownership cleanup fails after commit, the verified install and its new
+  record remain available and the error explicitly reports that state.
 - Installer: removing a marked rules block keeps exactly one blank separator
   line between the surviving neighbors instead of collapsing it
 - Installer: path joins use the platform separator (Windows-native paths

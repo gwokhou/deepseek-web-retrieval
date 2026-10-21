@@ -1,7 +1,8 @@
 import { Plugin } from "@opencode/plugin";
 import type { Context } from "@opencode/plugin/promise/plugin";
 import type { ToolContext } from "@opencode/plugin/promise/tool";
-import { fetchDocument, inspectFetchTarget, searchWeb } from "../core/client";
+import type { RetrievalClient } from "../core/client";
+import { inspectFetchTarget, retrievalClient } from "../core/client";
 import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions";
 import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options";
 import type { PluginOptions, ResolvedOptions, SearchResult } from "../core/types";
@@ -92,6 +93,7 @@ async function runFetch(
   context: ToolContext,
   permission: string,
   saveAll: boolean,
+  client: RetrievalClient,
 ) {
   const format = input.format ?? "markdown";
   if (format !== "markdown") {
@@ -122,7 +124,11 @@ async function runFetch(
     source: { type: "tool", messageID: context.messageID, id: context.id },
   });
 
-  const page = await fetchDocument(target, config.fetch, requestContext(config, apiKey, context.signal, timeoutMs));
+  const page = await client.fetchDocument(
+    target,
+    config.fetch,
+    requestContext(config, apiKey, context.signal, timeoutMs),
+  );
   return {
     content: page.content,
     metadata: {
@@ -133,51 +139,61 @@ async function runFetch(
   };
 }
 
-export default Plugin.define({
-  id: "deepseek-web-retrieval",
-  async setup(ctx) {
-    const config = resolvePluginOptions(ctx.options);
-    const registration = resolveRegistration(ctx.options);
+export function createOpenCodePlugin(client: RetrievalClient = retrievalClient) {
+  return Plugin.define({
+    id: "deepseek-web-retrieval",
+    async setup(ctx) {
+      const config = resolvePluginOptions(ctx.options);
+      const registration = resolveRegistration(ctx.options);
 
-    if (config.search.enabled) {
-      await ctx.websearch.transform((editor) => {
-        editor.add({
-          id: "deepseek",
-          name: "DeepSeek",
-          execute: async (input, { signal }) => {
-            const apiKey = await resolveApiKey(ctx, config.auth.source);
-            const results = await searchWeb(input.query, config.search, requestContext(config, apiKey, signal));
-            return results.map(toOpenCodeResult);
-          },
+      if (config.search.enabled) {
+        await ctx.websearch.transform((editor) => {
+          editor.add({
+            id: "deepseek",
+            name: "DeepSeek",
+            execute: async (input, { signal }) => {
+              const apiKey = await resolveApiKey(ctx, config.auth.source);
+              const results = await client.searchWeb(
+                input.query,
+                config.search,
+                requestContext(config, apiKey, signal),
+              );
+              return results.map(toOpenCodeResult);
+            },
+          });
+          if (registration.setDefault) editor.default.set("deepseek");
         });
-        if (registration.setDefault) editor.default.set("deepseek");
-      });
-    }
+      }
 
-    if (config.fetch.enabled) {
-      await ctx.tool.transform((editor) => {
-        if (registration.overrideWebfetch) editor.remove("webfetch");
+      if (config.fetch.enabled) {
+        await ctx.tool.transform((editor) => {
+          if (registration.overrideWebfetch) editor.remove("webfetch");
 
-        if (registration.registerTool) {
-          editor.add({
-            name: "deepseek_fetch",
-            description: DEEPSEEK_FETCH_DESCRIPTION,
-            input: FETCH_INPUT,
-            options: { codemode: false, permission: "deepseek_fetch" },
-            execute: (input, context) => runFetch(ctx, config, input as FetchInput, context, "deepseek_fetch", false),
-          });
-        }
+          if (registration.registerTool) {
+            editor.add({
+              name: "deepseek_fetch",
+              description: DEEPSEEK_FETCH_DESCRIPTION,
+              input: FETCH_INPUT,
+              options: { codemode: false, permission: "deepseek_fetch" },
+              execute: (input, context) =>
+                runFetch(ctx, config, input as FetchInput, context, "deepseek_fetch", false, client),
+            });
+          }
 
-        if (registration.overrideWebfetch) {
-          editor.add({
-            name: "webfetch",
-            description: WEBFETCH_DESCRIPTION,
-            input: FETCH_INPUT,
-            options: { codemode: false, permission: "webfetch" },
-            execute: (input, context) => runFetch(ctx, config, input as FetchInput, context, "webfetch", true),
-          });
-        }
-      });
-    }
-  },
-});
+          if (registration.overrideWebfetch) {
+            editor.add({
+              name: "webfetch",
+              description: WEBFETCH_DESCRIPTION,
+              input: FETCH_INPUT,
+              options: { codemode: false, permission: "webfetch" },
+              execute: (input, context) =>
+                runFetch(ctx, config, input as FetchInput, context, "webfetch", true, client),
+            });
+          }
+        });
+      }
+    },
+  });
+}
+
+export default createOpenCodePlugin();

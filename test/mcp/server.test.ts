@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import type { McpServer } from "@modelcontextprotocol/server";
+import { createRetrievalClient } from "../../src/core/client";
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, FETCH_ENDPOINT, SEARCH_ENDPOINT } from "../../src/core/constants";
 import {
   FETCH_OUTPUT_TRUNCATED,
@@ -14,29 +15,28 @@ import { resolvePluginOptions } from "../../src/core/options";
 import type { ResolvedOptions } from "../../src/core/types";
 import { createDeepSeekServer, servePrecheck } from "../../src/mcp/server";
 
-const originalFetch = globalThis.fetch;
-
-let captured: { url: string; init: RequestInit } | undefined;
-
-function stubFetch(body: unknown, status = 200): void {
-  captured = undefined;
-  globalThis.fetch = (async (url, init) => {
-    captured = { url: String(url), init: init ?? {} };
-    return new Response(JSON.stringify(body), { status });
-  }) as typeof fetch;
+function createStub() {
+  let captured: { url: string; init: RequestInit } | undefined;
+  let response: { body: unknown; status: number } | undefined;
+  return {
+    get captured() {
+      return captured;
+    },
+    respond(body: unknown, status = 200) {
+      captured = undefined;
+      response = { body, status };
+    },
+    reject() {
+      captured = undefined;
+      response = undefined;
+    },
+    fetchImpl: (async (url, init) => {
+      if (!response) throw new Error("network must not be reached");
+      captured = { url: String(url), init: init ?? {} };
+      return Response.json(response.body, { status: response.status });
+    }) as typeof fetch,
+  };
 }
-
-function notFoundFetch(): void {
-  captured = undefined;
-  globalThis.fetch = (async () => {
-    throw new Error("network must not be reached");
-  }) as unknown as typeof fetch;
-}
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-  captured = undefined;
-});
 
 interface Persona {
   client: Client;
@@ -44,13 +44,14 @@ interface Persona {
 }
 
 async function connectPersona(
+  fetchImpl: typeof fetch,
   version?: string,
   env: Record<string, string | undefined> = { DEEPSEEK_API_KEY: "sk-test" },
   config: ResolvedOptions = resolvePluginOptions(),
   clientInfo: { name: string; version: string } = { name: "deepseek-web-retrieval-test", version: "0.0.0" },
 ): Promise<Persona> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server: McpServer = createDeepSeekServer(config, env);
+  const server: McpServer = createDeepSeekServer(config, env, createRetrievalClient({ fetchImpl }));
   await server.connect(serverTransport);
   const client = new Client(clientInfo, version ? { supportedProtocolVersions: [version] } : undefined);
   await client.connect(clientTransport);
@@ -83,8 +84,9 @@ const SEARCH_RESULTS = {
 describe("MCP server over the legacy protocol eras", () => {
   for (const version of ["2025-11-25", "2025-06-18", "2024-11-05"]) {
     test(`lists and serves both tools as a ${version} client`, async () => {
-      stubFetch(SEARCH_RESULTS);
-      const persona = await connectPersona(version);
+      const stub = createStub();
+      stub.respond(SEARCH_RESULTS);
+      const persona = await connectPersona(stub.fetchImpl, version);
       try {
         const listed = await persona.client.listTools();
         expect(listed.tools.map((tool) => tool.name).sort()).toEqual(["deepseek_fetch", "deepseek_web_search"]);
@@ -106,7 +108,7 @@ describe("MCP server over the legacy protocol eras", () => {
         expect(search.isError).toBeFalsy();
         expect((search.content[0] as { text: string }).text).toContain("1. [First](https://a.example/one)");
 
-        stubFetch({ title: "Example", content: "Body text." });
+        stub.respond({ title: "Example", content: "Body text." });
         const fetched = await persona.client.callTool({
           name: "deepseek_fetch",
           arguments: { url: "https://a.example/one" },
@@ -120,14 +122,15 @@ describe("MCP server over the legacy protocol eras", () => {
   }
 
   test("search returns filtered results as text and structured content when thresholds are set via env", async () => {
-    stubFetch(SEARCH_RESULTS);
+    const stub = createStub();
+    stub.respond(SEARCH_RESULTS);
     const env = {
       DEEPSEEK_API_KEY: "sk-test",
       DEEPSEEK_SEARCH_MIN_RERANK: "1.5",
       DEEPSEEK_SEARCH_MIN_AUTHORITY: "2",
       DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY: "false",
     };
-    const persona = await connectPersona("2025-11-25", env, resolveEnvOptions(env));
+    const persona = await connectPersona(stub.fetchImpl, "2025-11-25", env, resolveEnvOptions(env));
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",
@@ -154,9 +157,9 @@ describe("MCP server over the legacy protocol eras", () => {
         published: Date.parse("2026-01-15T00:00:00Z"),
       });
 
-      expect(captured?.url).toBe(SEARCH_ENDPOINT);
-      expect(new Headers(captured?.init.headers).get("Authorization")).toBe("Bearer sk-test");
-      expect(JSON.parse(String(captured?.init.body))).toEqual({
+      expect(stub.captured?.url).toBe(SEARCH_ENDPOINT);
+      expect(new Headers(stub.captured?.init.headers).get("Authorization")).toBe("Bearer sk-test");
+      expect(JSON.parse(String(stub.captured?.init.body))).toEqual({
         query: "deepseek mcp",
         count: 10,
         need_content: false,
@@ -167,14 +170,15 @@ describe("MCP server over the legacy protocol eras", () => {
   });
 
   test("caps returned results at the configured maxResults", async () => {
-    stubFetch({
+    const stub = createStub();
+    stub.respond({
       results: [
         { url: "https://a.example/one", title: "First", summary: "One.", rerank_score: 2.5, authority: 4 },
         { url: "https://b.example/two", title: "Second", summary: "Two.", rerank_score: 2.4, authority: 4 },
         { url: "https://c.example/three", title: "Third", summary: "Three.", rerank_score: 2.3, authority: 4 },
       ],
     });
-    const persona = await connectPersona(undefined, undefined, resolvePluginOptions({ maxResults: 1 }));
+    const persona = await connectPersona(stub.fetchImpl, undefined, undefined, resolvePluginOptions({ maxResults: 1 }));
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",
@@ -192,8 +196,9 @@ describe("MCP server over the legacy protocol eras", () => {
   });
 
   test("search with no matches returns a normal empty result", async () => {
-    stubFetch({ results: [] });
-    const persona = await connectPersona("2025-11-25");
+    const stub = createStub();
+    stub.respond({ results: [] });
+    const persona = await connectPersona(stub.fetchImpl, "2025-11-25");
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",
@@ -207,8 +212,9 @@ describe("MCP server over the legacy protocol eras", () => {
   });
 
   test("fetch returns formatted Markdown with title dedup and a truncation flag", async () => {
-    stubFetch({ title: "Example", content: "# Example\n\nBody text." });
-    const persona = await connectPersona("2025-11-25");
+    const stub = createStub();
+    stub.respond({ title: "Example", content: "# Example\n\nBody text." });
+    const persona = await connectPersona(stub.fetchImpl, "2025-11-25");
     try {
       const result = await persona.client.callTool({
         name: "deepseek_fetch",
@@ -226,16 +232,17 @@ describe("MCP server over the legacy protocol eras", () => {
         content: "# Example\n\nBody text.",
         truncated: false,
       });
-      expect(captured?.url).toBe(FETCH_ENDPOINT);
-      expect(JSON.parse(String(captured?.init.body))).toEqual({ url: "https://a.example/one" });
+      expect(stub.captured?.url).toBe(FETCH_ENDPOINT);
+      expect(JSON.parse(String(stub.captured?.init.body))).toEqual({ url: "https://a.example/one" });
     } finally {
       await persona.close();
     }
   });
 
   test("fetch truncates long pages to the configured size", async () => {
-    stubFetch({ title: "Long", content: "x".repeat(20000) });
-    const persona = await connectPersona();
+    const stub = createStub();
+    stub.respond({ title: "Long", content: "x".repeat(20000) });
+    const persona = await connectPersona(stub.fetchImpl);
     try {
       const result = await persona.client.callTool({
         name: "deepseek_fetch",
@@ -250,8 +257,9 @@ describe("MCP server over the legacy protocol eras", () => {
   });
 
   test("rejects invalid URLs and private hosts before any network call", async () => {
-    notFoundFetch();
-    const persona = await connectPersona();
+    const stub = createStub();
+    stub.reject();
+    const persona = await connectPersona(stub.fetchImpl);
     try {
       const invalid = await persona.client.callTool({
         name: "deepseek_fetch",
@@ -264,15 +272,16 @@ describe("MCP server over the legacy protocol eras", () => {
         arguments: { url: "http://127.0.0.1:8080/internal" },
       });
       expect(privateHost.isError).toBe(true);
-      expect(captured).toBeUndefined();
+      expect(stub.captured).toBeUndefined();
     } finally {
       await persona.close();
     }
   });
 
   test("maps API errors to isError results without leaking the key", async () => {
-    stubFetch({ error: "bad key sk-live-secret" }, 401);
-    const persona = await connectPersona();
+    const stub = createStub();
+    stub.respond({ error: "bad key sk-live-secret" }, 401);
+    const persona = await connectPersona(stub.fetchImpl);
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",
@@ -288,8 +297,9 @@ describe("MCP server over the legacy protocol eras", () => {
   });
 
   test("fails with guidance when the API key is missing", async () => {
-    notFoundFetch();
-    const persona = await connectPersona("2025-11-25", {});
+    const stub = createStub();
+    stub.reject();
+    const persona = await connectPersona(stub.fetchImpl, "2025-11-25", {});
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",
@@ -297,7 +307,7 @@ describe("MCP server over the legacy protocol eras", () => {
       });
       expect(result.isError).toBe(true);
       expect((result.content[0] as { text: string }).text).toContain("DEEPSEEK_API_KEY");
-      expect(captured).toBeUndefined();
+      expect(stub.captured).toBeUndefined();
     } finally {
       await persona.close();
     }
@@ -306,8 +316,9 @@ describe("MCP server over the legacy protocol eras", () => {
 
 describe("client-aware output shaping", () => {
   test("omits structuredContent for Codex's client identity so the model reads the text blocks", async () => {
-    stubFetch(SEARCH_RESULTS);
-    const persona = await connectPersona("2025-06-18", undefined, undefined, {
+    const stub = createStub();
+    stub.respond(SEARCH_RESULTS);
+    const persona = await connectPersona(stub.fetchImpl, "2025-06-18", undefined, undefined, {
       name: "codex-mcp-client",
       version: "0.163.0",
     });
@@ -320,7 +331,7 @@ describe("client-aware output shaping", () => {
       expect((search.content[0] as { text: string }).text).toContain("1. [First](https://a.example/one)");
       expect((search as { structuredContent?: unknown }).structuredContent).toBeUndefined();
 
-      stubFetch({ title: "Example", content: "Body text." });
+      stub.respond({ title: "Example", content: "Body text." });
       const fetched = await persona.client.callTool({
         name: "deepseek_fetch",
         arguments: { url: "https://a.example/one" },
@@ -334,8 +345,9 @@ describe("client-aware output shaping", () => {
   });
 
   test("keeps structuredContent for other clients on the same protocol revision", async () => {
-    stubFetch(SEARCH_RESULTS);
-    const persona = await connectPersona("2025-06-18");
+    const stub = createStub();
+    stub.respond(SEARCH_RESULTS);
+    const persona = await connectPersona(stub.fetchImpl, "2025-06-18");
     try {
       const search = await persona.client.callTool({
         name: "deepseek_web_search",
@@ -350,7 +362,13 @@ describe("client-aware output shaping", () => {
 
 describe("per-tool enable switches", () => {
   test("registers only the search tool when fetch is disabled", async () => {
-    const persona = await connectPersona(undefined, undefined, resolvePluginOptions({ fetchEnabled: false }));
+    const stub = createStub();
+    const persona = await connectPersona(
+      stub.fetchImpl,
+      undefined,
+      undefined,
+      resolvePluginOptions({ fetchEnabled: false }),
+    );
     try {
       const listed = await persona.client.listTools();
       expect(listed.tools.map((tool) => tool.name)).toEqual(["deepseek_web_search"]);
@@ -360,7 +378,13 @@ describe("per-tool enable switches", () => {
   });
 
   test("registers only the fetch tool when search is disabled", async () => {
-    const persona = await connectPersona(undefined, undefined, resolvePluginOptions({ searchEnabled: false }));
+    const stub = createStub();
+    const persona = await connectPersona(
+      stub.fetchImpl,
+      undefined,
+      undefined,
+      resolvePluginOptions({ searchEnabled: false }),
+    );
     try {
       const listed = await persona.client.listTools();
       expect(listed.tools.map((tool) => tool.name)).toEqual(["deepseek_fetch"]);
@@ -370,7 +394,9 @@ describe("per-tool enable switches", () => {
   });
 
   test("registers neither tool when both are disabled", async () => {
+    const stub = createStub();
     const persona = await connectPersona(
+      stub.fetchImpl,
       undefined,
       undefined,
       resolvePluginOptions({ searchEnabled: false, fetchEnabled: false }),

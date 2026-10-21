@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import assert from "node:assert/strict";
+import { createRetrievalClient } from "../../src/core/client";
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../src/core/constants";
 import { FETCH_SERVICE_LIMITS, SEARCH_EMPTY_IS_NORMAL } from "../../src/core/descriptions";
 import deepSeekWebRetrieval, {
@@ -42,11 +43,9 @@ function fakePi() {
   };
 }
 
-const originalFetch = globalThis.fetch;
 const originalKey = process.env.DEEPSEEK_API_KEY;
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
   if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY;
   else process.env.DEEPSEEK_API_KEY = originalKey;
 });
@@ -116,7 +115,7 @@ describe("pi extension tools", () => {
   test("search returns formatted text plus structured results", async () => {
     process.env.DEEPSEEK_API_KEY = "sk-test";
     let request: { url: string; init: RequestInit } | undefined;
-    globalThis.fetch = (async (input: string | URL | Request, init: RequestInit) => {
+    const fetchImpl = (async (input: string | URL | Request, init: RequestInit) => {
       request = { url: String(input), init };
       return new Response(
         JSON.stringify({
@@ -127,7 +126,13 @@ describe("pi extension tools", () => {
     }) as typeof fetch;
 
     const config = resolveExtensionOptions({ DEEPSEEK_SEARCH_COUNT: "7" });
-    const result = await searchTool(config).execute("call_1", { query: "bun" }, undefined, undefined, {} as never);
+    const result = await searchTool(config, createRetrievalClient({ fetchImpl })).execute(
+      "call_1",
+      { query: "bun" },
+      undefined,
+      undefined,
+      {} as never,
+    );
 
     assert.ok(request, "Search request must be captured");
     expect(request.url).toBe("https://api.deepseek.com/v1/tools/search");
@@ -143,13 +148,13 @@ describe("pi extension tools", () => {
 
   test("fetch returns the page markdown and truncation flag", async () => {
     process.env.DEEPSEEK_API_KEY = "sk-test";
-    globalThis.fetch = (async () =>
+    const fetchImpl = (async () =>
       new Response(JSON.stringify({ title: "Example", content: "# Example\nbody" }), {
         status: 200,
       })) as unknown as typeof fetch;
 
     const config = resolveExtensionOptions({});
-    const result = await fetchTool(config).execute(
+    const result = await fetchTool(config, createRetrievalClient({ fetchImpl })).execute(
       "call_2",
       { url: "https://example.com" },
       new AbortController().signal,

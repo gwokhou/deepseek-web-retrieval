@@ -1,20 +1,91 @@
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, lstatSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
+import { z } from "zod/v4";
 import { stateDir } from "./paths";
+import { atomicWrite } from "./persistence";
 import type { FsRoots, InstallerInput, InstallRecord } from "./types";
 
 export function statePathFor(input: InstallerInput): string {
   return join(stateDir(input, input.scope), `install.${input.host}.json`);
 }
 
-export function readRecord(input: InstallerInput): InstallRecord | undefined {
-  const file = statePathFor(input);
-  if (!existsSync(file)) return undefined;
-  try {
-    return JSON.parse(readFileSync(file, "utf8")) as InstallRecord;
-  } catch {
-    return undefined;
+const keyPath = z.array(z.string().min(1)).min(1);
+const tier = z.enum(["optional", "preferred", "forced", "off"]);
+const operation = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("set"), path: keyPath, applied: z.unknown(), previous: z.unknown().optional() }),
+  z.object({
+    op: z.literal("append-array"),
+    path: keyPath,
+    applied: z.array(z.unknown()),
+    previous: z.unknown().optional(),
+  }),
+]);
+const recordSchema = z.object({
+  version: z.literal(1),
+  host: z.enum(["opencode", "pi", "codex"]),
+  scope: z.enum(["global", "project"]),
+  tiers: z.object({ search: tier, fetch: tier }),
+  createdAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
+  files: z.array(
+    z.object({
+      file: z.string().refine(isAbsolute),
+      format: z.enum(["json", "toml", "rules"]),
+      created: z.boolean(),
+      shared: z.literal(true).optional(),
+      ops: z.array(operation),
+      blockApplied: z.string().optional(),
+      createdParents: z.array(keyPath).optional(),
+    }),
+  ),
+});
+
+export class InstallRecordError extends Error {
+  constructor(
+    readonly file: string,
+    readonly kind: "unreadable" | "invalid",
+    detail: string,
+  ) {
+    super(
+      `${kind === "invalid" ? "Invalid install record" : "Cannot read install record"} at ${file} (${detail}). ` +
+        "Restore a valid record from backup or repair its permissions before retrying; configuration was not changed. Do not delete undo state to bypass this check.",
+    );
+    this.name = "InstallRecordError";
   }
+}
+
+function readRecordFile(file: string, host: string, scope: string): InstallRecord | undefined {
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      try {
+        lstatSync(file);
+      } catch (statError) {
+        if ((statError as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      }
+    }
+    throw new InstallRecordError(file, "unreadable", (error as NodeJS.ErrnoException).code ?? "read failed");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new InstallRecordError(file, "invalid", "malformed JSON");
+  }
+  const result = recordSchema.safeParse(value);
+  if (!result.success) {
+    // Never include snapshot values in diagnostics: they may contain private configuration.
+    throw new InstallRecordError(file, "invalid", "unsupported version or malformed record structure");
+  }
+  if (result.data.host !== host || result.data.scope !== scope) {
+    throw new InstallRecordError(file, "invalid", "host or scope does not match its location");
+  }
+  return result.data as InstallRecord;
+}
+
+export function readRecord(input: InstallerInput): InstallRecord | undefined {
+  return readRecordFile(statePathFor(input), input.host, input.scope);
 }
 
 /**
@@ -34,9 +105,7 @@ export function claimedByOtherScope(input: InstallerInput, files: readonly strin
  */
 export function writeRecord(input: InstallerInput, record: InstallRecord): void {
   const file = statePathFor(input);
-  mkdirSync(join(file, ".."), { recursive: true });
-  writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
-  chmodSync(file, 0o600);
+  atomicWrite(file, `${JSON.stringify(record, null, 2)}\n`, 0o600);
 }
 
 /** Entries a previous init appended at the given path, across its recorded files. */
@@ -62,14 +131,17 @@ export function listRecords(roots: FsRoots): InstallRecord[] {
   const records: InstallRecord[] = [];
   for (const scope of ["global", "project"] as const) {
     const dir = stateDir(roots, scope);
-    if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir)) {
+    let names: string[];
+    try {
+      names = readdirSync(dir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw new InstallRecordError(dir, "unreadable", (error as NodeJS.ErrnoException).code ?? "list failed");
+    }
+    for (const name of names) {
       if (!name.startsWith("install.") || !name.endsWith(".json")) continue;
-      try {
-        records.push(JSON.parse(readFileSync(join(dir, name), "utf8")) as InstallRecord);
-      } catch {
-        // Unreadable records are skipped; uninstall reports them as absent.
-      }
+      const record = readRecordFile(join(dir, name), name.slice("install.".length, -".json".length), scope);
+      if (record !== undefined) records.push(record);
     }
   }
   return records;

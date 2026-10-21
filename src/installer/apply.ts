@@ -2,14 +2,27 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { codecFor, writeConfig } from "./formats";
 import { deepEqual, valueAt } from "./formats/value";
+import { withOperationLock } from "./operation-lock";
 import { acquireFileOwnership, assertFileOwnership, releaseFileOwnership } from "./ownership";
 import { pruneEmptyDir, revertRecordedFile } from "./revert";
-import { deleteRecord, readRecord, writeRecord } from "./state";
+import { deleteRecord, readRecord, statePathFor, writeRecord } from "./state";
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "./types";
 
 export interface ApplyResult {
   readonly lines: string[];
   readonly ok: boolean;
+}
+
+/** A failed apply tells callers whether retrying is safe or recovery is still needed. */
+export class ApplyError extends Error {
+  constructor(
+    readonly status: "rolled_back" | "recovery_required",
+    message: string,
+    cause: unknown,
+  ) {
+    super(message, { cause });
+    this.name = "ApplyError";
+  }
 }
 
 interface PreparedEdit {
@@ -23,20 +36,34 @@ interface PreparedEdit {
  * rendered (the plan and the record must describe one plan-time snapshot —
  * ADR-0001), prepares every edit in memory (a malformed existing config fails
  * before any file is written), writes the files, reverts artifacts orphaned by
- * a tier change, records surgical-undo state, and verifies the result. Any
- * failure after the first write restores every touched file to its pre-apply
- * bytes and the previous record, so a half-applied install — whose written
- * values a re-init would wrongly snapshot as the originals — is never left
- * behind.
+ * a tier change, verifies the result, then records surgical-undo state. Write
+ * and verification failures restore touched files and the previous record.
+ * Incomplete recovery is reported explicitly and keeps new ownership claims
+ * so another install cannot adopt partially applied configuration.
  */
 export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult {
   if (plan.errors.length > 0) {
     throw new Error(`refusing to apply a plan with errors: ${plan.errors.map((error) => error.message).join("; ")}`);
   }
+  return withOperationLock([statePathFor(input)], () =>
+    withOperationLock(
+      [...plan.edits, ...(plan.reverts ?? [])].map((file) => file.file),
+      () => applyLocked(plan, input),
+    ),
+  );
+}
+
+function applyLocked(plan: InstallPlan, input: InstallerInput): ApplyResult {
   const touched = [...plan.edits, ...(plan.reverts ?? [])];
   assertFileOwnership(input, touched);
   assertNoDrift(plan);
   const previous = readRecord(input);
+  if (Object.hasOwn(plan, "previousRecord") && !deepEqual(previous, plan.previousRecord)) {
+    throw new Error(
+      "The install record changed since the plan was rendered. Re-run init to plan against the current install.",
+    );
+  }
+
   const prepared = plan.edits.map((edit) => prepareEdit(edit, plan.host));
   const snapshots = snapshotTouchedFiles(plan);
   const files: RecordedFile[] = [];
@@ -58,6 +85,13 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
     if ((plan.reverts ?? []).length > 0) {
       lines.push(...applyReverts(plan));
     }
+    const verification = verifyEdits(plan.edits, plan.host);
+    if (!verification.ok) {
+      throw new Error(
+        `verification failed: ${verification.lines.filter((line) => line.startsWith("FAIL")).join("; ")}`,
+      );
+    }
+    lines.push(...verification.lines);
     const record: InstallRecord = {
       version: 1,
       host: plan.host,
@@ -68,17 +102,44 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
     };
     writeRecord(input, record);
   } catch (error) {
-    const rolledBack = rollbackApply(input, previous, snapshots, error);
-    releaseNewClaims();
-    throw rolledBack;
+    const rollback = rollbackApply(input, previous, snapshots);
+    if (rollback.complete) {
+      try {
+        releaseNewClaims();
+      } catch (releaseError) {
+        rollback.complete = false;
+        rollback.report.push(`could not release new config ownership: ${errorMessage(releaseError)}`);
+      }
+    }
+    const status = rollback.complete ? "rolled_back" : "recovery_required";
+    const outcome = rollback.complete ? "was rolled back" : "recovery is required";
+    const guidance = rollback.complete
+      ? "Fix the cause and re-run init."
+      : "Restore the reported files and ownership metadata before re-running init.";
+    throw new ApplyError(
+      status,
+      `apply failed and ${outcome} (${errorMessage(error)}). Rollback report: ${rollback.report.join("; ")}. ${guidance}`,
+      error,
+    );
   }
-  releaseFileOwnership(
-    input,
-    (previous?.files ?? []).filter((file) => !files.some((current) => current.file === file.file)),
-  );
-  const verification = verifyEdits(plan.edits, plan.host);
-  lines.push(...verification.lines);
-  return { lines, ok: verification.ok };
+  try {
+    releaseFileOwnership(
+      input,
+      (previous?.files ?? []).filter((file) => !files.some((current) => current.file === file.file)),
+    );
+  } catch (error) {
+    throw new ApplyError(
+      "recovery_required",
+      `apply was written and verified, but old config ownership could not be released (${errorMessage(error)}). ` +
+        "The new install record is retained; repair the reported ownership metadata before re-running init.",
+      error,
+    );
+  }
+  return { lines, ok: true };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -144,37 +205,38 @@ function rollbackApply(
   input: InstallerInput,
   previous: InstallRecord | undefined,
   snapshots: ReadonlyMap<string, FileSnapshot>,
-  cause: unknown,
-): Error {
+): { complete: boolean; report: string[] } {
   const report: string[] = [];
+  let complete = true;
   for (const [file, snapshot] of [...snapshots.entries()].reverse()) {
     try {
       if (snapshot.exists) {
         if (existsSync(file) && readFileSync(file, "utf8") === snapshot.text) continue;
         writeConfig(file, snapshot.text);
+        if (readFileSync(file, "utf8") !== snapshot.text) throw new Error("restored contents differ from the snapshot");
       } else {
         if (!existsSync(file)) continue;
         rmSync(file);
+        if (existsSync(file)) throw new Error("created file still exists after removal");
         pruneEmptyDir(dirname(file));
       }
       report.push(`restored ${file}`);
     } catch (restoreError) {
-      report.push(
-        `could not restore ${file}: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}`,
-      );
+      complete = false;
+      report.push(`could not restore ${file}: ${errorMessage(restoreError)}`);
     }
   }
   try {
     if (previous !== undefined) writeRecord(input, previous);
     else deleteRecord(input);
-  } catch {
-    report.push("could not restore the install record");
+    if (previous === undefined ? existsSync(statePathFor(input)) : !deepEqual(readRecord(input), previous)) {
+      throw new Error("restored install record differs from its previous state");
+    }
+  } catch (restoreError) {
+    complete = false;
+    report.push(`could not restore the install record: ${errorMessage(restoreError)}`);
   }
-  const message = cause instanceof Error ? cause.message : String(cause);
-  return new Error(
-    `apply failed and was rolled back — nothing was left applied (${message}). ` +
-      `Rollback report: ${report.join("; ")}. Fix the cause and re-run init.`,
-  );
+  return { complete, report };
 }
 
 function prepareEdit(edit: FileEdit, host: InstallPlan["host"]): PreparedEdit {

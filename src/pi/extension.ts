@@ -3,8 +3,8 @@ import { Type } from "@earendil-works/pi-ai";
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { apiKeyFromEnv } from "../core/auth";
-import type { RequestOptions } from "../core/client";
-import { fetchDocument, inspectFetchTarget, searchWeb } from "../core/client";
+import type { RequestOptions, RetrievalClient } from "../core/client";
+import { inspectFetchTarget, retrievalClient } from "../core/client";
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants";
 import {
   FETCH_TOOL_DESCRIPTION,
@@ -73,7 +73,7 @@ export function extensionPrecheck(config: ResolvedOptions): string | undefined {
 }
 
 /** The search tool as Pi registers it; exported for tests. */
-export function searchTool(config: ResolvedOptions) {
+export function searchTool(config: ResolvedOptions, client: RetrievalClient = retrievalClient) {
   return defineTool({
     name: "deepseek_web_search",
     label: "DeepSeek Web Search",
@@ -85,7 +85,7 @@ export function searchTool(config: ResolvedOptions) {
     exposure: "direct",
     async execute(_toolCallId, params, signal): Promise<AgentToolResult> {
       try {
-        const results = await searchWeb(params.query, config.search, requestContext(config, signal));
+        const results = await client.searchWeb(params.query, config.search, requestContext(config, signal));
         return {
           content: [{ type: "text", text: formatSearchResults(results) }],
           structuredContent: { results: results.map(toStructuredResult) },
@@ -99,7 +99,7 @@ export function searchTool(config: ResolvedOptions) {
 }
 
 /** The fetch tool as Pi registers it; exported for tests. */
-export function fetchTool(config: ResolvedOptions) {
+export function fetchTool(config: ResolvedOptions, client: RetrievalClient = retrievalClient) {
   return defineTool({
     name: "deepseek_fetch",
     label: "DeepSeek Fetch",
@@ -112,7 +112,7 @@ export function fetchTool(config: ResolvedOptions) {
     async execute(_toolCallId, params, signal): Promise<AgentToolResult> {
       try {
         const target = inspectFetchTarget(params.url, config.fetch);
-        const page = await fetchDocument(target, config.fetch, requestContext(config, signal));
+        const page = await client.fetchDocument(target, config.fetch, requestContext(config, signal));
         return {
           content: [{ type: "text", text: page.content }],
           structuredContent: {

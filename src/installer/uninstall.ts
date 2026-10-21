@@ -1,9 +1,10 @@
 import { codecFor } from "./formats";
+import { withOperationLock } from "./operation-lock";
 import { assertFileOwnership, releaseFileOwnership } from "./ownership";
 import { stateDir } from "./paths";
 import { pruneEmptyDir, revertRecordedFile } from "./revert";
-import { claimedByOtherScope, deleteRecord, readRecord } from "./state";
-import type { InstallerInput } from "./types";
+import { claimedByOtherScope, deleteRecord, readRecord, statePathFor } from "./state";
+import type { InstallerInput, InstallRecord } from "./types";
 
 /**
  * Reverses exactly what the plan applied: overwritten values restore their
@@ -12,10 +13,19 @@ import type { InstallerInput } from "./types";
  * rules blocks are removed, and files the installer created are deleted.
  */
 export function uninstall(input: InstallerInput): string[] {
-  const record = readRecord(input);
-  if (record === undefined) {
-    throw new Error(`No ${input.host} install is recorded for the ${input.scope} scope.`);
-  }
+  return withOperationLock([statePathFor(input)], () => {
+    const record = readRecord(input);
+    if (record === undefined) {
+      throw new Error(`No ${input.host} install is recorded for the ${input.scope} scope.`);
+    }
+    return withOperationLock(
+      record.files.map((file) => file.file),
+      () => uninstallLocked(input, record),
+    );
+  });
+}
+
+function uninstallLocked(input: InstallerInput, record: InstallRecord): string[] {
   assertFileOwnership(input, record.files);
   const other = input.scope === "global" ? "project" : "global";
   const overlap = claimedByOtherScope(

@@ -32,6 +32,8 @@ interface FetchResponse {
 }
 
 export interface RequestOptions {
+  /** Optional per-request HTTP dependency; factories bind this once for an adapter. */
+  readonly fetchImpl?: typeof fetch;
   readonly signal: AbortSignal;
   readonly auth: RequestAuth;
   readonly retry: RetryOptions;
@@ -69,7 +71,7 @@ export async function searchWeb(
       need_content: false,
     },
     "DeepSeek Search",
-    { signal: request.signal, auth: request.auth, retry: request.retry, timeoutMs: timeout },
+    { ...request, timeoutMs: timeout },
   );
 
   if (!Array.isArray(payload.results)) {
@@ -85,9 +87,7 @@ export async function fetchPage(url: URL, options: FetchOptions, request: Reques
   assertFetchHostPolicy(target, options);
   const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs);
   const payload = await postJson<FetchResponse>(FETCH_ENDPOINT, { url: target.href }, "DeepSeek Fetch", {
-    signal: request.signal,
-    auth: request.auth,
-    retry: request.retry,
+    ...request,
     timeoutMs: timeout,
   });
   const title = typeof payload.title === "string" ? payload.title.trim() : "";
@@ -124,3 +124,18 @@ export async function fetchDocument(
     truncated: formatted.truncated,
   };
 }
+
+/** One client per adapter/test; transport overrides never mutate process globals. */
+export function createRetrievalClient(dependencies: { readonly fetchImpl?: typeof fetch } = {}) {
+  const bind = (request: RequestOptions): RequestOptions => ({ ...request, ...dependencies });
+  return {
+    searchWeb: (query: string, options: SearchOptions, request: RequestOptions) =>
+      searchWeb(query, options, bind(request)),
+    fetchPage: (url: URL, options: FetchOptions, request: RequestOptions) => fetchPage(url, options, bind(request)),
+    fetchDocument: (url: string | URL, options: FetchOptions, request: RequestOptions) =>
+      fetchDocument(url, options, bind(request)),
+  };
+}
+
+export type RetrievalClient = ReturnType<typeof createRetrievalClient>;
+export const retrievalClient = createRetrievalClient();

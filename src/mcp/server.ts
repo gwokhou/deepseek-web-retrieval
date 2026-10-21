@@ -2,7 +2,8 @@ import type { CallToolResult, ServerContext } from "@modelcontextprotocol/server
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import pkg from "../../package.json";
-import { fetchDocument, searchWeb } from "../core/client";
+import type { RetrievalClient } from "../core/client";
+import { retrievalClient } from "../core/client";
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants";
 import {
   FETCH_TOOL_DESCRIPTION,
@@ -30,7 +31,11 @@ const FETCH_INPUT = z.object({
  * Builds the host-agnostic MCP server exposing the two DeepSeek retrieval tools.
  * `serveStdio` and `createMcpHandler` serve both protocol eras from this factory.
  */
-export function createDeepSeekServer(config: ResolvedOptions, env: Env = process.env): McpServer {
+export function createDeepSeekServer(
+  config: ResolvedOptions,
+  env: Env = process.env,
+  client: RetrievalClient = retrievalClient,
+): McpServer {
   const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version });
 
   if (config.search.enabled) {
@@ -45,7 +50,7 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
       async ({ query }, ctx) => {
         try {
           const request = requestContext(config, env, ctx.mcpReq.signal);
-          const results = await searchWeb(query, config.search, request);
+          const results = await client.searchWeb(query, config.search, request);
           return callResult(server, ctx, formatSearchResults(results), {
             results: results.map(toStructuredResult),
           });
@@ -68,7 +73,7 @@ export function createDeepSeekServer(config: ResolvedOptions, env: Env = process
       async ({ url }, ctx) => {
         try {
           const request = requestContext(config, env, ctx.mcpReq.signal);
-          const page = await fetchDocument(url, config.fetch, request);
+          const page = await client.fetchDocument(url, config.fetch, request);
           return callResult(server, ctx, page.content, {
             url: page.url,
             title: page.title,

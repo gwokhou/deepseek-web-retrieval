@@ -50,6 +50,10 @@ function parseFlags(args: readonly string[]): Flags {
     const eq = arg.indexOf("=");
     const name = eq === -1 ? arg.slice(2) : arg.slice(2, eq);
     if (BOOLEAN_FLAGS.has(name)) {
+      if (eq !== -1) {
+        problems.push(`--${name} does not accept a value; use --${name} to enable it or omit it`);
+        continue;
+      }
       booleans.add(name);
       continue;
     }
@@ -98,7 +102,13 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
   const configHome = resolveConfigHome(home);
 
   if (command === "list") {
-    const records = listRecords({ home, cwd, configHome });
+    let records: ReturnType<typeof listRecords>;
+    try {
+      records = listRecords({ home, cwd, configHome });
+    } catch (error) {
+      err(error instanceof Error ? error.message : String(error));
+      return 1;
+    }
     if (records.length === 0) {
       out("No installs recorded.");
       return 0;

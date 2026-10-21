@@ -190,6 +190,15 @@ into any existing `permissions` array rather than replacing it.
   holds (set values in place, appended entries present, rules block present). Higher
   layers would be a plan-time detect concern, and none of the three shipped hosts
   documents a layer above user config, so there is nothing to check there yet.
+- Only a bare `--apply` enables writes; assigning a value such as `--apply=false`
+  is a usage error and writes nothing.
+- File verification precedes the install-record commit. A write or verification
+  failure restores the pre-apply files and record and checks the restored values.
+  `ApplyError.status` is `rolled_back` only after recovery and new-claim cleanup
+  succeed. Otherwise it is `recovery_required`, with the original cause and a
+  recovery report; new claims remain while file or record recovery is incomplete.
+  Obsolete claims are released after commit. If that cleanup fails, the verified
+  install and new record are retained and reported explicitly for recovery.
 
 ## Server-side gap (resolved)
 
@@ -205,3 +214,34 @@ Claude Code, Cursor, Devin, GitHub Copilot, and Cline still have no
 host module; their artifacts (from the tier-to-artifact mapping) remain hand-edited
 config until a module lands here. OpenCode's `opencode plugin add` remains available but
 cannot pass options or manage snapshots; `init` supersedes it for tiered installs.
+
+
+### Persistence and concurrent operations
+
+Install records distinguish absent files from invalid or unreadable files. The
+reader validates version, host/scope identity, tiers, file metadata, and recorded
+operations before an install or uninstall can use undo state. `list` reports a
+bad record instead of silently omitting it. Restore the record from backup or
+repair access before retrying; deleting it can discard the original snapshots.
+
+Config and record writes use private temporary files in the target directory,
+verify the temporary contents, flush the file, then rename and flush the directory
+(on POSIX). Existing config permissions and valid symbolic links are preserved;
+records are always mode 0600. A failed write before rename leaves the old file
+intact. This makes each file replacement atomic, not the entire multi-file install.
+The apply rollback remains responsible for caught errors; power-loss recovery is
+not an automatic transaction replay.
+
+Apply and uninstall acquire a record operation lock before reading undo state,
+then locks for every config/rules path they may mutate, including orphan reverts.
+Locks follow canonical paths, so another project or symlink alias cannot bypass a
+shared-file lock. A plan whose prior record changed is refused, even if its only
+edits append arrays. Preview generation is read-only and does not reserve locks.
+
+Operation locks are directories ending in `.deepseek-web-retrieval.lock`, with
+owner PID and start time inside. Ordinary success or failure releases them. A
+killed process may leave a lock: after confirming no installer is running, inspect
+config, install record, and persistent ownership claims, restore any inconsistent
+state, then remove the reported lock directory and generate a new plan. Locks are
+never stolen based only on age or PID. Persistent `.owner.json` claims remain a
+separate safeguard against two installations owning one shared config.

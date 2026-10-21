@@ -14,7 +14,7 @@ interface FileOwner {
 }
 
 /** Resolve existing symlinks, including the parents of a file not created yet. */
-function canonicalPath(file: string): string {
+export function canonicalPath(file: string): string {
   const absolute = resolve(file);
   if (existsSync(absolute)) return realpathSync(absolute);
   return join(canonicalPath(dirname(absolute)), basename(absolute));

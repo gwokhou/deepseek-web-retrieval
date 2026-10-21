@@ -1,15 +1,10 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { createMcpHandler } from "@modelcontextprotocol/server";
+import { createRetrievalClient } from "../../src/core/client";
 import { SEARCH_ENDPOINT } from "../../src/core/constants";
 import { resolvePluginOptions } from "../../src/core/options";
 import { createDeepSeekServer } from "../../src/mcp/server";
-
-const originalFetch = globalThis.fetch;
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
 
 interface ModernPersona {
   client: Client;
@@ -17,9 +12,12 @@ interface ModernPersona {
 }
 
 async function connectModern(
+  fetchImpl: typeof fetch,
   clientInfo: { name: string; version: string } = { name: "deepseek-web-retrieval-test", version: "0.0.0" },
 ): Promise<ModernPersona> {
-  const handler = createMcpHandler(() => createDeepSeekServer(resolvePluginOptions(), { DEEPSEEK_API_KEY: "sk-test" }));
+  const handler = createMcpHandler(() =>
+    createDeepSeekServer(resolvePluginOptions(), { DEEPSEEK_API_KEY: "sk-test" }, createRetrievalClient({ fetchImpl })),
+  );
   const transport = new StreamableHTTPClientTransport(new URL("http://test.local/mcp"), {
     fetch: (url, init) => handler.fetch(new Request(url, init)) as never,
   });
@@ -36,11 +34,11 @@ async function connectModern(
 
 describe("MCP server over the modern 2026-07-28 era", () => {
   test("serves a pinned modern client through the HTTP handler", async () => {
-    globalThis.fetch = (async () => {
+    const fetchImpl = (async () => {
       throw new Error("DeepSeek API must not be called in this test");
     }) as unknown as typeof fetch;
 
-    const persona = await connectModern();
+    const persona = await connectModern(fetchImpl);
     try {
       expect(persona.client.getProtocolEra()).toBe("modern");
 
@@ -59,7 +57,7 @@ describe("MCP server over the modern 2026-07-28 era", () => {
 
   test("returns structured results on a 2026-07-28 connection", async () => {
     let deepseekUrl: string | undefined;
-    globalThis.fetch = (async (url) => {
+    const fetchImpl = (async (url) => {
       deepseekUrl = String(url);
       return new Response(
         JSON.stringify({
@@ -71,7 +69,7 @@ describe("MCP server over the modern 2026-07-28 era", () => {
       );
     }) as typeof fetch;
 
-    const persona = await connectModern();
+    const persona = await connectModern(fetchImpl);
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",
@@ -87,7 +85,7 @@ describe("MCP server over the modern 2026-07-28 era", () => {
   });
 
   test("omits structured results on a 2026-07-28 connection from the codex-mcp-client identity", async () => {
-    globalThis.fetch = (async (_url) => {
+    const fetchImpl = (async (_url) => {
       return new Response(
         JSON.stringify({
           results: [
@@ -98,7 +96,7 @@ describe("MCP server over the modern 2026-07-28 era", () => {
       );
     }) as typeof fetch;
 
-    const persona = await connectModern({ name: "codex-mcp-client", version: "0.163.0" });
+    const persona = await connectModern(fetchImpl, { name: "codex-mcp-client", version: "0.163.0" });
     try {
       const result = await persona.client.callTool({
         name: "deepseek_web_search",

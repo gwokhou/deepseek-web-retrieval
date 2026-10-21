@@ -1,7 +1,7 @@
 import { API_KEY_ENV } from "../../core/constants";
 import { deepEqual, isPlainObject } from "../formats/value";
 import { assertFileOwnership, fileOwnershipNotes } from "../ownership";
-import { claimedByOtherScope, readRecord } from "../state";
+import { claimedByOtherScope, InstallRecordError, readRecord } from "../state";
 import type { HostName, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "../types";
 import { planCodex, probeCodexVersion } from "./codex";
 import { planOpenCode } from "./opencode";
@@ -35,9 +35,24 @@ export const HOST_VERSION_PROBES: Partial<Record<HostName, (err: (line: string) 
 };
 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {
-  const previous = readRecord(input);
-  const planned = withCrossScopeGuard(HOST_PLANNERS[host](input, previous), input);
-  return withSecretGuard(withOrphanReverts(withLegacySharedConfigGuard(planned, previous), previous));
+  try {
+    const previous = readRecord(input);
+    const planned = withCrossScopeGuard(HOST_PLANNERS[host](input, previous), input);
+    return {
+      ...withSecretGuard(withOrphanReverts(withLegacySharedConfigGuard(planned, previous), previous)),
+      previousRecord: previous,
+    };
+  } catch (error) {
+    if (!(error instanceof InstallRecordError)) throw error;
+    return {
+      host,
+      scope: input.scope,
+      tiers: { search: input.search, fetch: input.fetch },
+      edits: [],
+      notes: [],
+      errors: [{ message: error.message }],
+    };
+  }
 }
 
 /**

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import assert from "node:assert/strict";
 import plugin from "../../index";
+import { createRetrievalClient } from "../../src/core/client";
 import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../../src/core/descriptions";
-import { resolveRegistration } from "../../src/opencode/plugin";
+import { createOpenCodePlugin, resolveRegistration } from "../../src/opencode/plugin";
 
 interface CapturedTool {
   name: string;
@@ -26,18 +27,16 @@ interface Captured {
   defaultProvider?: string;
 }
 
-const originalFetch = globalThis.fetch;
 const originalKey = process.env.DEEPSEEK_API_KEY;
 let integrationKey: string | undefined;
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
   integrationKey = undefined;
   if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY;
   else process.env.DEEPSEEK_API_KEY = originalKey;
 });
 
-async function setup(options: Record<string, unknown> = {}) {
+async function setup(options: Record<string, unknown> = {}, fetchImpl?: typeof fetch) {
   const builtinWebfetch: CapturedTool = {
     name: "webfetch",
     description: "built-in webfetch",
@@ -98,7 +97,8 @@ async function setup(options: Record<string, unknown> = {}) {
       },
     },
   };
-  await plugin.setup(ctx as never);
+  const configured = fetchImpl ? createOpenCodePlugin(createRetrievalClient({ fetchImpl })) : plugin;
+  await configured.setup(ctx as never);
   return captured;
 }
 
@@ -146,7 +146,7 @@ describe("OpenCode plugin wiring", () => {
   test("search uses the Search API and maps results", async () => {
     process.env.DEEPSEEK_API_KEY = "sk-test";
     let request: { url: string; init: RequestInit } | undefined;
-    globalThis.fetch = (async (input: string | URL | Request, init: RequestInit) => {
+    const fetchImpl = (async (input: string | URL | Request, init: RequestInit) => {
       request = { url: String(input), init };
       return new Response(
         JSON.stringify({
@@ -159,7 +159,7 @@ describe("OpenCode plugin wiring", () => {
       );
     }) as typeof fetch;
 
-    const captured = await setup({ count: 20 });
+    const captured = await setup({ count: 20 }, fetchImpl);
     assert.ok(captured.provider, "Search provider must be registered");
     const results = await captured.provider.execute({ query: "bun" }, { signal: new AbortController().signal });
 
@@ -181,12 +181,12 @@ describe("OpenCode plugin wiring", () => {
     delete process.env.DEEPSEEK_API_KEY;
     integrationKey = "sk-integration";
     let authorization: string | undefined;
-    globalThis.fetch = (async (_input: string | URL | Request, init: RequestInit) => {
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
       authorization = (init.headers as Record<string, string>).Authorization;
       return new Response(JSON.stringify({ results: [] }), { status: 200 });
     }) as typeof fetch;
 
-    const captured = await setup({ count: 1 });
+    const captured = await setup({ count: 1 }, fetchImpl);
     assert.ok(captured.provider, "Search provider must be registered");
     await captured.provider.execute({ query: "bun" }, { signal: new AbortController().signal });
 
@@ -217,12 +217,12 @@ describe("OpenCode plugin wiring", () => {
   test("fetch asks for permission with the custom action and returns Markdown", async () => {
     process.env.DEEPSEEK_API_KEY = "sk-test";
     let body: unknown;
-    globalThis.fetch = (async (_input: string | URL | Request, init: RequestInit) => {
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
       body = JSON.parse(String(init.body));
       return new Response(JSON.stringify({ title: "Example", content: "Body" }), { status: 200 });
     }) as typeof fetch;
 
-    const captured = await setup({ fetchMaxChars: 100 });
+    const captured = await setup({ fetchMaxChars: 100 }, fetchImpl);
     assert.ok(captured.tool, "Fetch tool must be registered");
     const result = await captured.tool.execute({ url: "https://example.com/page" }, toolContext());
 
@@ -263,12 +263,12 @@ describe("OpenCode plugin wiring", () => {
   test("override webfetch uses the standard permission action", async () => {
     process.env.DEEPSEEK_API_KEY = "sk-test";
     let body: unknown;
-    globalThis.fetch = (async (_input: string | URL | Request, init: RequestInit) => {
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
       body = JSON.parse(String(init.body));
       return new Response(JSON.stringify({ title: "Example", content: "Body" }), { status: 200 });
     }) as typeof fetch;
 
-    const captured = await setup({ fetchOverrideWebfetch: true, fetchMaxChars: 100 });
+    const captured = await setup({ fetchOverrideWebfetch: true, fetchMaxChars: 100 }, fetchImpl);
     const webfetch = captured.tools.get("webfetch");
     assert.ok(webfetch, "Webfetch tool must be registered");
     const result = await webfetch.execute({ url: "https://example.com/page" }, toolContext());
@@ -289,12 +289,12 @@ describe("OpenCode plugin wiring", () => {
 
   test("override webfetch rejects unsupported formats before network access", async () => {
     let called = false;
-    globalThis.fetch = (async () => {
+    const fetchImpl = (async () => {
       called = true;
       return new Response("{}");
     }) as unknown as typeof fetch;
 
-    const captured = await setup({ fetchOverrideWebfetch: true });
+    const captured = await setup({ fetchOverrideWebfetch: true }, fetchImpl);
     const webfetch = captured.tools.get("webfetch");
     assert.ok(webfetch, "Webfetch tool must be registered");
     await expect(webfetch.execute({ url: "https://example.com/page", format: "text" }, toolContext())).rejects.toThrow(
@@ -306,12 +306,12 @@ describe("OpenCode plugin wiring", () => {
 
   test("blocks private hosts and domain policy before permission/network", async () => {
     let called = false;
-    globalThis.fetch = (async () => {
+    const fetchImpl = (async () => {
       called = true;
       return new Response("{}");
     }) as unknown as typeof fetch;
 
-    const captured = await setup({ fetchBlockedDomains: ["example.com"] });
+    const captured = await setup({ fetchBlockedDomains: ["example.com"] }, fetchImpl);
     assert.ok(captured.tool, "Fetch tool must be registered");
     await expect(captured.tool.execute({ url: "https://docs.example.com/page" }, toolContext())).rejects.toThrow(
       "fetchBlockedDomains",
@@ -326,12 +326,12 @@ describe("OpenCode plugin wiring", () => {
 
   test("fetch rejects a non-string url before permission and network", async () => {
     let called = false;
-    globalThis.fetch = (async () => {
+    const fetchImpl = (async () => {
       called = true;
       return new Response("{}");
     }) as unknown as typeof fetch;
 
-    const captured = await setup();
+    const captured = await setup({}, fetchImpl);
     assert.ok(captured.tool, "Fetch tool must be registered");
     await expect(captured.tool.execute({ url: 42 } as never, toolContext())).rejects.toThrow("must be a string");
     expect(called).toBe(false);

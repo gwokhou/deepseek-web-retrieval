@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import * as fs from "node:fs";
 import {
   chmodSync,
   existsSync,
@@ -25,8 +26,9 @@ import { planForHost } from "../../src/installer/hosts";
 import { parseCodexVersion, planCodex } from "../../src/installer/hosts/codex";
 import { planOpenCode } from "../../src/installer/hosts/opencode";
 import { planPi } from "../../src/installer/hosts/pi";
+import * as persistence from "../../src/installer/persistence";
 import { renderPlan } from "../../src/installer/render";
-import { claimedByOtherScope, listRecords, readRecord, writeRecord } from "../../src/installer/state";
+import { claimedByOtherScope, listRecords, readRecord, statePathFor, writeRecord } from "../../src/installer/state";
 import type { ConfigOp, InstallerInput, JsonEdit, RecordedFile, RulesEdit, TomlEdit } from "../../src/installer/types";
 import { uninstall } from "../../src/installer/uninstall";
 
@@ -469,6 +471,194 @@ describe("apply and uninstall round-trips", () => {
 });
 
 describe("apply rollback", () => {
+  test("obsolete ownership cleanup failure retains the verified install and its committed record", () => {
+    const input = makeInput("codex", "global", "optional", "optional");
+    applyPlan(planForHost(input.host, input), input);
+    const previous = readRecord(input);
+    expect(previous).toBeDefined();
+    const oldConfig = join(input.home, ".codex/config.toml");
+    const newConfig = join(input.home, ".codex/migrated.toml");
+    const oldClaim = join(dirname(oldConfig), ".config.toml.deepseek-web-retrieval.codex.owner.json");
+    const planned = planForHost(input.host, input);
+    // A config-path migration makes the old shared config a whole-file orphan.
+    const plan = {
+      ...planned,
+      edits: planned.edits.map((edit) =>
+        edit.format === "rules"
+          ? edit
+          : { ...edit, file: newConfig, ops: edit.ops.map((op) => ({ ...op, previous: undefined })) },
+      ),
+      reverts: previous?.files ?? [],
+    };
+    const remove = fs.rmSync;
+    const removes = spyOn(fs, "rmSync").mockImplementation((file, options) => {
+      if (file === oldClaim) throw new Error("injected obsolete claim failure");
+      return remove(file, options);
+    });
+    let failure: unknown;
+    try {
+      applyPlan(plan, input);
+    } catch (error) {
+      failure = error;
+    } finally {
+      removes.mockRestore();
+    }
+    expect(failure).toMatchObject({ status: "recovery_required" });
+    expect(String(failure)).toContain("apply was written and verified");
+    expect(String(failure)).toContain("injected obsolete claim failure");
+    expect(readRecord(input)?.files.map((file) => file.file)).toEqual([newConfig]);
+    expect(existsSync(newConfig)).toBe(true);
+    expect(existsSync(oldConfig)).toBe(false);
+    expect(existsSync(oldClaim)).toBe(true);
+  });
+
+  test("ownership cleanup failure preserves the original apply error and reports recovery required", () => {
+    const input = makeInput("codex", "global", "forced", "optional");
+    const config = join(input.home, ".codex/config.toml");
+    const plan = planForHost(input.host, input);
+    const write = persistence.atomicWrite;
+    const remove = fs.rmSync;
+    const writes = spyOn(persistence, "atomicWrite").mockImplementation((file, data, options) =>
+      write(file, file === config ? 'web_search = "disabled"\n' : data, options),
+    );
+    const removes = spyOn(fs, "rmSync").mockImplementation((file, options) => {
+      if (String(file).endsWith(".owner.json")) throw new Error("injected ownership cleanup failure");
+      return remove(file, options);
+    });
+    let failure: unknown;
+    try {
+      applyPlan(plan, input);
+    } catch (error) {
+      failure = error;
+    } finally {
+      writes.mockRestore();
+      removes.mockRestore();
+    }
+    expect(failure).toMatchObject({ status: "recovery_required" });
+    expect(String(failure)).toContain("verification failed");
+    expect(String(failure)).toContain("injected ownership cleanup failure");
+    expect(existsSync(config)).toBe(false);
+    expect(readRecord(input)).toBeUndefined();
+    expect(readdirSync(dirname(config))).toEqual([".config.toml.deepseek-web-retrieval.codex.owner.json"]);
+  });
+
+  for (const restoreFailure of ["throws", "silently drops the write"] as const) {
+    test(`rollback that ${restoreFailure} reports recovery required and keeps the shared config claim`, () => {
+      const input = makeInput("codex", "global", "forced", "optional");
+      const config = join(input.home, ".codex/config.toml");
+      mkdirSync(dirname(config), { recursive: true });
+      writeFileSync(config, 'web_search = "cached"\n');
+      const plan = planForHost(input.host, input);
+      const write = persistence.atomicWrite;
+      let configWrites = 0;
+      const writes = spyOn(persistence, "atomicWrite").mockImplementation((file, data, options) => {
+        if (file === config) {
+          configWrites += 1;
+          if (configWrites === 1) return write(file, 'web_search = "disabled"\n', options);
+          if (restoreFailure === "silently drops the write") return;
+          throw new Error("injected restore failure");
+        }
+        return write(file, data, options);
+      });
+      let failure: unknown;
+      try {
+        applyPlan(plan, input);
+      } catch (error) {
+        failure = error;
+      } finally {
+        writes.mockRestore();
+      }
+      expect(failure).toMatchObject({ status: "recovery_required" });
+      expect(String(failure)).toContain("verification failed");
+      expect(String(failure)).toContain(
+        restoreFailure === "throws" ? "injected restore failure" : "restored contents differ",
+      );
+      expect(String(failure)).not.toContain("nothing was left applied");
+      expect(readFileSync(config, "utf8")).toBe('web_search = "disabled"\n');
+      expect(readRecord(input)).toBeUndefined();
+      const other = { ...input, scope: "project" as const, cwd: mkdtempSync(join(tmpdir(), "dwr-other-")) };
+      expect(planForHost(other.host, other).errors[0]?.message).toContain("claims the same config file");
+    });
+  }
+
+  test("failed write verification restores configuration and releases a new shared config claim", () => {
+    const input = makeInput("codex", "global", "forced", "preferred");
+    const config = join(input.home, ".codex/config.toml");
+    const rules = join(input.home, ".codex/AGENTS.md");
+    const original = '# user config\nweb_search = "cached"\n';
+    mkdirSync(dirname(config), { recursive: true });
+    writeFileSync(config, original);
+    const plan = planForHost(input.host, input);
+    const write = persistence.atomicWrite;
+    let corrupted = false;
+    const writes = spyOn(persistence, "atomicWrite").mockImplementation((file, data, options) => {
+      // Simulate storage returning success but not retaining the written values.
+      if (file === config && !corrupted) {
+        corrupted = true;
+        return write(file, 'web_search = "cached"\n', options);
+      }
+      return write(file, data, options);
+    });
+    try {
+      expect(() => applyPlan(plan, input)).toThrow(/verification failed/);
+    } finally {
+      writes.mockRestore();
+    }
+    expect(corrupted).toBe(true);
+    expect(readFileSync(config, "utf8")).toBe(original);
+    expect(existsSync(rules)).toBe(false);
+    expect(readRecord(input)).toBeUndefined();
+    // A different installation can claim the restored config after rollback.
+    const other = { ...input, scope: "project" as const, cwd: mkdtempSync(join(tmpdir(), "dwr-other-")) };
+    expect(planForHost(other.host, other).errors).toEqual([]);
+    expect(readdirSync(dirname(config))).toEqual(["config.toml"]);
+  });
+
+  for (const failureAt of ["verification", "record-write"] as const) {
+    test(`a re-init ${failureAt} failure restores the previous config, rules, record, and ownership`, () => {
+      const input = makeInput("codex", "global", "optional", "preferred");
+      applyPlan(planForHost(input.host, input), input);
+      const config = join(input.home, ".codex/config.toml");
+      const rules = join(input.home, ".codex/AGENTS.md");
+      const configBefore = readFileSync(config, "utf8");
+      const rulesBefore = readFileSync(rules, "utf8");
+      const recordBefore = readRecord(input);
+      const reinit = { ...input, search: "forced" as const, fetch: "optional" as const };
+      const plan = planForHost(reinit.host, reinit);
+      const write = persistence.atomicWrite;
+      let injected = false;
+      const writes = spyOn(persistence, "atomicWrite").mockImplementation((file, data, options) => {
+        if (!injected && failureAt === "verification" && file === config) {
+          injected = true;
+          return write(file, configBefore, options);
+        }
+        if (!injected && failureAt === "record-write" && String(file).endsWith("install.codex.json")) {
+          injected = true;
+          throw new Error("injected record write failure");
+        }
+        return write(file, data, options);
+      });
+      let failure: unknown;
+      try {
+        applyPlan(plan, reinit);
+      } catch (error) {
+        failure = error;
+      } finally {
+        writes.mockRestore();
+      }
+      expect(injected).toBe(true);
+      expect(failure).toMatchObject({ status: "rolled_back" });
+      expect(readFileSync(config, "utf8")).toBe(configBefore);
+      expect(readFileSync(rules, "utf8")).toBe(rulesBefore);
+      expect(readRecord(input)).toEqual(recordBefore);
+      const other = { ...input, scope: "project" as const, cwd: mkdtempSync(join(tmpdir(), "dwr-other-")) };
+      expect(planForHost(other.host, other).errors[0]?.message).toContain("claims the same config file");
+      uninstall(input);
+      expect(existsSync(config)).toBe(false);
+      expect(existsSync(rules)).toBe(false);
+    });
+  }
+
   test("a mid-write failure restores the touched files byte-identically and keeps the prior record", () => {
     const input = makeInput("opencode", "project", "optional", "preferred");
     const config = join(input.cwd, "opencode.jsonc");
@@ -510,20 +700,48 @@ describe("apply rollback", () => {
     expect(restoredValue.permissions).toBeUndefined();
   });
 
-  test("a record-write failure rolls back created files and leaves no install recorded", () => {
+  test("an unreadable record refuses before writing config and preserves a pre-existing directory", () => {
     const input = makeInput("opencode", "project", "optional", "preferred");
-    // The record path is a directory: readRecord sees no record (the read
-    // fails) and the record write fails after both files were written.
+    // An unreadable record must fail preflight, before any config write.
     mkdirSync(join(input.cwd, ".deepseek-web-retrieval/install.opencode.json"), { recursive: true });
 
-    expect(() => applyPlan(planOpenCode(input, readRecord(input)), input)).toThrow(/apply failed and was rolled back/);
+    expect(() => applyPlan(planForHost(input.host, input), input)).toThrow("Cannot read install record");
     expect(existsSync(join(input.cwd, "opencode.jsonc"))).toBe(false);
     expect(existsSync(join(input.cwd, "AGENTS.md"))).toBe(false);
-    expect(listRecords(input)).toEqual([]);
+    expect(() => listRecords(input)).toThrow("Cannot read install record");
+    expect(statSync(join(input.cwd, ".deepseek-web-retrieval/install.opencode.json")).isDirectory()).toBe(true);
   });
 });
 
 describe("review fixes", () => {
+  for (const flag of ["--apply=false", "--apply=true", "--apply=", "--apply=invalid"]) {
+    test(`CLI rejects ${flag} without writing configuration or an install record`, async () => {
+      const input = makeInput("pi", "project", "optional", "optional");
+      const output: string[] = [];
+      const code = await runInstallerCli(
+        [
+          "init",
+          "--host",
+          "pi",
+          "--scope",
+          "project",
+          "--search",
+          "optional",
+          "--fetch",
+          "optional",
+          "--cwd",
+          input.cwd,
+          flag,
+        ],
+        { out: (line) => output.push(line), err: (line) => output.push(line) },
+      );
+      expect(code).toBe(1);
+      expect(output.join("\n")).toContain("--apply does not accept a value");
+      expect(readdirSync(input.cwd)).toEqual([]);
+      expect(readRecord(input)).toBeUndefined();
+    });
+  }
+
   test("plan renders old values for set ops and existing counts for appends", () => {
     const input = makeInput("pi", "global", "optional", "optional", "mcp");
     mkdirSync(join(input.home, ".pi/agent"), { recursive: true });
@@ -1499,10 +1717,10 @@ describe("whole-repo review regressions", () => {
 });
 
 describe("shared config ownership lifecycle", () => {
-  test("a failed first apply releases its claim so another project can install", () => {
+  test("an unreadable first record acquires no claim so another project can install", () => {
     const first = makeInput("codex", "project", "optional", "optional");
     mkdirSync(join(first.cwd, ".deepseek-web-retrieval/install.codex.json"), { recursive: true });
-    expect(() => applyPlan(planForHost("codex", first), first)).toThrow("apply failed and was rolled back");
+    expect(() => applyPlan(planForHost("codex", first), first)).toThrow("Cannot read install record");
     expect(existsSync(join(first.home, ".codex"))).toBe(false);
     const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
     expect(applyPlan(planForHost("codex", second), second).ok).toBe(true);
@@ -1557,4 +1775,89 @@ describe("shared config ownership lifecycle", () => {
     uninstall(first);
     expect(existsSync(directory)).toBe(false);
   });
+});
+
+describe("install record validation", () => {
+  for (const corruption of ["json", "version", "host", "scope", "files", "operation"]) {
+    test(`invalid ${corruption} refuses init, list and uninstall without changing config`, () => {
+      const input = makeInput("pi", "project", "optional", "optional");
+      applyPlan(planForHost(input.host, input), input);
+      const record = readRecord(input);
+      if (!record?.files[0]) throw new Error("Expected an installed config record");
+      const config = record.files[0].file;
+      const before = readFileSync(config, "utf8");
+      const invalid =
+        corruption === "json"
+          ? "{broken"
+          : JSON.stringify({
+              ...record,
+              ...(corruption === "version" ? { version: 99 } : {}),
+              ...(corruption === "host" ? { host: "codex" } : {}),
+              ...(corruption === "scope" ? { scope: "global" } : {}),
+              ...(corruption === "files" ? { files: {} } : {}),
+              ...(corruption === "operation"
+                ? { files: [{ ...record.files[0], ops: [{ op: "delete", path: [] }] }] }
+                : {}),
+            });
+      writeFileSync(statePathFor(input), invalid);
+      expect(() => readRecord(input)).toThrow("Invalid install record");
+      expect(planForHost(input.host, input).errors[0]?.message).toContain("Invalid install record");
+      expect(() => listRecords(input)).toThrow("Invalid install record");
+      expect(() => uninstall(input)).toThrow("Invalid install record");
+      expect(readFileSync(config, "utf8")).toBe(before);
+      expect(readFileSync(statePathFor(input), "utf8")).toBe(invalid);
+    });
+  }
+
+  test("only absent records are treated as missing; a dangling record link is unreadable", () => {
+    const input = makeInput("pi", "project", "optional", "optional");
+    expect(readRecord(input)).toBeUndefined();
+    mkdirSync(dirname(statePathFor(input)), { recursive: true });
+    symlinkSync("missing-record.json", statePathFor(input));
+    expect(() => readRecord(input)).toThrow("Cannot read install record");
+    expect(() => listRecords(input)).toThrow("Cannot read install record");
+  });
+});
+
+test("a plan made before another init cannot orphan the newer install's appended package", () => {
+  const input = makeInput("pi", "project", "optional", "optional");
+  const stale = planForHost(input.host, input);
+  const other = { ...input, packageRef: "deepseek-web-retrieval@next" };
+  applyPlan(planForHost(other.host, other), other);
+  const record = readRecord(other);
+  const config = join(input.cwd, ".pi/settings.json");
+  const before = readFileSync(config, "utf8");
+  expect(() => applyPlan(stale, input)).toThrow("install record changed since the plan");
+  expect(readRecord(other)).toEqual(record);
+  expect(readFileSync(config, "utf8")).toBe(before);
+  uninstall(other);
+  expect(existsSync(config)).toBe(false);
+});
+
+test("unreadable records and CLI list report errors instead of claiming no install exists", async () => {
+  const input = makeInput("pi", "project", "optional", "optional");
+  applyPlan(planForHost(input.host, input), input);
+  const recordFile = statePathFor(input);
+  const read = fs.readFileSync;
+  const reads = spyOn(fs, "readFileSync").mockImplementation(((...args: Parameters<typeof fs.readFileSync>) => {
+    if (String(args[0]) === recordFile) throw Object.assign(new Error("denied"), { code: "EACCES" });
+    return read(...args);
+  }) as typeof fs.readFileSync);
+  const out: string[] = [];
+  const err: string[] = [];
+  try {
+    expect(() => readRecord(input)).toThrow("EACCES");
+    expect(planForHost(input.host, input).errors[0]?.message).toContain("Cannot read install record");
+    expect(
+      await runInstallerCli(["list", "--cwd", input.cwd], {
+        out: (line) => out.push(line),
+        err: (line) => err.push(line),
+      }),
+    ).toBe(1);
+    expect(err.join(" ")).toContain(recordFile);
+    expect(out).toEqual([]);
+  } finally {
+    reads.mockRestore();
+  }
+  uninstall(input);
 });

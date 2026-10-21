@@ -1,5 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { atomicWrite } from "../persistence";
 import type { ConfigOp, FileEdit, HostName, RecordedFile, RecordedOp } from "../types";
 import { jsonCodec } from "./json";
 import { rulesCodec } from "./rules";
@@ -46,8 +45,7 @@ export interface FormatCodec {
 
 /** Shared write step: every codec consumer writes config files through this. */
 export function writeConfig(file: string, serialized: string): void {
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, serialized);
+  atomicWrite(file, serialized);
 }
 
 /** The one entry point to a format's codec; only the rules codec cares about the host. */

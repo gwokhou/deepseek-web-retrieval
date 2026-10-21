@@ -62,8 +62,8 @@ export function renderControlTable(hosts: HostsFile): string {
   ].join("\n");
 }
 
-/** Replaces the generated block in docs/integration.md. Returns true when the file changed. */
-export function updateIntegrationDoc(repoRoot: string, hosts: HostsFile): boolean {
+/** Replaces the generated block in docs/integration.md. Returns true on drift; check mode never writes. */
+export function updateIntegrationDoc(repoRoot: string, hosts: HostsFile, check = false): boolean {
   const docPath = join(repoRoot, "docs", "integration.md");
   const current = readFileSync(docPath, "utf8");
   const beginIndex = current.indexOf(BEGIN);
@@ -73,12 +73,12 @@ export function updateIntegrationDoc(repoRoot: string, hosts: HostsFile): boolea
   }
   const updated = `${current.slice(0, beginIndex)}${BEGIN}\n\n${renderHostTable(hosts)}\n\n${END}${current.slice(endIndex + END.length)}`;
   if (updated === current) return false;
-  writeFileSync(docPath, updated);
+  if (!check) writeFileSync(docPath, updated);
   return true;
 }
 
-/** Replaces the generated control block in docs/research/control-matrix.md. Returns true when the file changed. */
-export function updateControlDoc(repoRoot: string, hosts: HostsFile): boolean {
+/** Replaces the generated control block in docs/research/control-matrix.md. Returns true on drift; check mode never writes. */
+export function updateControlDoc(repoRoot: string, hosts: HostsFile, check = false): boolean {
   const docPath = join(repoRoot, "docs", "research", "control-matrix.md");
   const current = readFileSync(docPath, "utf8");
   const beginIndex = current.indexOf(CONTROL_BEGIN);
@@ -91,7 +91,7 @@ export function updateControlDoc(repoRoot: string, hosts: HostsFile): boolean {
     `${CONTROL_BEGIN}\n\n${renderControlTable(hosts)}\n\n${CONTROL_END}` +
     current.slice(endIndex + CONTROL_END.length);
   if (updated === current) return false;
-  writeFileSync(docPath, updated);
+  if (!check) writeFileSync(docPath, updated);
   return true;
 }
 
@@ -101,9 +101,12 @@ const hosts = readHosts(repoRoot);
 // CLI only: this module is imported by tests, so running on import would
 // rewrite the generated docs and defeat the drift check.
 if (import.meta.main) {
-  const run = (): [boolean, boolean] => [updateIntegrationDoc(repoRoot, hosts), updateControlDoc(repoRoot, hosts)];
+  const run = (check = false): [boolean, boolean] => [
+    updateIntegrationDoc(repoRoot, hosts, check),
+    updateControlDoc(repoRoot, hosts, check),
+  ];
   if (process.argv.includes("--check")) {
-    const [integrationChanged, controlChanged] = run();
+    const [integrationChanged, controlChanged] = run(true);
     if (integrationChanged || controlChanged) {
       const stale = [
         integrationChanged ? "docs/integration.md" : null,

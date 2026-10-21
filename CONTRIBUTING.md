@@ -26,9 +26,27 @@ configuration. Documentation, examples, the vendored e2e model catalog, and
 generated build output are outside its scope. Review fixes before committing;
 resolve remaining diagnostics manually instead of applying unsafe fixes blindly.
 
-## End-to-end tests (local only)
+The stdio smoke tests rebuild the CLI and first probe Node child-process stdin,
+stdout, and stderr. Some restricted execution environments break those streams
+even for a plain Node child. A failed probe fails the suite explicitly; run the
+same tests in an environment that supports child-process stdio. Handshake errors
+include the server's captured stderr. These tests use placeholder credentials and
+local validation, so they do not make billed API calls.
 
-`bun run test:e2e` exercises real coding agents and never runs in CI. It only runs
+## Release and end-to-end tests
+
+`bun run check:release` runs the full check, the installed-package Node smoke
+test, and the keyless `installer`, `reinit`, and `pkg` Docker scenarios.
+`prepublishOnly` requires this gate; Docker and npm registry access are required.
+CI runs those keyless scenarios and tests the packaged CLI on Node 20, 22, 24,
+and 26. Billed scenarios remain explicit local runs with a real key.
+
+`bun run test:package` installs a freshly packed tarball in a temporary directory
+and tests init, re-init, uninstall, and an MCP stdio handshake with the selected
+Node executable. It requires a current build (`bun run build`), not host peers.
+The Docker `pkg` scenario separately tests normal npm peer installation and Pi.
+
+`bun run test:e2e` exercises real coding agents. It only runs
 inside Docker (`test/e2e/Dockerfile`); there is no host-binary mode, so the agent
 versions from `docs/hosts.jsonc` are always the compatibility claim under test. The
 image contains no secrets; the key is passed at `docker run` time.
@@ -91,7 +109,7 @@ image contains no secrets; the key is passed at `docker run` time.
   because Codex is a static musl binary whose TLS stack reads the system CA
   store, which the slim Node base does not ship.
 - `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
-  Multiple names select a subset (`bun run test:e2e pi installer reinit pkg
+  Multiple names select a subset (`bun run test:e2e pi pi-extension installer reinit pkg
   capability-off` runs every keyless scenario); the harness packs the npm
   tarball before running, so the installer and pkg scenarios always exercise
   the current checkout's packaging.
@@ -102,7 +120,9 @@ error, not a skip.
 ## Architecture
 
 - `src/core/` is agent-agnostic: HTTP clients, options, URL/domain policy,
-  filtering, formatting, and errors.
+  filtering, formatting, and errors. `createRetrievalClient({ fetchImpl })` binds
+  an HTTP dependency per instance. Adapter factories accept this client; tests
+  should inject it instead of replacing process-wide `fetch`.
 - `src/opencode/` is the OpenCode v2 adapter: plugin setup, credential
   resolution, provider registration, and tools.
 - Future agents should add a thin adapter under `src/<agent>/` and reuse
@@ -114,7 +134,8 @@ error, not a skip.
   `docs/hosts.jsonc`. When a host changes, update it there and regenerate the
   host table in `docs/integration.md` and the control matrix in
   `docs/research/control-matrix.md` with `bun run docs:matrix`; tests fail
-  if either table drifts.
+  if either table drifts. `bun run docs:matrix --check` is read-only; run without
+  `--check` to update the generated blocks.
 - Bumping `baseline` or a host `version` in `docs/hosts.jsonc` obliges a
   re-verification pass for that host: re-verify its per-host reference section
   and `control` keys in `docs/research/control-matrix.md`, and re-check the
