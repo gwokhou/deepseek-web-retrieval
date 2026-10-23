@@ -118,7 +118,11 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs));
   `enabled_tools`/`disabled_tools` (verbatim raw tool-name match, filtered before
   registration so the model never sees a disabled tool; an empty `enabled_tools` allow-list
-  exposes nothing), per-tool approval modes, and output limits.
+  exposes nothing), per-tool approval modes, and output limits: MCP tool output can be
+  capped per tool via `output_token_limit` ("Token budget for one MCP tool's output,
+  before the standard 20% serialization allowance"; the default cap is not published
+  there)
+  ([mcp_types.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/config/src/mcp_types.rs)).
   stdio children do not inherit the parent environment (only `HOME`, `PATH`, and explicit
   `env`), so `DEEPSEEK_API_KEY` must be passed explicitly. When a tool result has
   `structuredContent`, Codex replaces the content blocks with the serialized JSON. No SSE.
@@ -146,6 +150,13 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   tool from model requests entirely; `webfetch` has no disable config key at 2.0.32 — the
   deterministic paths are a permissions deny (`action: "webfetch"`) or a plugin
   tool-transform removal, the latter being what `fetchOverrideWebfetch` does.
+- **Tool output caps** — plugin tool results truncate at 2,000 lines / 50 KiB: every
+  tool result passes through `ToolOutput.truncate` (`MAX_LINES = 2000`,
+  `MAX_BYTES = 50 KiB`), with the full output retained to a `tool-output/` file for
+  7 days
+  ([tool-output.ts at v2.0.32](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/core/src/tool-output.ts));
+  caps and model-channel behavior recorded in
+  [result-quality-passthrough.md](result-quality-passthrough.md).
 - **MCP registration** — out of scope for this host: the shipped path is the plugin
   adapter, and OpenCode's MCP support is not part of it.
 - **Rules** — `AGENTS.md` only (no CLAUDE.md fallback in v2): global

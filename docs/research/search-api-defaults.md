@@ -258,6 +258,13 @@ quality filtering**. What they do publish, verbatim
   `localization` "否 / 空"; `ori_question` optional.
 - Response sizing: `snippet` "短摘要 … 通常为 100～200 字符"; `summary` "长摘要 … 通常为 600～800 字符".
 
+Two follow-up notes examine the request parameters this section lists only as defaults:
+[search-inline-content.md](search-inline-content.md) covers `need_content: true` — what
+provably returns, what it costs, how large it can get, and where that collides with
+per-host output caps — and [ori-question-sourcing.md](ori-question-sourcing.md) covers
+`ori_question` — the per-host channels that could supply a value (the repo currently
+never sends the parameter).
+
 ## What this means for this repo's defaults
 
 Fact-by-fact alignment of the repo's client-side defaults

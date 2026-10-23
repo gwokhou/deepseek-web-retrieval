@@ -117,7 +117,10 @@ differences:
    content-first, falling back to `structuredContent` only when a result has no content
    blocks (verified in `tools.ts` at v1.3.0). No `outputSchema` is declared: the SDK
    rejects text-only results for a tool with a declared schema, and no host in the
-   matrix validates the schema anyway.
+   matrix validates the schema anyway. The per-host model-channel facts behind this —
+   which of `content`/`structuredContent` provably reaches the model on each host,
+   native adapter paths included — are recorded in
+   [result-quality-passthrough.md](result-quality-passthrough.md).
 2. **stdio is the universal transport.** Every host in the matrix launches stdio servers
    with the same conceptual JSON (`mcpServers` → `command`/`args`/`env`), differing only in
    file location and cosmetic field names. stdio needs no OAuth and no URL config, and the
