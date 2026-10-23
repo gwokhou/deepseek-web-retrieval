@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here, one sentence per item.
 
-## Unreleased
+## 0.7.0
 
 - Layer a shared config file (`$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json`, camelCase keys) under the environment on every host, with the precedence `built-in defaults < shared file < DEEPSEEK_* environment < host-native config`; unknown and host-integration keys are warned about and ignored, and the API key stays out of the file.
 - Add a `config` command that prints every knob with its effective value and source (default, file, or environment — a count-derived `maxResults` is labeled `count`), replays shared-file problems, and verifies the key, config, and network end to end with `config --search "<query>"`.
