@@ -254,7 +254,8 @@ describe("pi registration-time deviation summary", () => {
       restoreConsole();
       restoreEnv();
     }
-    expect(lines).toEqual(["deepseek-web-retrieval config: count=20 language=zh"]);
+    // maxResults was not set, so it follows count — the effective value deviates too.
+    expect(lines).toEqual(["deepseek-web-retrieval config: count=20 maxResults=20 language=zh"]);
   });
 
   test("prints no config line when nothing deviates from defaults", () => {

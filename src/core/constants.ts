@@ -8,6 +8,11 @@ export const FETCH_ENDPOINT = "https://api.deepseek.com/v1/tools/fetch";
  * results client-side by score or authority — thresholds stay opt-in.
  */
 export const DEFAULT_SEARCH_COUNT = 10;
+/**
+ * The fallback only when neither knob is set; whenever `count` is explicitly
+ * configured, an unset `maxResults` follows the effective count instead (see
+ * resolveSearchOptions) — the two are coupled in one direction, not independent.
+ */
 export const DEFAULT_MAX_RESULTS = 10;
 export const DEFAULT_MIN_RERANK = 0;
 export const DEFAULT_MIN_AUTHORITY = 0;
@@ -27,7 +32,13 @@ export const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 export const FETCH_TRUNCATION_MARKER = "\n\n[content truncated]";
 
 export const DEFAULT_API_KEY_SOURCE = "auto";
-export const DEFAULT_MAX_RETRIES = 0;
+/**
+ * 2, not 0: a transient failure inside a tool call is cheaper to retry here than
+ * to leave to the model, whose only fallback is re-issuing the whole billed tool
+ * call — the same trade-off behind OpenAI/Anthropic SDKs defaulting to 2; see
+ * docs/research/search-api-defaults.md.
+ */
+export const DEFAULT_MAX_RETRIES = 2;
 export const MAX_RETRIES = 5;
 export const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 export const MAX_RETRY_DELAY_MS = 10000;

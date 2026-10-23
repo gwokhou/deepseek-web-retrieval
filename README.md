@@ -139,10 +139,10 @@ binary files, per-request billing) are documented there.
 
 ### Timeouts and retries
 
-Request timeouts include reading the response body. Retries are disabled by default;
-when enabled, retryable responses are 408, 425, 429, and 5xx, and `Retry-After` is honored
-up to 10 seconds. Other failures, including 401, timeouts, and network errors, fail
-without retrying.
+Request timeouts include reading the response body. Transient failures are retried twice
+by default (0–5, `maxRetries`); retryable responses are 408, 425, 429, and 5xx, and
+`Retry-After` is honored up to 10 seconds. Other failures, including 401, timeouts, and
+network errors, fail without retrying.
 
 ### No automatic fallback
 
@@ -192,6 +192,13 @@ documented side by side in the [Codex](docs/agents/codex.md), [Pi](docs/agents/p
 and [OpenCode](docs/agents/opencode-v2.md) guides. Prefer a host layer when a
 host-sensitive knob would cross its host's output cap or deadline; keep the
 host-independent intent in the shared file.
+
+To see what actually resolves, run `npx deepseek-web-retrieval config`: every knob
+printed with its value and its source (`default`, `file`, or `env`), plus any problems
+in the file replayed as visible warnings — it exits 1 when the file has problems, so it
+doubles as a dotfile CI check. `npx deepseek-web-retrieval config --search "<query>"`
+runs one billed search through the effective configuration to verify the key, config,
+and network end to end.
 
 ## Development
 

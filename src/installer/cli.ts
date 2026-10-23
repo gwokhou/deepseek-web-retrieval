@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { TOOL_VERSION } from "../version";
 import { ApplyError, applyPlan } from "./apply";
+import { runConfigCommand } from "./config-command";
 import { HOST_PLANNERS, HOST_VERSION_PROBES, planForHost } from "./hosts";
 import { renderPlan } from "./render";
 import { listRecords } from "./state";
@@ -23,6 +24,7 @@ const USAGE = `Usage:
 [--path <extension|mcp>] [--package <npm ref>] [--cwd <dir>] [--apply]
   deepseek-web-retrieval uninstall --host ${HOST_CHOICES} --scope <project|global> [--cwd <dir>]
   deepseek-web-retrieval list [--cwd <dir>]
+  deepseek-web-retrieval config [--search <query>]
   deepseek-web-retrieval version
 
 init prints the full plan (every file, old value → new value) and writes nothing
@@ -32,6 +34,13 @@ default, mcp for the stdio MCP server). --package overrides the package ref
 written into host config; the Pi extension path turns it into the packages
 source (a bare name is prefixed with npm:, a ref that already starts with npm:
 is written as-is).
+
+config prints the effective configuration — every knob with its value and its
+source (default, shared file, or environment), resolved the way the MCP server
+resolves it — and exits 1 when the config file has problems (unknown or
+rejected keys, unparseable JSON; a missing file is fine). config --search <query>
+runs one billed search through that configuration to verify the key, config,
+and network end to end; it exits 1 when the key is missing or the search fails.
 
 Exit codes: 0 success; 1 refused or failed with nothing written (a failed apply
 is fully rolled back); 2 invalid command line; 3 recovery required — a failed
@@ -148,6 +157,10 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
       for (const file of record.files) out(`  ${file.created ? "created" : "modified"} ${file.file}`);
     }
     return 0;
+  }
+
+  if (command === "config") {
+    return runConfigCommand(flags.values.get("search"), { out, err });
   }
 
   if (command === "uninstall") {

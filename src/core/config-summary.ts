@@ -9,8 +9,8 @@ import type { ResolvedOptions } from "./types";
  * source is host-native config. Empty diff means empty string.
  */
 export function configDeviations(resolved: ResolvedOptions): string {
-  const defaults = summaryValues(resolvePluginOptions({}));
-  const effective = summaryValues(resolved);
+  const defaults = configSummaryValues(resolvePluginOptions({}));
+  const effective = configSummaryValues(resolved);
   const tokens: string[] = [];
   for (const key of Object.keys(effective)) {
     const value = effective[key];
@@ -20,8 +20,13 @@ export function configDeviations(resolved: ResolvedOptions): string {
   return tokens.join(" ");
 }
 
-/** Flattens the diffable resolved fields onto their config-vocabulary names. */
-function summaryValues(options: ResolvedOptions): Record<string, unknown> {
+/**
+ * Flattens the diffable resolved fields onto their config-vocabulary names.
+ * Exported because the key order is the vocabulary order every human-facing
+ * rendering of the knobs shares (the startup deviation line, the config
+ * command); Object.keys preserves it.
+ */
+export function configSummaryValues(options: ResolvedOptions): Record<string, unknown> {
   return {
     count: options.search.count,
     maxResults: options.search.maxResults,

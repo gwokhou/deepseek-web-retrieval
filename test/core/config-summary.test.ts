@@ -16,7 +16,10 @@ describe("configDeviations", () => {
       searchLocalization: "203.0.113.7",
       retryBaseDelayMs: 500,
     });
-    expect(configDeviations(resolved)).toBe("count=20 language=zh searchLocalization=203.0.113.7 retryBaseDelayMs=500");
+    // maxResults was not set, so it follows count — and that effective value deviates too.
+    expect(configDeviations(resolved)).toBe(
+      "count=20 maxResults=20 language=zh searchLocalization=203.0.113.7 retryBaseDelayMs=500",
+    );
   });
 
   test("renders booleans as key=false / key=true", () => {
@@ -39,6 +42,6 @@ describe("configDeviations", () => {
   });
 
   test("shows deviations produced by the environment layer", () => {
-    expect(configDeviations(resolveEnvOptions({ DEEPSEEK_SEARCH_COUNT: "20" }))).toBe("count=20");
+    expect(configDeviations(resolveEnvOptions({ DEEPSEEK_SEARCH_COUNT: "20" }))).toBe("count=20 maxResults=20");
   });
 });

@@ -119,6 +119,10 @@ A bad shared value now fails everywhere at once, so effective configuration must
 - The OpenCode plugin and Pi extension print the same deviation summary once, at
   registration time, through their host's logging channel (implementer picks the least
   noisy channel per host; the content contract is "non-default effective values").
+- `deepseek-web-retrieval config` is the user-facing arm: it prints every knob with its
+  value and source, replays the file's warnings where a human actually looks, and its
+  `--search` variant verifies the whole chain (key, config, network) with one billed
+  request.
 
 ## What this design does not change
 

@@ -34,7 +34,7 @@ describe("resolve options", () => {
         enabled: true,
       },
       auth: { source: "auto" },
-      retry: { maxRetries: 0, baseDelayMs: 250 },
+      retry: { maxRetries: 2, baseDelayMs: 250 },
     });
   });
 
@@ -60,6 +60,42 @@ describe("resolve options", () => {
   test("keeps unknown-authority results unless disabled explicitly", () => {
     expect(resolveSearchOptions({}).allowUnknownAuthority).toBe(true);
     expect(resolveSearchOptions({ allowUnknownAuthority: false }).allowUnknownAuthority).toBe(false);
+  });
+
+  test("maxResults defaults to the effective count when not explicitly set", () => {
+    // Neither set: both built-in defaults.
+    const neither = resolveSearchOptions({});
+    expect(neither.count).toBe(10);
+    expect(neither.maxResults).toBe(10);
+    // Only count set: maxResults follows, so raising count alone returns more.
+    const onlyCount = resolveSearchOptions({ count: 20 });
+    expect(onlyCount.count).toBe(20);
+    expect(onlyCount.maxResults).toBe(20);
+    // Only maxResults set: count stays at its default — you cannot return
+    // more than was fetched.
+    const onlyMaxResults = resolveSearchOptions({ maxResults: 5 });
+    expect(onlyMaxResults.count).toBe(10);
+    expect(onlyMaxResults.maxResults).toBe(5);
+    // Both set: both honored; results = min.
+    const both = resolveSearchOptions({ count: 20, maxResults: 5 });
+    expect(both.count).toBe(20);
+    expect(both.maxResults).toBe(5);
+  });
+
+  test("maxResults follows the clamped count, not the raw value", () => {
+    const options = resolveSearchOptions({ count: 99 });
+    expect(options.count).toBe(50);
+    expect(options.maxResults).toBe(50);
+  });
+
+  test("an unset maxResults follows count only when count itself was set", () => {
+    // Invalid count falls back like an unset one, so maxResults keeps DEFAULT_MAX_RESULTS.
+    const invalidCount = resolveSearchOptions({ count: "many" });
+    expect(invalidCount.count).toBe(10);
+    expect(invalidCount.maxResults).toBe(10);
+    // An invalid maxResults falls back to the count-derived default.
+    const invalidMaxResults = resolveSearchOptions({ count: 20, maxResults: "all" });
+    expect(invalidMaxResults.maxResults).toBe(20);
   });
 
   test("normalizes domains and language", () => {

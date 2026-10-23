@@ -36,9 +36,14 @@ export function resolvePluginOptions(input?: PluginOptions): ResolvedOptions {
 }
 
 export function resolveSearchOptions(input?: PluginOptions): SearchOptions {
+  const count = clampInt(input?.count, DEFAULT_SEARCH_COUNT, 1, 50);
   return {
-    count: clampInt(input?.count, DEFAULT_SEARCH_COUNT, 1, 50),
-    maxResults: clampInt(input?.maxResults, DEFAULT_MAX_RESULTS, 0, 50),
+    count,
+    // Constraint: maxResults follows count only when the user left it alone —
+    // an explicit maxResults still caps as before. count never follows
+    // maxResults: fetching more than the cap returns wastes nothing visible,
+    // while returning fewer than were fetched silently discards results.
+    maxResults: clampInt(input?.maxResults, Number.isFinite(input?.count) ? count : DEFAULT_MAX_RESULTS, 0, 50),
     minRerank: finiteNumber(input?.minRerank, DEFAULT_MIN_RERANK),
     minAuthority: finiteNumber(input?.minAuthority, DEFAULT_MIN_AUTHORITY),
     allowUnknownAuthority: input?.allowUnknownAuthority !== false,

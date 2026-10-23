@@ -119,7 +119,9 @@ The shared config file (`~/.config/deepseek-web-retrieval/config.json`, camelCas
 also sits in this surface, layered under the environment, and needs no forwarding on any
 path — the extension and the MCP server both read the file themselves. One file therefore
 configures every host running this package, with this host's environment and settings
-still outranking it.
+still outranking it. `npx deepseek-web-retrieval config` prints what actually resolves —
+each knob's value and source, with file warnings surfaced and `--search "<query>"` running
+one billed search through it all.
 
 ### Search
 
@@ -127,7 +129,7 @@ still outranking it.
 | --- | --- | --- |
 | `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the search tool. Only an explicit `false`/`0`/`no`/`off` disables it; at least one tool must stay enabled. |
 | `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
-| `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50. `0` returns no results. |
+| `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50; defaults to `DEEPSEEK_SEARCH_COUNT` when unset. `0` returns no results. |
 | `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score (0–3); results without a finite score pass at zero and are dropped at a positive threshold. |
 | `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` | Drop known authorities below this tier. Authority is 0–4. |
 | `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0`/`no`/`off` to drop them. |
@@ -154,7 +156,7 @@ still outranking it.
 | Env variable | Default | Description |
 | --- | --- | --- |
 | `DEEPSEEK_API_KEY` | required | DeepSeek API key, read from the Pi process environment. |
-| `DEEPSEEK_MAX_RETRIES` | `0` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
+| `DEEPSEEK_MAX_RETRIES` | `2` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
 | `DEEPSEEK_RETRY_BASE_DELAY_MS` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
 
 Invalid values fall back to the shared default.

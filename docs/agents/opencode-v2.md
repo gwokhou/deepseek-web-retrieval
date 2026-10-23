@@ -182,7 +182,8 @@ Set these in the plugin's `options` object.
 > (`~/.config/deepseek-web-retrieval/config.json`), with the `DEEPSEEK_*` environment in
 > between: `shared file < environment < options`. Configure once in the file — it works on
 > every host — and override per host here in `options`; existing `options` keep winning
-> exactly as before.
+> exactly as before. `npx deepseek-web-retrieval config` shows the file/env/defaults view
+> of every knob (these `options` sit above it, so check them here when it differs).
 
 ### Search
 
@@ -190,7 +191,7 @@ Set these in the plugin's `options` object.
 | --- | --- | --- |
 | `searchEnabled` | `true` | Register the DeepSeek search provider at all. Only an explicit `false` disables it. |
 | `count` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
-| `maxResults` | `10` | Results returned to the model after filtering, 0–50. `0` returns no results. |
+| `maxResults` | `10` | Results returned to the model after filtering, 0–50; defaults to `count` when unset. `0` returns no results. |
 | `minRerank` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. A result without a finite score passes while the threshold is `0` and is dropped once it is positive. |
 | `minAuthority` | `0` | Drop known authorities below this tier. Authority is 0–4. |
 | `allowUnknownAuthority` | `true` | Keep results whose authority is missing or unknown. Only an explicit `false` disables it. |
@@ -220,7 +221,7 @@ Set these in the plugin's `options` object.
 | Option | Default | Description |
 | --- | --- | --- |
 | `apiKeySource` | `"auto"` | Credential strategy: `"auto"`, `"opencode"`, or `"env"`. |
-| `maxRetries` | `0` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
+| `maxRetries` | `2` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
 | `retryBaseDelayMs` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
 
 ## Troubleshooting

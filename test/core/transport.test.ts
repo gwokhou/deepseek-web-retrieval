@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_RETRY_DELAY_MS, SEARCH_ENDPOINT } from "../../src/core/constants";
+import { DEFAULT_MAX_RETRIES, MAX_RETRY_DELAY_MS, SEARCH_ENDPOINT } from "../../src/core/constants";
 import type { TransportOptions } from "../../src/core/transport";
 import { DeepSeekApiError, parseRetryAfter, postJson, retryDelay } from "../../src/core/transport";
 import type { RequestAuth } from "../../src/core/types";
@@ -37,6 +37,25 @@ describe("transport postJson", () => {
 
     expect(payload).toEqual({ results: [] });
     expect(calls).toBe(2);
+  });
+
+  test("the default retries a transient failure twice and succeeds on the third attempt", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      if (calls < 3) return new Response("slow down", { status: 429 });
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const payload = await postJson<{ results: unknown[] }>(
+      SEARCH_ENDPOINT,
+      { query: "bun" },
+      "DeepSeek Search",
+      opts({ retry: { maxRetries: DEFAULT_MAX_RETRIES, baseDelayMs: 0 }, fetchImpl }),
+    );
+
+    expect(payload).toEqual({ results: [] });
+    expect(calls).toBe(3);
   });
 
   test("aborts during the retry sleep with the abort reason", async () => {

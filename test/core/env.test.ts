@@ -143,7 +143,7 @@ describe("resolveEnvOptions", () => {
     const resolved = resolveEnvOptions({});
     expect(resolved.search.maxResults).toBe(10);
     expect(resolved.fetch.maxChars).toBe(16000);
-    expect(resolved.retry.maxRetries).toBe(0);
+    expect(resolved.retry.maxRetries).toBe(2);
   });
 
   test("layers file options beneath environment options", () => {
@@ -164,6 +164,13 @@ describe("resolveEnvOptions", () => {
   test("file options alone still resolve over the built-in defaults", () => {
     const resolved = resolveEnvOptions({}, { count: 20 });
     expect(resolved.search.count).toBe(20);
-    expect(resolved.search.maxResults).toBe(10);
+    // maxResults was set by no layer, so it follows the effective count.
+    expect(resolved.search.maxResults).toBe(20);
+  });
+
+  test("maxResults follows a count delivered by the environment alone", () => {
+    const resolved = resolveEnvOptions({ DEEPSEEK_SEARCH_COUNT: "20" });
+    expect(resolved.search.count).toBe(20);
+    expect(resolved.search.maxResults).toBe(20);
   });
 });

@@ -108,7 +108,8 @@ describe("startup deviation summary", () => {
   test("prints a config: line for environment deviations from defaults", async () => {
     const stderr = await spawnCliStderr({ DEEPSEEK_API_KEY: "sk-test", DEEPSEEK_SEARCH_COUNT: "20" });
     expect(stderr).toContain("deepseek-web-retrieval MCP server on stdio");
-    expect(stderr.split("\n")).toContain("config: count=20");
+    // maxResults was not set, so it follows count — the effective value deviates too.
+    expect(stderr.split("\n")).toContain("config: count=20 maxResults=20");
   });
 
   test("prints a config: line for deviations read from the shared config file", async () => {
@@ -116,7 +117,7 @@ describe("startup deviation summary", () => {
       { DEEPSEEK_API_KEY: "sk-test" },
       { count: 20, blockedDomains: ["pinterest.com"], language: "zh" },
     );
-    expect(stderr.split("\n")).toContain("config: count=20 blockedDomains=1 language=zh");
+    expect(stderr.split("\n")).toContain("config: count=20 maxResults=20 blockedDomains=1 language=zh");
   });
 
   test("prints no config: line when nothing deviates from defaults", async () => {
