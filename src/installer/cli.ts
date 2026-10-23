@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { applyPlan } from "./apply";
+import { TOOL_VERSION } from "../version";
+import { ApplyError, applyPlan } from "./apply";
 import { HOST_PLANNERS, HOST_VERSION_PROBES, planForHost } from "./hosts";
 import { renderPlan } from "./render";
 import { listRecords } from "./state";
@@ -12,12 +13,17 @@ const HOST_CHOICES = `<${HOSTS.join("|")}>`;
 const SCOPES: readonly Scope[] = ["project", "global"];
 const TIERS: readonly Tier[] = ["optional", "preferred", "forced", "off"];
 
+const EXIT_FAILURE = 1;
+const EXIT_USAGE = 2;
+const EXIT_RECOVERY = 3;
+
 const USAGE = `Usage:
   deepseek-web-retrieval init --host ${HOST_CHOICES} --scope <project|global> \
 --search <optional|preferred|forced|off> --fetch <optional|preferred|forced|off> \
 [--path <extension|mcp>] [--package <npm ref>] [--cwd <dir>] [--apply]
   deepseek-web-retrieval uninstall --host ${HOST_CHOICES} --scope <project|global> [--cwd <dir>]
   deepseek-web-retrieval list [--cwd <dir>]
+  deepseek-web-retrieval version
 
 init prints the full plan (every file, old value → new value) and writes nothing
 until --apply is passed. uninstall restores what the plan applied. --path picks
@@ -25,7 +31,12 @@ the integration mechanism for hosts with more than one (Pi: extension by
 default, mcp for the stdio MCP server). --package overrides the package ref
 written into host config; the Pi extension path turns it into the packages
 source (a bare name is prefixed with npm:, a ref that already starts with npm:
-is written as-is).`;
+is written as-is).
+
+Exit codes: 0 success; 1 refused or failed with nothing written (a failed apply
+is fully rolled back); 2 invalid command line; 3 recovery required — a failed
+apply could not roll back completely, follow the reported guidance before
+re-running.`;
 
 interface Flags {
   readonly values: Map<string, string>;
@@ -54,11 +65,19 @@ function parseFlags(args: readonly string[]): Flags {
         problems.push(`--${name} does not accept a value; use --${name} to enable it or omit it`);
         continue;
       }
+      if (booleans.has(name)) {
+        problems.push(`--${name} was given more than once`);
+        continue;
+      }
       booleans.add(name);
       continue;
     }
     if (!VALUE_FLAGS.has(name)) {
       problems.push(`unknown flag --${name}`);
+      continue;
+    }
+    if (values.has(name)) {
+      problems.push(`--${name} was given more than once`);
       continue;
     }
     if (eq !== -1) {
@@ -87,15 +106,23 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
   const out = io.out ?? ((line: string) => console.log(line));
   const err = io.err ?? ((line: string) => console.error(line));
   const [command, ...rest] = argv;
-  if (command === undefined || command === "help" || command === "--help") {
+  if (command === "version" || command === "--version") {
+    out(TOOL_VERSION);
+    return 0;
+  }
+  if (command === undefined) {
+    err(USAGE);
+    return EXIT_USAGE;
+  }
+  if (command === "help" || command === "--help") {
     out(USAGE);
-    return command === undefined ? 1 : 0;
+    return 0;
   }
   const flags = parseFlags(rest);
   if (flags.problems.length > 0) {
     for (const problem of flags.problems) err(`error: ${problem}`);
     err(`\n${USAGE}`);
-    return 1;
+    return EXIT_USAGE;
   }
   const cwd = resolve(flags.values.get("cwd") ?? process.cwd());
   const home = process.env.HOME ?? homedir();
@@ -114,8 +141,9 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
       return 0;
     }
     for (const record of records) {
+      const by = record.installerVersion ? ` by v${record.installerVersion}` : "";
       out(
-        `${record.host} (${record.scope}) — search=${record.tiers.search}, fetch=${record.tiers.fetch}, installed ${record.createdAt}`,
+        `${record.host} (${record.scope}) — search=${record.tiers.search}, fetch=${record.tiers.fetch}, installed ${record.createdAt}${by}`,
       );
       for (const file of record.files) out(`  ${file.created ? "created" : "modified"} ${file.file}`);
     }
@@ -136,7 +164,7 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
 
   if (command !== "init") {
     err(`Unknown command "${command}".\n\n${USAGE}`);
-    return 1;
+    return EXIT_USAGE;
   }
 
   const required = requireInput(flags, cwd, home, configHome, true);
@@ -158,17 +186,22 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
   try {
     const result = applyPlan(plan, input);
     for (const line of result.lines) out(line);
-    return result.ok ? 0 : 1;
+    return 0;
   } catch (error) {
     err(error instanceof Error ? error.message : String(error));
-    return 1;
+    return exitCodeForError(error);
   }
+}
+
+/** Maps a thrown error to its exit code; recovery is the case a script must not retry blindly. */
+export function exitCodeForError(error: unknown): number {
+  return error instanceof ApplyError && error.status === "recovery_required" ? EXIT_RECOVERY : EXIT_FAILURE;
 }
 
 function usageError(problems: readonly string[], err: (line: string) => void): number {
   for (const problem of problems) err(`error: ${problem}`);
   err(`\n${USAGE}`);
-  return 1;
+  return EXIT_USAGE;
 }
 
 /**

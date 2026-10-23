@@ -77,7 +77,7 @@ test("another process holding an operation lock excludes apply and uninstall, th
     expect(fs.existsSync(edit.file)).toBe(false);
     fs.writeFileSync(release, "release");
     expect(await child.exited).toBe(0);
-    expect(applyPlan(plan, input).ok).toBe(true);
+    expect(applyPlan(plan, input).lines.length).toBeGreaterThan(0);
     uninstall(input);
     expect(fs.existsSync(statePathFor(input))).toBe(false);
     expect(fs.existsSync(join(root, ".deepseek-web-retrieval"))).toBe(false);
@@ -168,7 +168,7 @@ test("a shared config operation lock excludes another project and symlink aliase
       expect(fs.readFileSync(config, "utf8")).toBe('model = "example"\n');
       expect(readRecord(input)).toBeUndefined();
     });
-    expect(applyPlan(plan, input).ok).toBe(true);
+    expect(applyPlan(plan, input).lines.length).toBeGreaterThan(0);
     withOperationLock([alias], () => {
       expect(() => uninstall(input)).toThrow("operation is locked");
       expect(readRecord(input)).toBeDefined();

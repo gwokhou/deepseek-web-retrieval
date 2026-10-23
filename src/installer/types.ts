@@ -136,6 +136,8 @@ export interface RecordedFile {
 /** Persisted install state; one record per host and scope. */
 export interface InstallRecord {
   readonly version: 1;
+  /** Version of the installer that wrote this record; absent on records from older releases. */
+  readonly installerVersion?: string;
   readonly host: HostName;
   readonly scope: Scope;
   readonly tiers: { readonly search: Tier; readonly fetch: Tier };

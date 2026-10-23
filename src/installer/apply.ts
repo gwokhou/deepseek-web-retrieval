@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
+import { TOOL_VERSION } from "../version";
 import { codecFor, writeConfig } from "./formats";
 import { deepEqual, valueAt } from "./formats/value";
 import { withOperationLock } from "./operation-lock";
@@ -8,9 +9,9 @@ import { pruneEmptyDir, revertRecordedFile } from "./revert";
 import { deleteRecord, readRecord, statePathFor, writeRecord } from "./state";
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "./types";
 
+/** What a successful apply reports; every failure mode throws instead. */
 export interface ApplyResult {
-  readonly lines: string[];
-  readonly ok: boolean;
+  readonly lines: readonly string[];
 }
 
 /** A failed apply tells callers whether retrying is safe or recovery is still needed. */
@@ -94,6 +95,7 @@ function applyLocked(plan: InstallPlan, input: InstallerInput): ApplyResult {
     lines.push(...verification.lines);
     const record: InstallRecord = {
       version: 1,
+      installerVersion: TOOL_VERSION,
       host: plan.host,
       scope: plan.scope,
       tiers: plan.tiers,
@@ -135,7 +137,7 @@ function applyLocked(plan: InstallPlan, input: InstallerInput): ApplyResult {
       error,
     );
   }
-  return { lines, ok: true };
+  return { lines };
 }
 
 function errorMessage(error: unknown): string {

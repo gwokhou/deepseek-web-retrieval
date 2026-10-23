@@ -4,6 +4,10 @@ All notable changes to this project are documented here, with one sentence per i
 
 ## Unreleased
 
+- Return distinct CLI exit codes — 2 for invalid command lines and 3 when a failed apply could not roll back — and document the codes in the usage text.
+- Add a `version` subcommand, record the installer version in install records, and show it in `list` output.
+- Route any command-line argument to the installer before the MCP server loads, so installer commands never depend on the server's dependency graph and a mistyped command no longer starts a server.
+- Reject duplicate flags instead of silently keeping the last value, and print usage to stderr on a bare invocation.
 - Wait up to five minutes for npm's post-upload processing before finalizing automated releases, with retry guidance if processing takes longer.
 - Clarify OpenCode and Pi native integration and Codex MCP support across setup, upgrade, security, release, and issue-reporting documentation.
 

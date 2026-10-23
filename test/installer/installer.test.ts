@@ -16,8 +16,8 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { parseJsonc } from "../../src/core/jsonc";
-import { applyPlan } from "../../src/installer/apply";
-import { runInstallerCli } from "../../src/installer/cli";
+import { ApplyError, applyPlan } from "../../src/installer/apply";
+import { exitCodeForError, runInstallerCli } from "../../src/installer/cli";
 import { codecFor } from "../../src/installer/formats";
 import { applyJsonOps, revertJsonOps } from "../../src/installer/formats/json";
 import { buildRulesBlock, hasBlock, removeBlock, upsertBlock } from "../../src/installer/formats/rules";
@@ -257,7 +257,7 @@ describe("apply and uninstall round-trips", () => {
     const input = makeInput("pi", "project", "optional", "optional", "mcp");
     const plan = planPi(input, readRecord(input));
     const applied = applyPlan(plan, input);
-    expect(applied.ok).toBe(true);
+    expect(applied.lines.length).toBeGreaterThan(0);
     expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(true);
     expect(listRecords(input).map((record) => record.host)).toContain("pi");
     uninstall(input);
@@ -273,13 +273,13 @@ describe("apply and uninstall round-trips", () => {
     writeFileSync(join(config, "opencode.jsonc"), original);
     const plan = planOpenCode(input, readRecord(input));
     const first = applyPlan(plan, input);
-    expect(first.ok).toBe(true);
+    expect(first.lines.length).toBeGreaterThan(0);
     const afterFirst = readFileSync(join(config, "opencode.jsonc"), "utf8");
     expect(afterFirst).toContain("// keep me");
     expect(afterFirst).toContain('"deepseek"');
     // Re-apply dedupes: nothing new appended.
     const second = applyPlan(planOpenCode(input, readRecord(input)), input);
-    expect(second.ok).toBe(true);
+    expect(second.lines.length).toBeGreaterThan(0);
     const afterSecond = readFileSync(join(config, "opencode.jsonc"), "utf8");
     expect((afterSecond.match(/deepseek-web-retrieval/g) ?? []).length).toBe(
       (afterFirst.match(/deepseek-web-retrieval/g) ?? []).length,
@@ -309,7 +309,7 @@ describe("apply and uninstall round-trips", () => {
     const plan = planCodex(input, readRecord(input));
     expect(plan.notes.join(" ")).toContain("comments");
     const applied = applyPlan(plan, input);
-    expect(applied.ok).toBe(true);
+    expect(applied.lines.length).toBeGreaterThan(0);
     const text = readFileSync(join(dir, "config.toml"), "utf8");
     expect(text).toContain("[mcp_servers.deepseek]");
     expect(text).toContain('web_search = "disabled"');
@@ -438,7 +438,7 @@ describe("apply and uninstall round-trips", () => {
       '[mcp_servers.deepseek]\ncommand = "node"\ndisabled_tools = ["their_tool"]\n',
     );
     const applied = applyPlan(planCodex(input, readRecord(input)), input);
-    expect(applied.ok).toBe(true);
+    expect(applied.lines.length).toBeGreaterThan(0);
     const afterInstall = readFileSync(join(dir, "config.toml"), "utf8");
     expect(afterInstall).toContain('disabled_tools = [ "their_tool", "deepseek_web_search" ]');
 
@@ -667,7 +667,7 @@ describe("apply rollback", () => {
     writeFileSync(config, original);
 
     const first = applyPlan(planOpenCode(input, readRecord(input)), input);
-    expect(first.ok).toBe(true);
+    expect(first.lines.length).toBeGreaterThan(0);
     const afterFirst = readFileSync(config, "utf8");
     expect(afterFirst).toContain("// keep me");
 
@@ -735,7 +735,7 @@ describe("review fixes", () => {
         ],
         { out: (line) => output.push(line), err: (line) => output.push(line) },
       );
-      expect(code).toBe(1);
+      expect(code).toBe(2);
       expect(output.join("\n")).toContain("--apply does not accept a value");
       expect(readdirSync(input.cwd)).toEqual([]);
       expect(readRecord(input)).toBeUndefined();
@@ -852,7 +852,7 @@ describe("review fixes", () => {
         relative,
       ]);
       // --home is not a known flag; the CLI must reject it instead of guessing.
-      expect(code).toBe(1);
+      expect(code).toBe(2);
       expect(errorsOut.join("\n")).toContain("unknown flag --home");
       expect(logs.join("\n")).not.toContain("--apply");
 
@@ -887,7 +887,7 @@ describe("review fixes", () => {
         cwd,
         "--apply",
       ]);
-      expect(code3).toBe(1);
+      expect(code3).toBe(2);
       expect(errorsOut.join("\n")).toContain('invalid --search value "false"');
       expect(existsSync(join(cwd, ".pi/mcp.json"))).toBe(false);
     } finally {
@@ -1025,7 +1025,7 @@ describe("revert ownership", () => {
     // The new plan does not claim the extra file, so it reverts wholly; reverting
     // its only op empties it, and a created file left empty is deleted.
     const applied = applyPlan(planForHost("pi", input), input);
-    expect(applied.ok).toBe(true);
+    expect(applied.lines.length).toBeGreaterThan(0);
     expect(existsSync(extra)).toBe(false);
     expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(true);
   });
@@ -1445,7 +1445,7 @@ describe("pi extension path", () => {
     const original = JSON.stringify({ theme: "dark" });
     writeFileSync(join(input.cwd, ".pi/settings.json"), original);
     const applied = applyPlan(planForHost("pi", input), input);
-    expect(applied.ok).toBe(true);
+    expect(applied.lines.length).toBeGreaterThan(0);
     const after = JSON.parse(readFileSync(join(input.cwd, ".pi/settings.json"), "utf8")) as {
       theme: string;
       packages: string[];
@@ -1480,11 +1480,66 @@ describe("pi extension path", () => {
     const out: string[] = [];
     const io = { out: (line: string) => out.push(line), err: (line: string) => out.push(line) };
     const base = ["--scope", "global", "--search", "optional", "--fetch", "optional", "--cwd", "/tmp"];
-    expect(await runInstallerCli(["init", "--host", "pi", ...base, "--path", "bogus"], io)).toBe(1);
+    expect(await runInstallerCli(["init", "--host", "pi", ...base, "--path", "bogus"], io)).toBe(2);
     expect(out.join("\n")).toContain('invalid --path value "bogus"');
     out.length = 0;
-    expect(await runInstallerCli(["init", "--host", "codex", ...base, "--path", "mcp"], io)).toBe(1);
+    expect(await runInstallerCli(["init", "--host", "codex", ...base, "--path", "mcp"], io)).toBe(2);
     expect(out.join("\n")).toContain("--path is only supported for host pi");
+  });
+
+  test("CLI exit codes: version, help, unknown command, bare invocation, duplicate flags", async () => {
+    const out: string[] = [];
+    const errOut: string[] = [];
+    const io = { out: (line: string) => out.push(line), err: (line: string) => errOut.push(line) };
+
+    expect(await runInstallerCli(["version"], io)).toBe(0);
+    expect(await runInstallerCli(["--version"], io)).toBe(0);
+    expect(out[0]).toMatch(/^\d+\.\d+\.\d+$/);
+
+    out.length = 0;
+    errOut.length = 0;
+    expect(await runInstallerCli(["help"], io)).toBe(0);
+    expect(await runInstallerCli(["--help"], io)).toBe(0);
+    expect(out.join("\n")).toContain("Usage:");
+    expect(errOut).toEqual([]);
+
+    // A bare invocation is a usage error on stderr, not a hung server.
+    out.length = 0;
+    expect(await runInstallerCli([], io)).toBe(2);
+    expect(errOut.join("\n")).toContain("Usage:");
+    expect(out).toEqual([]);
+
+    errOut.length = 0;
+    expect(await runInstallerCli(["ints", "--host", "pi"], io)).toBe(2);
+    expect(errOut.join("\n")).toContain('Unknown command "ints"');
+
+    errOut.length = 0;
+    const base = ["--host", "pi", "--scope", "global", "--search", "optional", "--fetch", "optional", "--cwd", "/tmp"];
+    expect(await runInstallerCli(["init", ...base, "--search", "preferred"], io)).toBe(2);
+    expect(errOut.join("\n")).toContain("--search was given more than once");
+  });
+
+  test("exitCodeForError maps recovery apart from ordinary failures", () => {
+    expect(exitCodeForError(new ApplyError("recovery_required", "boom", undefined))).toBe(3);
+    expect(exitCodeForError(new ApplyError("rolled_back", "boom", undefined))).toBe(1);
+    expect(exitCodeForError(new Error("boom"))).toBe(1);
+  });
+
+  test("applied records carry the installer version and list shows it", async () => {
+    const input = makeInput("pi", "project", "optional", "optional");
+    const plan = planForHost(input.host, input);
+    expect(plan.errors).toEqual([]);
+    applyPlan(plan, input);
+    const record = readRecord(input);
+    if (!record) throw new Error("expected an install record");
+    expect(record.installerVersion).toMatch(/^\d+\.\d+\.\d+$/);
+
+    const out: string[] = [];
+    const code = await runInstallerCli(["list", "--cwd", input.cwd], {
+      out: (line) => out.push(line),
+    });
+    expect(code).toBe(0);
+    expect(out.join("\n")).toContain(`by v${record.installerVersion}`);
   });
 });
 
@@ -1636,13 +1691,13 @@ describe("whole-repo review regressions", () => {
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, JSON.stringify(original));
       for (let run = 0; run < 3; run += 1) {
-        expect(applyPlan(planForHost("pi", input), input).ok).toBe(true);
+        expect(applyPlan(planForHost("pi", input), input).lines.length).toBeGreaterThan(0);
         const servers = JSON.parse(readFileSync(file, "utf8")).mcpServers;
         for (const name of ["tavily", "brave", "exa"]) expect(servers[name].enabled).toBe(false);
       }
       // A real downgrade still restores competitors, and uninstall restores the original config.
       const optional = { ...input, search: "optional" as const };
-      expect(applyPlan(planForHost("pi", optional), optional).ok).toBe(true);
+      expect(applyPlan(planForHost("pi", optional), optional).lines.length).toBeGreaterThan(0);
       const servers = JSON.parse(readFileSync(file, "utf8")).mcpServers;
       for (const name of ["tavily", "brave", "exa"] as const) expect(servers[name]).toEqual(original.mcpServers[name]);
       uninstall(optional);
@@ -1665,7 +1720,7 @@ describe("whole-repo review regressions", () => {
       uninstall(first);
       const afterUninstall = planForHost("codex", second);
       expect(afterUninstall.errors).toEqual([]);
-      expect(applyPlan(afterUninstall, second).ok).toBe(true);
+      expect(applyPlan(afterUninstall, second).lines.length).toBeGreaterThan(0);
       uninstall(second);
       expect(existsSync(config)).toBe(false);
     });
@@ -1708,7 +1763,7 @@ describe("whole-repo review regressions", () => {
         const block = plan.edits.find((edit): edit is RulesEdit => edit.format === "rules")?.block ?? "";
         expect(block.includes("deepseek_web_search")).toBe(input.search === "preferred");
         expect(block.includes("deepseek_fetch")).toBe(input.fetch === "preferred");
-        expect(applyPlan(plan, input).ok).toBe(true);
+        expect(applyPlan(plan, input).lines.length).toBeGreaterThan(0);
         expect(readFileSync(join(input.cwd, "AGENTS.md"), "utf8")).toContain(block);
         uninstall(input);
       });
@@ -1723,7 +1778,7 @@ describe("shared config ownership lifecycle", () => {
     expect(() => applyPlan(planForHost("codex", first), first)).toThrow("Cannot read install record");
     expect(existsSync(join(first.home, ".codex"))).toBe(false);
     const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
-    expect(applyPlan(planForHost("codex", second), second).ok).toBe(true);
+    expect(applyPlan(planForHost("codex", second), second).lines.length).toBeGreaterThan(0);
     uninstall(second);
   });
 
@@ -1767,7 +1822,7 @@ describe("shared config ownership lifecycle", () => {
     writeRecord(first, { ...record, files: record.files.map(({ shared: _shared, ...file }) => file) });
     const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
     expect(planForHost("codex", second).errors[0]?.message).toContain("older install");
-    expect(applyPlan(planForHost("codex", first), first).ok).toBe(true);
+    expect(applyPlan(planForHost("codex", first), first).lines.length).toBeGreaterThan(0);
     const claims = readdirSync(directory).filter((name) => name.endsWith(".owner.json"));
     expect(claims.length).toBe(1);
     expect(statSync(join(directory, claims[0])).mode & 0o777).toBe(0o600);

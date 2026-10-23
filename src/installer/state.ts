@@ -22,6 +22,7 @@ const operation = z.discriminatedUnion("op", [
 ]);
 const recordSchema = z.object({
   version: z.literal(1),
+  installerVersion: z.string().optional(),
   host: z.enum(["opencode", "pi", "codex"]),
   scope: z.enum(["global", "project"]),
   tiers: z.object({ search: tier, fetch: tier }),
