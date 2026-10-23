@@ -156,6 +156,43 @@ Queries and URLs are sent to `https://api.deepseek.com`; the API key is sent onl
 Bearer token to DeepSeek and to nothing else. Retrieval is billed per successful request —
 see the official docs for pricing and rate limits before enabling a team deployment.
 
+## Configuration
+
+Every knob resolves through one chain, low → high, identically on every host:
+`built-in defaults < shared config file < DEEPSEEK_* environment < host-native config`
+— a higher layer always wins, so nothing already configured loses effect.
+
+The shared file — `$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json`, default
+`~/.config/deepseek-web-retrieval/config.json` — works on every host and uses the
+camelCase option keys:
+
+```json
+{
+  "count": 20,
+  "blockedDomains": ["pinterest.com"],
+  "language": "zh",
+  "searchLocalization": "203.0.113.7"
+}
+```
+
+Unknown keys and host-integration keys are warned about on stderr and ignored. The
+API key does not go in the file — it keeps its existing channels (`DEEPSEEK_API_KEY`
+in the environment, or OpenCode's stored credential).
+
+Knobs fall into three classes; the shared file carries the first two:
+
+| Knob class | Shared file | `DEEPSEEK_*` environment | Host-native layer |
+| --- | --- | --- | --- |
+| API behavior — the user↔DeepSeek relationship (`count`, `blockedDomains`, `language`, `maxRetries`) | yes — that is the point of the file | the shell, or the per-server `env` block where stdio children don't inherit it (Codex: `env_vars`; Pi's in-process extension reads the shell directly) | OpenCode: opencode.json plugin `options`, the same camelCase keys |
+| Host-sensitive — interacts with host output caps and deadlines (`searchTimeoutMs`, `fetchTimeoutMs`, `fetchMaxChars`, `maxSummaryChars`) | carries the safe defaults | same channel | the recommended override point — e.g. against Pi MCP's 20 KB / 60 s or OpenCode's 2,000-line / 50 KiB caps |
+| Host integration — the host's tool landscape (`searchEnabled`, `setDefaultWebsearch`, `apiKeySource`) | rejected — warned about and ignored | the enable switches (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`) on MCP hosts | the only full channel: installer-written host config (OpenCode `options`, Pi's `deepseekWebRetrieval` switches) |
+
+The `DEEPSEEK_*` names and the camelCase keys are two vocabularies for one pipeline,
+documented side by side in the [Codex](docs/agents/codex.md), [Pi](docs/agents/pi.md),
+and [OpenCode](docs/agents/opencode-v2.md) guides. Prefer a host layer when a
+host-sensitive knob would cross its host's output cap or deadline; keep the
+host-independent intent in the shared file.
+
 ## Development
 
 ```bash

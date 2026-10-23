@@ -177,6 +177,13 @@ input is fixed to `query` at 2.0.32, so the provider has no channel for it (see 
 
 Set these in the plugin's `options` object.
 
+> [!NOTE]
+> These options use the same camelCase vocabulary as the shared config file
+> (`~/.config/deepseek-web-retrieval/config.json`), with the `DEEPSEEK_*` environment in
+> between: `shared file < environment < options`. Configure once in the file — it works on
+> every host — and override per host here in `options`; existing `options` keep winning
+> exactly as before.
+
 ### Search
 
 | Option | Default | Description |

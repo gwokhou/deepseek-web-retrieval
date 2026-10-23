@@ -181,7 +181,9 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   `process.env` (no forwarding), and results bypass the MCP layer entirely, so neither the
   20 KB truncation nor the 60 s request timeout applies. There is no per-extension options
   channel: the runtime config surface is the `DEEPSEEK_*` environment (the same pipeline as
-  the MCP server) plus a `deepseekWebRetrieval` settings namespace the installer writes for
+  the MCP server), the shared config file
+  (`~/.config/deepseek-web-retrieval/config.json`, layered under the environment), plus a
+  `deepseekWebRetrieval` settings namespace the installer writes for
   the off tier — Pi preserves unknown settings keys on read and on its own rewrites
   (`pi install`), verified at 1.3.0. Action methods such as `getSettings()` cannot be
   called during extension loading, so the adapter reads the settings files itself.
