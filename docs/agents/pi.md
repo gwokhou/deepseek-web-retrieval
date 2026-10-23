@@ -22,6 +22,8 @@ When loaded, it adds:
 Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path. For
 shared search/fetch limits, retries, and privacy behavior, see
 [General behavior](../../README.md#general-behavior).
+For configuration layers, the full knob mapping, and defaults, see the
+[configuration guide](../configuration.md).
 
 ## Requirements
 

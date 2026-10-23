@@ -24,6 +24,8 @@ both the text and `structuredContent`.
 
 For shared search/fetch limits, retries, and privacy behavior, see
 [General behavior](../../README.md#general-behavior).
+For configuration layers, the full knob mapping, and defaults, see the
+[configuration guide](../configuration.md).
 
 ## Requirements
 

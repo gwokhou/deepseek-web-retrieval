@@ -15,6 +15,8 @@ if you want all Markdown fetches to go through DeepSeek.
 
 For shared search/fetch limits, retries, and privacy behavior, see
 [General behavior](../../README.md#general-behavior).
+For configuration layers, the full knob mapping, and defaults, see the
+[configuration guide](../configuration.md).
 
 ## Requirements
 

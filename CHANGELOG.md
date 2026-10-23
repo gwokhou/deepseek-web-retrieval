@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here, one sentence per item.
 
+## Unreleased
+
+- Restructure the README around a quickstart and a defaults table, moving the full configuration reference (knob classes, the complete file-key ↔ `DEEPSEEK_*` mapping, special semantics) to a new docs/configuration.md guide.
+
 ## 0.7.0
 
 - Layer a shared config file (`$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json`, camelCase keys) under the environment on every host, with the precedence `built-in defaults < shared file < DEEPSEEK_* environment < host-native config`; unknown and host-integration keys are warned about and ignored, and the API key stays out of the file.

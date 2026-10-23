@@ -10,6 +10,10 @@ core, with results formatted for each host.
 This is an unofficial community project, not affiliated with DeepSeek or the supported
 host projects.
 
+Jump to: [Features](#features) · [Quickstart](#quickstart) · [Usage](#usage) ·
+[General behavior](#general-behavior) · [Configuration](#configuration) ·
+[Development](#development)
+
 ## Features
 
 - **One package, three hosts** — a native OpenCode v2 plugin, a native Pi extension,
@@ -28,6 +32,21 @@ host projects.
 - **Fails loudly, never switches silently** — no fallback to another provider, and
   localhost/private URLs are blocked before a request leaves the machine
 
+## Quickstart
+
+Requires Node.js 20+ and npm, plus a DeepSeek API key with Search and Fetch access
+(retrieval is billed per successful request; the account needs balance).
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+# Preview the plan for your host — nothing is written yet:
+npx deepseek-web-retrieval init --host opencode --scope project --search forced --fetch preferred
+# Re-run with --apply to write it:
+npx deepseek-web-retrieval init --host opencode --scope project --search forced --fetch preferred --apply
+```
+
+For Pi or Codex, other scopes, or finer routing control, see [Usage](#usage).
+
 ## Usage
 
 Choose your host:
@@ -38,22 +57,9 @@ Choose your host:
 | Pi | Native extension: Search and Fetch tools; MCP also available | [Pi guide](docs/agents/pi.md) |
 | Codex | MCP server over stdio, with readable text results | [Codex guide](docs/agents/codex.md) |
 
-The installer CLI requires Node.js 20+ and npm. Retrieval requires a DeepSeek API key
-with access to Search and Fetch and sufficient account balance. Set `DEEPSEEK_API_KEY`
-in the environment that launches your host; OpenCode can also use its stored DeepSeek key.
-
-Run the command for your host to preview a configuration:
-
-```bash
-# OpenCode: select DeepSeek as the search provider and prefer its Fetch tool.
-npx deepseek-web-retrieval init --host opencode --scope project --search forced --fetch preferred
-
-# Pi: use the native extension and prefer both tools.
-npx deepseek-web-retrieval init --host pi --scope project --search preferred --fetch preferred
-
-# Codex: register the MCP server and prefer both tools.
-npx deepseek-web-retrieval init --host codex --scope global --search preferred --fetch preferred
-```
+Set `DEEPSEEK_API_KEY` in the environment that launches your host; OpenCode can also
+use its stored DeepSeek key. Run `init` for your host to preview a configuration — the
+command shape is the quickstart's; each host guide shows its recommended tiers.
 
 `--search` and `--fetch` each pick a tier — how strongly the host steers toward the
 DeepSeek tool, chosen independently per capability:
@@ -89,18 +95,18 @@ Plan only — re-run with --apply to write these changes.
 
 Repeat your chosen command with `--apply` to write the plan. The host guides explain
 activation steps and per-host tier limits. Pi defaults to the extension path; add
-`--path mcp` to use its MCP fallback. Add `--pin` to register the exact version of the
-CLI you are running (`deepseek-web-retrieval@<version>`) instead of the unpinned name,
-so hosts keep resolving that release rather than every latest publish — reproducible
-setups trade away auto-updates; re-run `init --pin` from a newer CLI to move the pin.
+`--path mcp` to use its MCP fallback.
+
+Add `--pin` to register the exact version of the CLI you are running
+(`deepseek-web-retrieval@<version>`) instead of the unpinned name, so hosts keep
+resolving that release rather than every latest publish. The trade-off is no
+auto-updates: re-run `init --pin` from a newer CLI to move the pin.
 
 Other stdio MCP hosts may use the server, but the supported setup guides and installer
 currently cover the three hosts above. See the [integration model](docs/integration.md)
-for tested versions and the [control tiers](docs/research/control-matrix.md) for routing
-limits. For an existing installation, follow the
+for tested versions and the [control tiers](docs/research/control-matrix.md) for
+routing limits. For an existing installation, follow the
 [upgrade instructions](docs/integration.md#upgrading-existing-installs).
-
-For shared search, fetch, retry, and privacy behavior, see below.
 
 ## General behavior
 
@@ -109,50 +115,55 @@ What this adapter layer adds on top of the
 own capabilities (Markdown-only output, no JavaScript rendering, no private networks or
 binary files, per-request billing) are documented there.
 
+| Default | Value | Knob |
+| --- | --- | --- |
+| Results per search | 10 | `count` |
+| Fetch output cap | 16,000 characters | `fetchMaxChars` |
+| Search summary cap | 1,200 characters | `maxSummaryChars` |
+| Request timeout, body read included | 30 s | `searchTimeoutMs` / `fetchTimeoutMs` |
+| Transient retries | 2 (range 0–5) | `maxRetries` |
+
 ### Search
 
-- Requests summaries only (`need_content: false`, `summary` falling back to `snippet`);
-  full page content never enters the results.
-- Returns at most ten results by default (matching the API's `count` default and the
-  industry norm for AI-native search APIs), deduplicating URLs.
-- Optional `rerank_score` and `authority` thresholds are off by default — the default
-  returns exactly what DeepSeek ranked, including results without a score. A positive
-  `rerank_score` threshold drops results below it and results without a score; a positive
-  `authority` threshold drops known authorities below it, while results with an unknown
-  authority stay unless `allowUnknownAuthority` is set to false.
-- Builds `blockedDomains`, `includeDomains`, and `language` into query operators and
+- Requests summaries only (`need_content: false`, falling back from `summary` to
+  `snippet`); full page content never enters the results.
+- Deduplicates URLs; an empty result set is normal, not an error.
+- Builds `blockedDomains`, `includeDomains`, and `language` into query operators, and
   rejects the final query locally when it exceeds the API's 128-character limit.
+- Optional `rerank_score` and `authority` thresholds are off by default — the default
+  returns exactly what DeepSeek ranked. A positive threshold drops results below it.
+  A missing `rerank_score` is dropped too; an unknown `authority` stays unless
+  `allowUnknownAuthority` is set to false.
 - On the paths where this package defines the search tool's inputs (the MCP server and
-  the Pi extension), the tool accepts an optional `original_question` — the user's
-  question in their own words — forwarded as DeepSeek's `ori_question`, trimmed and
-  truncated to the API's 128 characters; a blank input on the Pi extension falls back
-  to the most recent user message in the session.
-- An empty result set is normal and is not an error.
+  the Pi extension), the tool accepts an optional `original_question`: the user's
+  question in their own words. It is forwarded as DeepSeek's `ori_question`, trimmed
+  and truncated to 128 characters; on the Pi extension, a blank input falls back to the
+  most recent user message in the session.
 
 ### Fetch
 
-- Output is capped at 16,000 characters by default, including the title; a
-  `[content truncated]` marker is added when the limit leaves room for it.
+- Output is capped per the table above, title included; a `[content truncated]` marker
+  is added when the limit leaves room for it.
 - A page that already opens with its title as a top-level heading does not get a
   duplicate title.
-- Responses larger than 5 MiB are rejected before parsing; URLs must be absolute
-  `http://` or `https://`, credential-free, and at most 8,192 characters.
+- URLs must be absolute `http://` or `https://`, credential-free, and at most 8,192
+  characters; responses larger than 5 MiB are rejected before parsing.
 - `format: "text"` and `format: "html"` are rejected rather than misrepresented.
 - Allowed/blocked domain lists and private-host blocking are enforced on the client,
   before a request leaves the machine.
 
 ### Timeouts and retries
 
-Request timeouts include reading the response body. Transient failures are retried twice
-by default (0–5, `maxRetries`); retryable responses are 408, 425, 429, and 5xx, and
-`Retry-After` is honored up to 10 seconds. Other failures, including 401, timeouts, and
-network errors, fail without retrying.
+Request timeouts include reading the response body. Transient failures are retried per
+the table; retryable responses are 408, 425, 429, and 5xx, and `Retry-After` is honored
+up to 10 seconds. Other failures — including 401, timeouts, and network errors — fail
+without retrying.
 
 ### No automatic fallback
 
-If no API key is available, Search and Fetch fail. If DeepSeek is unavailable, returns an
-error, or times out, the request fails. The tool does not silently switch to another search
-provider or fetch implementation.
+If no API key is available, Search and Fetch fail. If DeepSeek is unavailable, returns
+an error, or times out, the request fails. The tool does not silently switch to another
+search provider or fetch implementation.
 
 ### Privacy and cost
 
@@ -163,14 +174,15 @@ see the official docs for pricing and rate limits before enabling a team deploym
 ## Configuration
 
 Every knob resolves through one chain, low → high, identically on every host:
-`built-in defaults < shared config file < DEEPSEEK_* environment < host-native config`
-— a higher layer always wins, so nothing already configured loses effect.
 
-The shared file — `$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json`, default
+`built-in defaults < shared config file < DEEPSEEK_* environment < host-native config`
+
+A higher layer always wins, so nothing already configured loses effect.
+
+The shared file works on every host and takes camelCase keys:
+`$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json` — by default
 `~/.config/deepseek-web-retrieval/config.json` on Linux and macOS and
-`%APPDATA%\deepseek-web-retrieval\config.json` on Windows (an explicitly set
-`XDG_CONFIG_HOME` still wins there) — works on every host and uses the
-camelCase option keys:
+`%APPDATA%\deepseek-web-retrieval\config.json` on Windows.
 
 ```json
 {
@@ -181,44 +193,22 @@ camelCase option keys:
 }
 ```
 
-Unknown keys and host-integration keys are warned about on stderr and ignored. The
-API key does not go in the file — it keeps its existing channels (`DEEPSEEK_API_KEY`
-in the environment, or OpenCode's stored credential).
+Unknown keys and host-integration keys are warned about on stderr and ignored. The API
+key does not go in the file — it keeps its existing channels (`DEEPSEEK_API_KEY` in the
+environment, or OpenCode's stored credential).
 
-Knobs fall into three classes; the shared file carries the first two:
-
-| Knob class | Shared file | Examples |
-| --- | --- | --- |
-| API behavior — the user↔DeepSeek relationship | yes — that is the point of the file | `count`, `blockedDomains`, `language`, `maxRetries` |
-| Host-sensitive — interacts with host output caps and deadlines | carries the safe defaults; a host layer is the recommended override point | `searchTimeoutMs`, `fetchTimeoutMs`, `fetchMaxChars`, `maxSummaryChars` |
-| Host integration — the host's tool landscape | rejected — warned about and ignored | `searchEnabled`, `setDefaultWebsearch`, `apiKeySource` |
-
-The same knob has two names — the camelCase key for the shared file and OpenCode's
-options, the `DEEPSEEK_*` variable for the environment:
-
-| Shared file / OpenCode options | Environment |
-| --- | --- |
-| `count` | `DEEPSEEK_SEARCH_COUNT` |
-| `blockedDomains` | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` |
-| `language` | `DEEPSEEK_SEARCH_LANGUAGE` |
-| `searchLocalization` | `DEEPSEEK_SEARCH_LOCALIZATION` |
-| `fetchMaxChars` | `DEEPSEEK_FETCH_MAX_CHARS` |
-| `maxRetries` | `DEEPSEEK_MAX_RETRIES` |
-
-The full per-knob mapping is documented side by side in each guide's option table;
-per-host mechanics — how the environment reaches a stdio server, each host's output
-caps and deadlines — live there too: [Codex](docs/agents/codex.md),
-[Pi](docs/agents/pi.md), [OpenCode](docs/agents/opencode-v2.md). Keep
-host-independent intent in the shared file; prefer a host layer when a
-host-sensitive knob would cross its host's cap or deadline.
+Which layer to set for a knob, the full file-key ↔ `DEEPSEEK_*` mapping, per-knob
+defaults, and special semantics live in the [configuration guide](docs/configuration.md).
+Per-host mechanics — how the environment reaches a stdio server, each host's output caps
+and deadlines — live in the host guides: [Codex](docs/agents/codex.md),
+[Pi](docs/agents/pi.md), [OpenCode](docs/agents/opencode-v2.md).
 
 To see what actually resolves, run `npx deepseek-web-retrieval config`: every knob
-printed with its value and its source (`default`, `file`, or `env`), plus any problems
-in the file or in `DEEPSEEK_*` variables (unknown names, unusable values) replayed as
-visible warnings — it exits 1 when there are problems, so it doubles as a dotfile CI
-check. `npx deepseek-web-retrieval config --search "<query>"`
-runs one billed search through the effective configuration to verify the key, config,
-and network end to end.
+printed with its value and its source (`default`, `file`, or `env`). Problems in the
+file or in `DEEPSEEK_*` variables are replayed as visible warnings, and it exits 1 when
+there are any — so it doubles as a dotfile CI check. `npx deepseek-web-retrieval config
+--search "<query>"` runs one billed search through the effective configuration to verify
+the key, config, and network end to end.
 
 ## Development
 
@@ -231,10 +221,9 @@ Use `bun run lint:fix` to apply Biome's safe lint fixes and formatting. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for development checks, e2e scenarios, and
 [automated tag releases](CONTRIBUTING.md#automated-releases).
 
-The test suite mocks the DeepSeek HTTP API and the OpenCode and Pi host APIs, and drives the
-MCP server with SDK clients pinned to each supported protocol revision. Real API calls
+The test suite mocks the DeepSeek API and the OpenCode and Pi host APIs; real API calls
 require a funded DeepSeek account. Shared retrieval logic lives in `src/core/`; adapters
-live in `src/<agent>/` (the cross-host MCP server lives in `src/mcp/`). Adapter docs live
+live in `src/<agent>/` (the cross-host MCP server lives in `src/mcp/`), with adapter docs
 in `docs/agents/<agent>.md`.
 
 ## Prior art
