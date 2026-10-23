@@ -37,6 +37,17 @@ export function samePackageName(a: string, b: string): boolean {
 }
 
 /**
+ * A lineage-membership predicate over an excused/own ref set: the candidate
+ * matches when it is the same package as any listed ref (version suffixes
+ * stripped via samePackageName — a pinned or hand-edited ref still matches its
+ * lineage). Both host modules build their set (previous init's tracked entries
+ * plus this run's ref) and ask the same two questions with this one predicate.
+ */
+export function lineageMatcher(refs: readonly string[]): (candidate: string) => boolean {
+  return (candidate: string) => refs.some((ref) => samePackageName(ref, candidate));
+}
+
+/**
  * The `--pin` rule: append the running CLI's version to the ref unless its
  * final `@` segment already is a version (`name` → `name@<version>`; a ref
  * already ending in a version keeps it).

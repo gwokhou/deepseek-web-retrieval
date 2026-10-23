@@ -1,12 +1,10 @@
-import { homedir } from "node:os";
-import { apiKeyFromEnv } from "../core/auth";
+import { apiKeyFromEnv, MISSING_API_KEY_MESSAGE } from "../core/auth";
 import { createRetrievalClient, type RetrievalClient } from "../core/client";
 import { configFilePath, readFileOptionsReport } from "../core/config-file";
-import { configSummaryValues } from "../core/config-summary";
+import { configSummaryValues, formatConfigValue } from "../core/config-summary";
 import type { Env } from "../core/env";
 import { pluginOptionsFromEnv, resolveEnvOptions } from "../core/env";
 import { formatSearchResults } from "../core/format";
-import { MISSING_API_KEY_MESSAGE } from "../mcp/auth";
 
 const EXIT_CONFIG_PROBLEMS = 1;
 const EXIT_USAGE = 2;
@@ -47,7 +45,7 @@ export async function runConfigCommand(
   }
 
   const env = deps.env ?? process.env;
-  const file = configFilePath(env, homedir());
+  const file = configFilePath({ env });
   const report = readFileOptionsReport(file);
   for (const warning of report.warnings) io.err(`warning: ${warning}`);
 
@@ -102,15 +100,15 @@ function printConfigReport(
   const envKeys = new Set(Object.keys(envOptions));
   for (const name of Object.keys(effective)) {
     // The environment wins over the file for the same key, exactly as resolution does.
-    const source = envKeys.has(name) ? "env" : fileKeys.has(name) ? "file" : "default";
-    io.out(`${name} = ${formatKnob(effective[name])} (${source})`);
+    let source = envKeys.has(name) ? "env" : fileKeys.has(name) ? "file" : "default";
+    // maxResults follows the effective count when unset (options.ts), so when
+    // the count knob was configured its derived value is not "default" — its
+    // source is the count setting that drove it.
+    if (name === "maxResults" && source === "default" && (envKeys.has("count") || fileKeys.has("count"))) {
+      source = "count";
+    }
+    io.out(`${name} = ${formatConfigValue(effective[name], "join")} (${source})`);
   }
   io.out("");
   io.out(HOST_OVERRIDE_NOTE);
-}
-
-/** Arrays render comma-joined; this is a human CLI, not the noise-constrained startup line. */
-function formatKnob(value: unknown): string {
-  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "[]";
-  return value === undefined ? "unset" : String(value);
 }

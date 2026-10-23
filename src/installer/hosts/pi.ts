@@ -11,7 +11,7 @@ import {
 import { codecFor } from "../formats";
 import { buildRulesBlock } from "../formats/rules";
 import { isPlainObject } from "../formats/value";
-import { samePackageName } from "../ownership";
+import { lineageMatcher } from "../ownership";
 import { join } from "../paths";
 import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent";
 import { appendedByPrevious } from "../state";
@@ -70,7 +70,7 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
   );
   const sources = packages.filter((entry): entry is string => typeof entry === "string");
   const excusedSources = previous === undefined ? [] : [...trackedSources, source];
-  const isExcusedSource = (entry: string) => excusedSources.some((excused) => samePackageName(excused, entry));
+  const isExcusedSource = lineageMatcher(excusedSources);
   const foreignOwn = sources.filter((entry) => looksLikeOwnPackage(entry) && !isExcusedSource(entry));
   if (foreignOwn.length > 0) {
     errors.push({
@@ -91,9 +91,9 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
     // Pi has no per-package kill switch in settings.json, so a web-capable
     // package or extension source cannot be excluded from the plan — refuse the
     // tier instead of promising routing that is not actually forced.
-    const ownSources = [...trackedSources, source];
+    const isOwnSource = lineageMatcher([...trackedSources, source]);
     const unexcludable = [...collectSources(loaded.value.packages), ...collectSources(loaded.value.extensions)].filter(
-      (entry) => !ownSources.some((own) => samePackageName(own, entry)) && looksWebCapable(entry, undefined),
+      (entry) => !isOwnSource(entry) && looksWebCapable(entry, undefined),
     );
     if (unexcludable.length > 0) {
       errors.push({

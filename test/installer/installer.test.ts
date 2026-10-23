@@ -1379,7 +1379,9 @@ describe("config home resolution", () => {
     expect(resolveConfigHome(env, "/home/u")).toBe("/custom/xdg");
     expect(resolveConfigHome(env, "/home/u", "win32")).toBe("/custom/xdg");
     // The installer's root and the shared config file's root are the same one.
-    expect(userConfigHome(env, "/home/u", "win32")).toBe(resolveConfigHome(env, "/home/u", "win32"));
+    expect(userConfigHome({ env, home: "/home/u", platform: "win32" })).toBe(
+      resolveConfigHome(env, "/home/u", "win32"),
+    );
   });
 
   test("an inherited XDG is dropped when HOME was rewritten, on every platform", () => {

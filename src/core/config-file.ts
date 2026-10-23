@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
+import { CONFIG_KEYS } from "./config-summary";
 import type { Env } from "./env";
 import { isPlainObject } from "./object";
 import type { PluginOptions } from "./types";
@@ -11,30 +12,13 @@ export const SHARED_CONFIG_FILE = "config.json";
 
 /**
  * The shared file's vocabulary: API-behavior and host-sensitive plugin option
- * keys only. Values pass through raw — validation and clamping stay in
+ * keys only, derived from the ordered config vocabulary (CONFIG_KEYS) so the
+ * file, the startup summary, and the config command can never drift apart.
+ * Values pass through raw — validation and clamping stay in
  * resolvePluginOptions so every channel feeds one pipeline. Host-integration
  * keys are deliberately absent (see HOST_INTEGRATION_KEYS).
  */
-export const SHARED_CONFIG_KEYS = [
-  "count",
-  "maxResults",
-  "minRerank",
-  "minAuthority",
-  "allowUnknownAuthority",
-  "blockedDomains",
-  "includeDomains",
-  "language",
-  "searchLocalization",
-  "maxSummaryChars",
-  "searchTimeoutMs",
-  "fetchMaxChars",
-  "fetchAllowedDomains",
-  "fetchBlockedDomains",
-  "fetchTimeoutMs",
-  "fetchBlockPrivateHosts",
-  "maxRetries",
-  "retryBaseDelayMs",
-] as const;
+export const SHARED_CONFIG_KEYS = CONFIG_KEYS;
 
 const SHARED_KEY_SET = new Set<string>(SHARED_CONFIG_KEYS);
 
@@ -61,6 +45,26 @@ function joinFor(platform: NodeJS.Platform, ...parts: readonly string[]): string
 }
 
 /**
+ * The inputs every config-location resolution shares, bundled so they travel
+ * as one (the installer's FsRoots is the precedent for this shape). Every
+ * function below accepts a partial and fills the machine's real values for
+ * anything omitted.
+ */
+export interface UserConfigContext {
+  readonly env: Env;
+  readonly home: string;
+  readonly platform: NodeJS.Platform;
+}
+
+function resolveContext(context: Partial<UserConfigContext> = {}): UserConfigContext {
+  return {
+    env: context.env ?? process.env,
+    home: context.home ?? homedir(),
+    platform: context.platform ?? process.platform,
+  };
+}
+
+/**
  * The canonical user config home — the one resolution every consumer of the
  * per-user config location shares (the shared config file, the installer's
  * global state records, and the OpenCode global config).
@@ -71,7 +75,8 @@ function joinFor(platform: NodeJS.Platform, ...parts: readonly string[]): string
  * and every other platform keeps the XDG default `<home>/.config`. Pure so
  * tests inject env, home, and platform directly.
  */
-export function userConfigHome(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
+export function userConfigHome(context: Partial<UserConfigContext>): string {
+  const { env, home, platform } = resolveContext(context);
   const xdg = env.XDG_CONFIG_HOME;
   if (xdg) return xdg;
   if (platform === "win32") return env.APPDATA || joinFor(platform, home, "AppData", "Roaming");
@@ -79,13 +84,15 @@ export function userConfigHome(env: Env, home: string, platform: NodeJS.Platform
 }
 
 /** The directory this tool owns inside the user config home (see userConfigHome). */
-export function userConfigDir(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
-  return joinFor(platform, userConfigHome(env, home, platform), SHARED_CONFIG_DIR);
+export function userConfigDir(context: Partial<UserConfigContext>): string {
+  const { env, home, platform } = resolveContext(context);
+  return joinFor(platform, userConfigHome({ env, home, platform }), SHARED_CONFIG_DIR);
 }
 
 /** The shared file's location on this machine; see userConfigHome for the rules. */
-export function configFilePath(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
-  return joinFor(platform, userConfigDir(env, home, platform), SHARED_CONFIG_FILE);
+export function configFilePath(context: Partial<UserConfigContext>): string {
+  const { env, home, platform } = resolveContext(context);
+  return joinFor(platform, userConfigDir({ env, home, platform }), SHARED_CONFIG_FILE);
 }
 
 /**
@@ -152,12 +159,8 @@ export function readFileOptions(file: string): PluginOptions {
 }
 
 /** The production entry point: compute the path for this machine and read it. */
-export function sharedFileOptions(
-  env: Env = process.env,
-  home: string = homedir(),
-  platform: NodeJS.Platform = process.platform,
-): PluginOptions {
-  return readFileOptions(configFilePath(env, home, platform));
+export function sharedFileOptions(context: Partial<UserConfigContext> = {}): PluginOptions {
+  return readFileOptions(configFilePath(context));
 }
 
 function warn(line: string): void {

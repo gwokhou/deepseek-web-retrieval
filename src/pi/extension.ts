@@ -69,7 +69,7 @@ const NEVER_ABORTS = new AbortController().signal;
  * installer cannot write the shell environment).
  */
 export function resolveExtensionOptions(env: Env = process.env, settings: ExtensionSettings = {}): ResolvedOptions {
-  const options: Record<string, unknown> = { ...sharedFileOptions(env), ...pluginOptionsFromEnv(env) };
+  const options: Record<string, unknown> = { ...sharedFileOptions({ env }), ...pluginOptionsFromEnv(env) };
   if (settings.enableSearch === false) options.searchEnabled = false;
   if (settings.enableFetch === false) options.fetchEnabled = false;
   return resolvePluginOptions(options);

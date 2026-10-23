@@ -29,72 +29,76 @@ function tempDir(): string {
 
 describe("userConfigHome", () => {
   test("a non-empty XDG_CONFIG_HOME wins on every platform, win32 included", () => {
-    expect(userConfigHome({ XDG_CONFIG_HOME: "/custom/xdg" }, "/home/u")).toBe("/custom/xdg");
-    expect(userConfigHome({ XDG_CONFIG_HOME: "C:\\custom\\xdg" }, "C:\\Users\\u", "win32")).toBe("C:\\custom\\xdg");
+    expect(userConfigHome({ env: { XDG_CONFIG_HOME: "/custom/xdg" }, home: "/home/u" })).toBe("/custom/xdg");
+    expect(
+      userConfigHome({ env: { XDG_CONFIG_HOME: "C:\\custom\\xdg" }, home: "C:\\Users\\u", platform: "win32" }),
+    ).toBe("C:\\custom\\xdg");
   });
 
   test("win32: %APPDATA% applies when XDG_CONFIG_HOME is unset or empty", () => {
     const appdata = "C:\\Users\\u\\AppData\\Roaming";
-    expect(userConfigHome({ APPDATA: appdata }, "C:\\Users\\u", "win32")).toBe(appdata);
-    expect(userConfigHome({ XDG_CONFIG_HOME: "", APPDATA: appdata }, "C:\\Users\\u", "win32")).toBe(appdata);
+    expect(userConfigHome({ env: { APPDATA: appdata }, home: "C:\\Users\\u", platform: "win32" })).toBe(appdata);
+    expect(
+      userConfigHome({ env: { XDG_CONFIG_HOME: "", APPDATA: appdata }, home: "C:\\Users\\u", platform: "win32" }),
+    ).toBe(appdata);
   });
 
   test("win32: unset or empty %APPDATA% falls back to <home>\\AppData\\Roaming", () => {
     const expected = "C:\\Users\\u\\AppData\\Roaming";
-    expect(userConfigHome({}, "C:\\Users\\u", "win32")).toBe(expected);
-    expect(userConfigHome({ APPDATA: "" }, "C:\\Users\\u", "win32")).toBe(expected);
+    expect(userConfigHome({ env: {}, home: "C:\\Users\\u", platform: "win32" })).toBe(expected);
+    expect(userConfigHome({ env: { APPDATA: "" }, home: "C:\\Users\\u", platform: "win32" })).toBe(expected);
   });
 
   test("other platforms keep the XDG default <home>/.config", () => {
-    expect(userConfigHome({}, "/home/u", "linux")).toBe(join("/home/u", ".config"));
-    expect(userConfigHome({}, "/home/u", "darwin")).toBe(join("/home/u", ".config"));
+    expect(userConfigHome({ env: {}, home: "/home/u", platform: "linux" })).toBe(join("/home/u", ".config"));
+    expect(userConfigHome({ env: {}, home: "/home/u", platform: "darwin" })).toBe(join("/home/u", ".config"));
     // %APPDATA% is not a convention outside win32; it must not leak in.
-    expect(userConfigHome({ APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, "/home/u", "linux")).toBe(
-      join("/home/u", ".config"),
-    );
+    expect(
+      userConfigHome({ env: { APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, home: "/home/u", platform: "linux" }),
+    ).toBe(join("/home/u", ".config"));
   });
 });
 
 describe("configFilePath", () => {
   test("posix: unchanged — XDG honored, default <home>/.config", () => {
-    expect(configFilePath({ XDG_CONFIG_HOME: "/custom/xdg" }, "/home/u")).toBe(
+    expect(configFilePath({ env: { XDG_CONFIG_HOME: "/custom/xdg" }, home: "/home/u" })).toBe(
       join("/custom/xdg", "deepseek-web-retrieval", "config.json"),
     );
     const expected = join("/home/u", ".config", "deepseek-web-retrieval", "config.json");
-    expect(configFilePath({ XDG_CONFIG_HOME: "" }, "/home/u")).toBe(expected);
-    expect(configFilePath({}, "/home/u")).toBe(expected);
-    expect(configFilePath({ XDG_CONFIG_HOME: "/custom/xdg" }, "/home/u", "linux")).toBe(
+    expect(configFilePath({ env: { XDG_CONFIG_HOME: "" }, home: "/home/u" })).toBe(expected);
+    expect(configFilePath({ env: {}, home: "/home/u" })).toBe(expected);
+    expect(configFilePath({ env: { XDG_CONFIG_HOME: "/custom/xdg" }, home: "/home/u", platform: "linux" })).toBe(
       join("/custom/xdg", "deepseek-web-retrieval", "config.json"),
     );
   });
 
   test("win32: config.json under %APPDATA% with backslash separators", () => {
-    expect(configFilePath({ APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, "C:\\Users\\u", "win32")).toBe(
-      "C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval\\config.json",
-    );
+    expect(
+      configFilePath({ env: { APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, home: "C:\\Users\\u", platform: "win32" }),
+    ).toBe("C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval\\config.json");
   });
 
   test("win32: a pinned XDG_CONFIG_HOME wins over %APPDATA%", () => {
     expect(
-      configFilePath(
-        { XDG_CONFIG_HOME: "D:\\xdg", APPDATA: "C:\\Users\\u\\AppData\\Roaming" },
-        "C:\\Users\\u",
-        "win32",
-      ),
+      configFilePath({
+        env: { XDG_CONFIG_HOME: "D:\\xdg", APPDATA: "C:\\Users\\u\\AppData\\Roaming" },
+        home: "C:\\Users\\u",
+        platform: "win32",
+      }),
     ).toBe("D:\\xdg\\deepseek-web-retrieval\\config.json");
   });
 
   test("win32: without %APPDATA%, <home>\\AppData\\Roaming applies", () => {
-    expect(configFilePath({}, "C:\\Users\\u", "win32")).toBe(
+    expect(configFilePath({ env: {}, home: "C:\\Users\\u", platform: "win32" })).toBe(
       "C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval\\config.json",
     );
   });
 
   test("userConfigDir is the shared-file directory under the same root", () => {
-    expect(userConfigDir({}, "/home/u")).toBe(join("/home/u", ".config", "deepseek-web-retrieval"));
-    expect(userConfigDir({ APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, "C:\\Users\\u", "win32")).toBe(
-      "C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval",
-    );
+    expect(userConfigDir({ env: {}, home: "/home/u" })).toBe(join("/home/u", ".config", "deepseek-web-retrieval"));
+    expect(
+      userConfigDir({ env: { APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, home: "C:\\Users\\u", platform: "win32" }),
+    ).toBe("C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval");
   });
 });
 
@@ -205,13 +209,17 @@ describe("sharedFileOptions", () => {
     const xdg = tempDir();
     mkdirSync(join(xdg, "deepseek-web-retrieval"), { recursive: true });
     writeFileSync(join(xdg, "deepseek-web-retrieval", "config.json"), JSON.stringify({ count: 20 }));
-    const { lines, result } = captureErrors(() => sharedFileOptions({ XDG_CONFIG_HOME: xdg }, "/home/u"));
+    const { lines, result } = captureErrors(() =>
+      sharedFileOptions({ env: { XDG_CONFIG_HOME: xdg }, home: "/home/u" }),
+    );
     expect(result).toEqual({ count: 20 });
     expect(lines).toEqual([]);
   });
 
   test("a missing file in the computed location stays silent", () => {
-    const { lines, result } = captureErrors(() => sharedFileOptions({ XDG_CONFIG_HOME: tempDir() }, "/home/u"));
+    const { lines, result } = captureErrors(() =>
+      sharedFileOptions({ env: { XDG_CONFIG_HOME: tempDir() }, home: "/home/u" }),
+    );
     expect(result).toEqual({});
     expect(lines).toEqual([]);
   });

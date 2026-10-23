@@ -241,7 +241,7 @@ function usageError(problems: readonly string[], err: (line: string) => void): n
  */
 export function resolveConfigHome(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
   const xdgTrusted = env.XDG_CONFIG_HOME !== undefined && env.XDG_CONFIG_HOME !== "" && home === (env.HOME ?? "");
-  return userConfigHome(xdgTrusted ? env : { ...env, XDG_CONFIG_HOME: undefined }, home, platform);
+  return userConfigHome({ env: xdgTrusted ? env : { ...env, XDG_CONFIG_HOME: undefined }, home, platform });
 }
 
 type RequireInputResult =

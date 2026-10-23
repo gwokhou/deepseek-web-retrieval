@@ -79,6 +79,26 @@ describe("config command: effective options with provenance", () => {
     expect(knobLines.map((line) => line.split(" =")[0])).toEqual([...SHARED_CONFIG_KEYS]);
   });
 
+  test("maxResults follows a configured count: the source label says count, not default", async () => {
+    // File-sourced count: the derived maxResults is neither the default value
+    // nor default-sourced — its source is the count knob that drove it.
+    const { env } = xdgFixture({ count: 20 });
+    const { io, outText } = captureIo();
+    expect(await runConfigCommand(undefined, io, { env })).toBe(0);
+    expect(outText()).toContain("maxResults = 20 (count)");
+
+    // Env-sourced count, no file at all: same rule.
+    const missing = xdgFixture();
+    const envRun = captureIo();
+    expect(await runConfigCommand(undefined, envRun.io, { env: missing.env })).toBe(0);
+    expect(envRun.outText()).toContain("maxResults = 10 (default)");
+    const envCount = captureIo();
+    expect(
+      await runConfigCommand(undefined, envCount.io, { env: { ...missing.env, DEEPSEEK_SEARCH_COUNT: "30" } }),
+    ).toBe(0);
+    expect(envCount.outText()).toContain("maxResults = 30 (count)");
+  });
+
   test("a missing file is the normal case: exit 0, no warnings", async () => {
     const { env, file } = xdgFixture();
     const { io, outText, errText } = captureIo();

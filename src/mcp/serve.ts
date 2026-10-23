@@ -18,7 +18,7 @@ export function serveMcp(): void {
 
   // Defaults < shared config file < environment: the server reads the file
   // itself, so hosts that forward only DEEPSEEK_API_KEY still honor it.
-  const config = resolveEnvOptions(env, sharedFileOptions(env));
+  const config = resolveEnvOptions(env, sharedFileOptions({ env }));
   const precheck = servePrecheck(config);
   if (precheck) {
     console.error(precheck);

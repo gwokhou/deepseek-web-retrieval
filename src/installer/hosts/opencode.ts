@@ -2,7 +2,7 @@ import { FORCED_COST_NOTE, looksLikeOwnPackage } from "../detect";
 import { codecFor } from "../formats";
 import { buildRulesBlock } from "../formats/rules";
 import { isPlainObject } from "../formats/value";
-import { samePackageName } from "../ownership";
+import { lineageMatcher } from "../ownership";
 import { configHome, join } from "../paths";
 import { rulesLines } from "../rulesContent";
 import { appendedByPrevious } from "../state";
@@ -58,7 +58,7 @@ export function planOpenCode(input: InstallerInput, previous: InstallRecord | un
     (entry): entry is { package: string } => isPlainObject(entry) && typeof entry.package === "string",
   );
   const excusedRefs = previous === undefined ? [] : [...trackedPackages, input.packageRef];
-  const isExcusedRef = (ref: string) => excusedRefs.some((excused) => samePackageName(excused, ref));
+  const isExcusedRef = lineageMatcher(excusedRefs);
   const foreignOwn = pluginPackages.filter(
     (entry) => looksLikeOwnPackage(entry.package) && !isExcusedRef(entry.package),
   );
