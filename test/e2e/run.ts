@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { findHost, readHosts } from "../../scripts/hosts";
@@ -86,6 +86,18 @@ const repoRoot = resolve(import.meta.dir, "..", "..");
 const flagArgs = process.argv.slice(2).filter((arg) => arg.startsWith("--"));
 const requested = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 
+/**
+ * npm pack writes its tarball into the repo root, and a leftover from an
+ * interrupted or older-version run would break the scenarios' exactly-one
+ * tarball lookup — so the runner clears them before packing and again after
+ * the run, leaving the checkout as it found it.
+ */
+function cleanupPackedTarballs(): void {
+  for (const name of readdirSync(repoRoot)) {
+    if (/^deepseek-web-retrieval-.*\.tgz$/.test(name)) rmSync(join(repoRoot, name));
+  }
+}
+
 async function main(): Promise<number> {
   if (flagArgs.length > 0) {
     console.error(
@@ -121,6 +133,8 @@ async function main(): Promise<number> {
   }
   // Pack the tarball the installer and pkg scenarios consume; it is also what
   // `npx deepseek-web-retrieval` installs, so scenarios exercise real packaging.
+  // Stale tarballs from earlier runs are cleared first so the lookup stays unique.
+  cleanupPackedTarballs();
   const pack = spawnSync("npm", ["pack"], { cwd: repoRoot, stdio: "pipe" });
   if (pack.status !== 0) {
     console.error(`\`npm pack\` failed:\n${pack.stderr?.toString() ?? ""}`);
@@ -165,6 +179,7 @@ async function main(): Promise<number> {
     }
   } finally {
     rmSync(sharedNpmCache, { recursive: true, force: true });
+    cleanupPackedTarballs();
   }
 
   console.error(`\n${failures === 0 ? "All scenarios passed" : `${failures} scenario(s) failed`}`);

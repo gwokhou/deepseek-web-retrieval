@@ -48,6 +48,7 @@
   ],
   "scripts": {
     "lint": "biome check --error-on-warnings .",
+    "clean": "bun run scripts/clean.ts",
     "lint:ci": "biome ci --error-on-warnings .",
     "lint:fix": "biome check --write --error-on-warnings .",
     "format": "biome format --write .",

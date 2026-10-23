@@ -107,6 +107,11 @@ Node executable using normal npm peer resolution, and fails if any host SDK is
 installed alongside the standalone MCP package; it requires a current build
 (`bun run build`). The Docker `pkg` scenario also loads the packed native adapters
 in the pinned Pi and OpenCode hosts, using the SDKs provided by those hosts.
+The e2e runner clears stale `deepseek-web-retrieval-*.tgz` from the repo root
+before packing and removes the packed tarball when the run ends, so successive
+runs (and version bumps between them) cannot trip the scenarios' exactly-one
+tarball lookup. `bun run clean` removes build output, coverage, and any packed
+tarballs by hand.
 To validate an existing artifact without repacking it, run
 `node scripts/test-package.mjs /absolute/path/to/package.tgz`; the release workflow
 uses this mode before uploading the exact candidate for the publish job.
