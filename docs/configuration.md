@@ -57,30 +57,34 @@ host-sensitive knob would cross its host's cap or deadline.
 ## The knob vocabulary
 
 One knob, two names: the camelCase key for the shared file and OpenCode's
-options, the `DEEPSEEK_*` variable for the environment. In vocabulary order;
-adding a knob is one edit in `src/core/config-summary.ts` and `src/core/env.ts`
-— update this table with it.
+options, the `DEEPSEEK_*` variable for the environment. The table generates
+from the same config vocabulary the adapters resolve through, so it cannot
+drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
+
+<!-- generated: knob-table — edit src/core/config-summary.ts or env.ts, then run `bun run docs:matrix` -->
 
 | File / OpenCode key | Environment | Default |
 | --- | --- | --- |
-| `count` | `DEEPSEEK_SEARCH_COUNT` | `10` |
+| `count` | `DEEPSEEK_SEARCH_COUNT` | 10 |
 | `maxResults` | `DEEPSEEK_SEARCH_MAX_RESULTS` | follows `count` (10) |
-| `minRerank` | `DEEPSEEK_SEARCH_MIN_RERANK` | `0` |
-| `minAuthority` | `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` |
-| `allowUnknownAuthority` | `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` |
-| `blockedDomains` | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset (comma-separated) |
-| `includeDomains` | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset (comma-separated) |
+| `minRerank` | `DEEPSEEK_SEARCH_MIN_RERANK` | 0 |
+| `minAuthority` | `DEEPSEEK_SEARCH_MIN_AUTHORITY` | 0 |
+| `allowUnknownAuthority` | `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | true |
+| `blockedDomains` | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset |
+| `includeDomains` | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset |
 | `language` | `DEEPSEEK_SEARCH_LANGUAGE` | unset |
-| `searchLocalization` | `DEEPSEEK_SEARCH_LOCALIZATION` | unset (valid IPv4/IPv6 only) |
-| `maxSummaryChars` | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `1200` |
-| `searchTimeoutMs` | `DEEPSEEK_SEARCH_TIMEOUT_MS` | `30000` |
-| `fetchMaxChars` | `DEEPSEEK_FETCH_MAX_CHARS` | `16000` |
-| `fetchAllowedDomains` | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | unset (comma-separated) |
-| `fetchBlockedDomains` | `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | unset (comma-separated) |
-| `fetchTimeoutMs` | `DEEPSEEK_FETCH_TIMEOUT_MS` | `30000` |
-| `fetchBlockPrivateHosts` | `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `true` |
-| `maxRetries` | `DEEPSEEK_MAX_RETRIES` | `2` |
-| `retryBaseDelayMs` | `DEEPSEEK_RETRY_BASE_DELAY_MS` | `250` |
+| `searchLocalization` | `DEEPSEEK_SEARCH_LOCALIZATION` | unset |
+| `maxSummaryChars` | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | 1200 |
+| `searchTimeoutMs` | `DEEPSEEK_SEARCH_TIMEOUT_MS` | 30000 |
+| `fetchMaxChars` | `DEEPSEEK_FETCH_MAX_CHARS` | 16000 |
+| `fetchAllowedDomains` | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | unset |
+| `fetchBlockedDomains` | `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | unset |
+| `fetchTimeoutMs` | `DEEPSEEK_FETCH_TIMEOUT_MS` | 30000 |
+| `fetchBlockPrivateHosts` | `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | true |
+| `maxRetries` | `DEEPSEEK_MAX_RETRIES` | 2 |
+| `retryBaseDelayMs` | `DEEPSEEK_RETRY_BASE_DELAY_MS` | 250 |
+
+<!-- /generated: knob-table -->
 
 ## Special semantics
 

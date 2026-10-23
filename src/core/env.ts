@@ -40,18 +40,21 @@ const FALSE_ONLY_ENV = {
   fetchEnabled: ENABLE_FETCH_ENV,
 } as const;
 
+/** Every option key mapped onto its `DEEPSEEK_*` variable — the inverse view of the maps above. */
+export const OPTION_ENV_BY_KEY: Readonly<Record<string, string>> = {
+  ...NUMBER_ENV,
+  ...TEXT_ENV,
+  ...DOMAINS_ENV,
+  ...FALSE_ONLY_ENV,
+};
+
 /**
  * Every option's `DEEPSEEK_*` variable name, in map order — the names a host that
  * isolates its children from the parent environment (Codex) must forward for
  * shell-set options to reach the server. `DEEPSEEK_API_KEY` is deliberately
  * absent: it is not an option variable, and installers compose it separately.
  */
-export const OPTION_ENV_VARS: readonly string[] = [
-  ...Object.values(NUMBER_ENV),
-  ...Object.values(TEXT_ENV),
-  ...Object.values(DOMAINS_ENV),
-  ...Object.values(FALSE_ONLY_ENV),
-];
+export const OPTION_ENV_VARS: readonly string[] = Object.values(OPTION_ENV_BY_KEY);
 
 /**
  * Maps `DEEPSEEK_*` environment variables onto the shared plugin option keys and

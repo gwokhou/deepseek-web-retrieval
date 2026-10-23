@@ -228,6 +228,10 @@ error, not a skip.
   `docs/research/control-matrix.md` with `bun run docs:matrix`; tests fail
   if either table drifts. `bun run docs:matrix --check` is read-only; run without
   `--check` to update the generated blocks.
+- The knob table in `docs/configuration.md` is generated from the config
+  vocabulary itself (`CONFIG_KEYS`, `OPTION_ENV_BY_KEY`, and the built-in
+  defaults in `src/core/`) by the same `bun run docs:matrix` — adding or
+  renaming a knob means editing those sources, then regenerating.
 - Bumping `baseline` or a host `version` in `docs/hosts.jsonc` obliges a
   re-verification pass for that host: re-verify its per-host reference section
   and `control` keys in `docs/research/control-matrix.md`, and re-check the

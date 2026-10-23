@@ -5,6 +5,7 @@ All notable changes to this project are documented here, one sentence per item.
 ## Unreleased
 
 - Restructure the README around a quickstart and a defaults table, moving the full configuration reference (knob classes, the complete file-key ↔ `DEEPSEEK_*` mapping, special semantics) to a new docs/configuration.md guide.
+- Generate the configuration guide's knob table from the config vocabulary itself (`bun run docs:matrix` regenerates it, `--check` fails CI on drift), so the documented key ↔ variable ↔ default mapping can no longer hand-drift from the code.
 
 ## 0.7.0
 

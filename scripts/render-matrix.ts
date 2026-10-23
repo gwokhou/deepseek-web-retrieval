@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CONFIG_KEYS, configSummaryValues } from "../src/core/config-summary";
+import { OPTION_ENV_BY_KEY } from "../src/core/env";
+import { resolvePluginOptions } from "../src/core/options";
 import type { ForcedFlavor, HostsFile, Mechanism } from "./hosts";
 import { readHosts } from "./hosts";
 
@@ -9,6 +12,10 @@ const END = "<!-- /generated: host-matrix -->";
 
 const CONTROL_BEGIN = "<!-- generated: control-matrix — edit docs/hosts.jsonc, then run `bun run docs:matrix` -->";
 const CONTROL_END = "<!-- /generated: control-matrix -->";
+
+const KNOB_BEGIN =
+  "<!-- generated: knob-table — edit src/core/config-summary.ts or env.ts, then run `bun run docs:matrix` -->";
+const KNOB_END = "<!-- /generated: knob-table -->";
 
 const MECHANISM_DISPLAY: Readonly<Record<Mechanism, string>> = {
   "native-provider": "native websearch provider",
@@ -62,16 +69,50 @@ export function renderControlTable(hosts: HostsFile): string {
   ].join("\n");
 }
 
+/**
+ * The configuration guide's knob table: one row per config-vocabulary key, in
+ * vocabulary order, with the matching DEEPSEEK_* variable and the built-in
+ * default. Rendered from the same source the adapters resolve through
+ * (CONFIG_KEYS, OPTION_ENV_BY_KEY, resolvePluginOptions), so the documented
+ * mapping can never drift from the code.
+ */
+export function renderKnobTable(): string {
+  const defaults = configSummaryValues(resolvePluginOptions({}));
+  const rows = CONFIG_KEYS.map((key) => {
+    const env = OPTION_ENV_BY_KEY[key];
+    if (env === undefined) throw new Error(`config key "${key}" has no DEEPSEEK_* variable in OPTION_ENV_BY_KEY`);
+    // maxResults' default is the coupling, not a constant: it follows count
+    // whenever left unset (see resolveSearchOptions).
+    const value =
+      key === "maxResults"
+        ? `follows \`count\` (${defaults.count})`
+        : formatDefault(defaults[key as keyof typeof defaults]);
+    return `| \`${key}\` | \`${env}\` | ${value} |`;
+  });
+  return ["| File / OpenCode key | Environment | Default |", "| --- | --- | --- |", ...rows].join("\n");
+}
+
+function formatDefault(value: unknown): string {
+  if (value === undefined) return "unset";
+  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "unset";
+  return String(value);
+}
+
+/** Splices generated content between markers; shared by every generated block. */
+function replaceGeneratedBlock(current: string, begin: string, end: string, content: string, docPath: string): string {
+  const beginIndex = current.indexOf(begin);
+  const endIndex = current.indexOf(end);
+  if (beginIndex === -1 || endIndex === -1) {
+    throw new Error(`generated markers missing from ${docPath}`);
+  }
+  return `${current.slice(0, beginIndex)}${begin}\n\n${content}\n\n${end}${current.slice(endIndex + end.length)}`;
+}
+
 /** Replaces the generated block in docs/integration.md. Returns true on drift; check mode never writes. */
 export function updateIntegrationDoc(repoRoot: string, hosts: HostsFile, check = false): boolean {
   const docPath = join(repoRoot, "docs", "integration.md");
   const current = readFileSync(docPath, "utf8");
-  const beginIndex = current.indexOf(BEGIN);
-  const endIndex = current.indexOf(END);
-  if (beginIndex === -1 || endIndex === -1) {
-    throw new Error(`generated markers missing from ${docPath}`);
-  }
-  const updated = `${current.slice(0, beginIndex)}${BEGIN}\n\n${renderHostTable(hosts)}\n\n${END}${current.slice(endIndex + END.length)}`;
+  const updated = replaceGeneratedBlock(current, BEGIN, END, renderHostTable(hosts), docPath);
   if (updated === current) return false;
   if (!check) writeFileSync(docPath, updated);
   return true;
@@ -81,15 +122,17 @@ export function updateIntegrationDoc(repoRoot: string, hosts: HostsFile, check =
 export function updateControlDoc(repoRoot: string, hosts: HostsFile, check = false): boolean {
   const docPath = join(repoRoot, "docs", "research", "control-matrix.md");
   const current = readFileSync(docPath, "utf8");
-  const beginIndex = current.indexOf(CONTROL_BEGIN);
-  const endIndex = current.indexOf(CONTROL_END);
-  if (beginIndex === -1 || endIndex === -1) {
-    throw new Error(`generated markers missing from ${docPath}`);
-  }
-  const updated =
-    current.slice(0, beginIndex) +
-    `${CONTROL_BEGIN}\n\n${renderControlTable(hosts)}\n\n${CONTROL_END}` +
-    current.slice(endIndex + CONTROL_END.length);
+  const updated = replaceGeneratedBlock(current, CONTROL_BEGIN, CONTROL_END, renderControlTable(hosts), docPath);
+  if (updated === current) return false;
+  if (!check) writeFileSync(docPath, updated);
+  return true;
+}
+
+/** Replaces the generated knob block in docs/configuration.md. Returns true on drift; check mode never writes. */
+export function updateConfigDoc(repoRoot: string, check = false): boolean {
+  const docPath = join(repoRoot, "docs", "configuration.md");
+  const current = readFileSync(docPath, "utf8");
+  const updated = replaceGeneratedBlock(current, KNOB_BEGIN, KNOB_END, renderKnobTable(), docPath);
   if (updated === current) return false;
   if (!check) writeFileSync(docPath, updated);
   return true;
@@ -101,31 +144,27 @@ const hosts = readHosts(repoRoot);
 // CLI only: this module is imported by tests, so running on import would
 // rewrite the generated docs and defeat the drift check.
 if (import.meta.main) {
-  const run = (check = false): [boolean, boolean] => [
-    updateIntegrationDoc(repoRoot, hosts, check),
-    updateControlDoc(repoRoot, hosts, check),
-  ];
+  const run = (check = false): Record<string, boolean> => ({
+    "docs/integration.md": updateIntegrationDoc(repoRoot, hosts, check),
+    "docs/research/control-matrix.md": updateControlDoc(repoRoot, hosts, check),
+    "docs/configuration.md": updateConfigDoc(repoRoot, check),
+  });
+  const changed = (result: Record<string, boolean>): string[] =>
+    Object.entries(result)
+      .filter(([, isChanged]) => isChanged)
+      .map(([file]) => file);
   if (process.argv.includes("--check")) {
-    const [integrationChanged, controlChanged] = run(true);
-    if (integrationChanged || controlChanged) {
-      const stale = [
-        integrationChanged ? "docs/integration.md" : null,
-        controlChanged ? "docs/research/control-matrix.md" : null,
-      ]
-        .filter(Boolean)
-        .join(" and ");
+    const stale = changed(run(true));
+    if (stale.length > 0) {
       console.error(
-        `${stale} ${controlChanged && !integrationChanged ? "is" : "are"} out of sync with docs/hosts.jsonc; run \`bun run docs:matrix\` and commit`,
+        `${stale.join(" and ")} ${stale.length === 1 ? "is" : "are"} out of sync with the generated source ` +
+          "(docs/hosts.jsonc, or the src/core config vocabulary); run `bun run docs:matrix` and commit",
       );
       process.exit(1);
     }
-    console.log("generated docs are in sync with docs/hosts.jsonc");
+    console.log("generated docs are in sync with their sources");
   } else {
-    const [integrationChanged, controlChanged] = run();
-    const messages = [
-      integrationChanged ? "docs/integration.md updated" : "docs/integration.md already in sync",
-      controlChanged ? "docs/research/control-matrix.md updated" : "docs/research/control-matrix.md already in sync",
-    ];
-    console.log(messages.join("; "));
+    const stale = changed(run());
+    console.log(stale.length > 0 ? `${stale.join(" and ")} updated` : "generated docs already in sync");
   }
 }
