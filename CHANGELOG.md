@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here, with one sentence per item.
 
-## Unreleased
+## 0.6.0
 
 - Return distinct CLI exit codes — 2 for invalid command lines and 3 when a failed apply could not roll back — and document the codes in the usage text.
 - Add a `version` subcommand, record the installer version in install records, and show it in `list` output.
