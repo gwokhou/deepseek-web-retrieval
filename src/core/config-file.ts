@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { posix, win32 } from "node:path";
 import type { Env } from "./env";
 import { isPlainObject } from "./object";
 import type { PluginOptions } from "./types";
 
-/** The user-scope shared config file: one file, under the XDG config home. */
+/** The user-scope shared config file: one file, under the user config home (userConfigHome). */
 export const SHARED_CONFIG_DIR = "deepseek-web-retrieval";
 export const SHARED_CONFIG_FILE = "config.json";
 
@@ -52,12 +52,40 @@ const HOST_INTEGRATION_KEYS = new Set<string>([
 ]);
 
 /**
- * XDG_CONFIG_HOME is honored only when non-empty; otherwise the XDG default
- * `<home>/.config` applies. Pure so tests inject env and home directly.
+ * Joins with the separators of the platform being resolved, not the host's —
+ * identical to `join` in production (the platform is process.platform), but
+ * deterministic when tests inject win32 on another host.
  */
-export function configFilePath(env: Env, home: string): string {
-  const configHome = env.XDG_CONFIG_HOME || join(home, ".config");
-  return join(configHome, SHARED_CONFIG_DIR, SHARED_CONFIG_FILE);
+function joinFor(platform: NodeJS.Platform, ...parts: readonly string[]): string {
+  return (platform === "win32" ? win32 : posix).join(...parts);
+}
+
+/**
+ * The canonical user config home — the one resolution every consumer of the
+ * per-user config location shares (the shared config file, the installer's
+ * global state records, and the OpenCode global config).
+ *
+ * A non-empty XDG_CONFIG_HOME wins on every platform: power users and CI pin it
+ * deliberately, Windows included. Otherwise win32 uses the conventional Roaming
+ * root — %APPDATA% from the environment, `<home>\AppData\Roaming` when unset —
+ * and every other platform keeps the XDG default `<home>/.config`. Pure so
+ * tests inject env, home, and platform directly.
+ */
+export function userConfigHome(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
+  const xdg = env.XDG_CONFIG_HOME;
+  if (xdg) return xdg;
+  if (platform === "win32") return env.APPDATA || joinFor(platform, home, "AppData", "Roaming");
+  return joinFor(platform, home, ".config");
+}
+
+/** The directory this tool owns inside the user config home (see userConfigHome). */
+export function userConfigDir(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
+  return joinFor(platform, userConfigHome(env, home, platform), SHARED_CONFIG_DIR);
+}
+
+/** The shared file's location on this machine; see userConfigHome for the rules. */
+export function configFilePath(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
+  return joinFor(platform, userConfigDir(env, home, platform), SHARED_CONFIG_FILE);
 }
 
 /**
@@ -124,8 +152,12 @@ export function readFileOptions(file: string): PluginOptions {
 }
 
 /** The production entry point: compute the path for this machine and read it. */
-export function sharedFileOptions(env: Env = process.env, home: string = homedir()): PluginOptions {
-  return readFileOptions(configFilePath(env, home));
+export function sharedFileOptions(
+  env: Env = process.env,
+  home: string = homedir(),
+  platform: NodeJS.Platform = process.platform,
+): PluginOptions {
+  return readFileOptions(configFilePath(env, home, platform));
 }
 
 function warn(line: string): void {

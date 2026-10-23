@@ -163,7 +163,9 @@ Every knob resolves through one chain, low → high, identically on every host:
 — a higher layer always wins, so nothing already configured loses effect.
 
 The shared file — `$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json`, default
-`~/.config/deepseek-web-retrieval/config.json` — works on every host and uses the
+`~/.config/deepseek-web-retrieval/config.json` on Linux and macOS and
+`%APPDATA%\deepseek-web-retrieval\config.json` on Windows (an explicitly set
+`XDG_CONFIG_HOME` still wins there) — works on every host and uses the
 camelCase option keys:
 
 ```json

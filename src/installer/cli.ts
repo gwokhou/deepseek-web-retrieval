@@ -1,11 +1,13 @@
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+import { userConfigHome } from "../core/config-file";
+import type { Env } from "../core/env";
 import { TOOL_VERSION } from "../version";
 import { ApplyError, applyPlan } from "./apply";
 import { runConfigCommand } from "./config-command";
 import { HOST_PLANNERS, HOST_VERSION_PROBES, planForHost } from "./hosts";
 import { renderPlan } from "./render";
-import { listRecords } from "./state";
+import { legacyGlobalStateDir, listRecords, readingLegacyGlobalRecords } from "./state";
 import type { HostName, InstallerInput, Scope, Tier } from "./types";
 import { uninstall } from "./uninstall";
 
@@ -108,6 +110,8 @@ function parseFlags(args: readonly string[]): Flags {
 export interface CliIo {
   readonly out?: (line: string) => void;
   readonly err?: (line: string) => void;
+  /** Platform the CLI resolves paths for; tests pin "win32" on any host. */
+  readonly platform?: NodeJS.Platform;
 }
 
 /** CLI entry for the init/uninstall/list subcommands; returns the process exit code. */
@@ -135,12 +139,14 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
   }
   const cwd = resolve(flags.values.get("cwd") ?? process.cwd());
   const home = process.env.HOME ?? homedir();
-  const configHome = resolveConfigHome(home);
+  const platform = io.platform ?? process.platform;
+  const roots = { home, cwd, platform } as const;
+  const configHome = resolveConfigHome(process.env, home, platform);
 
   if (command === "list") {
     let records: ReturnType<typeof listRecords>;
     try {
-      records = listRecords({ home, cwd, configHome });
+      records = listRecords({ ...roots, configHome });
     } catch (error) {
       err(error instanceof Error ? error.message : String(error));
       return 1;
@@ -148,6 +154,12 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
     if (records.length === 0) {
       out("No installs recorded.");
       return 0;
+    }
+    if (readingLegacyGlobalRecords({ ...roots, configHome })) {
+      out(
+        `Global install records are being read from the legacy ${legacyGlobalStateDir(roots)} ` +
+          "(written before the Windows config home moved to %APPDATA%).",
+      );
     }
     for (const record of records) {
       const by = record.installerVersion ? ` by v${record.installerVersion}` : "";
@@ -164,7 +176,7 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
   }
 
   if (command === "uninstall") {
-    const required = requireInput(flags, cwd, home, configHome, false);
+    const required = requireInput(flags, cwd, home, configHome, platform, false);
     if (!required.ok) return usageError(required.problems, err);
     try {
       for (const line of uninstall(required.input)) out(line);
@@ -180,7 +192,7 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
     return EXIT_USAGE;
   }
 
-  const required = requireInput(flags, cwd, home, configHome, true);
+  const required = requireInput(flags, cwd, home, configHome, platform, true);
   if (!required.ok) return usageError(required.problems, err);
   const { input } = required;
   const probe = HOST_VERSION_PROBES[input.host];
@@ -218,13 +230,15 @@ function usageError(problems: readonly string[], err: (line: string) => void): n
 }
 
 /**
- * XDG_CONFIG_HOME is honored only when it belongs to the real home; the one
- * environment read happens here, at the edge, and flows down as explicit input.
+ * The installer edge's one config-home resolution, built on the canonical
+ * helper (userConfigHome): an inherited XDG_CONFIG_HOME is honored only when it
+ * belongs to the real home — a rewritten HOME must not smuggle in someone
+ * else's config root — and every other case takes the helper's platform
+ * default (win32: %APPDATA% or `<home>\AppData\Roaming`; otherwise ~/.config).
  */
-function resolveConfigHome(home: string): string | undefined {
-  const xdg = process.env.XDG_CONFIG_HOME;
-  if (xdg && home === (process.env.HOME ?? "")) return xdg;
-  return undefined;
+export function resolveConfigHome(env: Env, home: string, platform: NodeJS.Platform = process.platform): string {
+  const xdgTrusted = env.XDG_CONFIG_HOME !== undefined && env.XDG_CONFIG_HOME !== "" && home === (env.HOME ?? "");
+  return userConfigHome(xdgTrusted ? env : { ...env, XDG_CONFIG_HOME: undefined }, home, platform);
 }
 
 type RequireInputResult =
@@ -235,7 +249,8 @@ function requireInput(
   flags: Flags,
   cwd: string,
   home: string,
-  configHome: string | undefined,
+  configHome: string,
+  platform: NodeJS.Platform,
   needsTiers: boolean,
 ): RequireInputResult {
   const problems: string[] = [];
@@ -286,6 +301,7 @@ function requireInput(
       home,
       cwd,
       configHome,
+      platform,
       ...(path !== undefined ? { path: path as "extension" | "mcp" } : {}),
     },
   };

@@ -115,7 +115,8 @@ The runtime config surface is the same `DEEPSEEK_*` environment the MCP server r
 `deepseekWebRetrieval` settings namespace for the off switches (written by the installer;
 it outranks the environment and is preserved by Pi's own settings rewrites).
 
-The shared config file (`~/.config/deepseek-web-retrieval/config.json`, camelCase keys)
+The shared config file (`~/.config/deepseek-web-retrieval/config.json`, camelCase keys —
+on Windows, `%APPDATA%\deepseek-web-retrieval\config.json`)
 also sits in this surface, layered under the environment, and needs no forwarding on any
 path — the extension and the MCP server both read the file themselves. One file therefore
 configures every host running this package, with this host's environment and settings

@@ -13,6 +13,11 @@ export interface FsRoots {
   readonly cwd: string;
   /** Explicit config home; the CLI edge resolves XDG once and passes it down. */
   readonly configHome?: string;
+  /**
+   * Platform for the win32-aware reads (legacy record fallback); the CLI edge
+   * passes it down like configHome. Readers default to process.platform.
+   */
+  readonly platform?: NodeJS.Platform;
 }
 
 /** The files a host edit touches for a given scope. */
@@ -37,6 +42,11 @@ export interface InstallerInput {
   readonly home: string;
   readonly cwd: string;
   readonly configHome?: string;
+  /**
+   * Platform for the win32-aware reads (legacy record fallback); see FsRoots.
+   * Injected at the CLI edge, absent when callers construct inputs directly.
+   */
+  readonly platform?: NodeJS.Platform;
   /**
    * Integration mechanism for hosts with more than one (Pi: the native
    * extension, or the MCP server). Undefined means the host's default path.

@@ -15,11 +15,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { userConfigHome } from "../../src/core/config-file";
 import { API_KEY_ENV } from "../../src/core/constants";
 import { OPTION_ENV_VARS } from "../../src/core/env";
 import { parseJsonc } from "../../src/core/jsonc";
 import { ApplyError, applyPlan } from "../../src/installer/apply";
-import { exitCodeForError, runInstallerCli } from "../../src/installer/cli";
+import { exitCodeForError, resolveConfigHome, runInstallerCli } from "../../src/installer/cli";
 import { codecFor } from "../../src/installer/formats";
 import { applyJsonOps, revertJsonOps } from "../../src/installer/formats/json";
 import { buildRulesBlock, hasBlock, removeBlock, upsertBlock } from "../../src/installer/formats/rules";
@@ -1366,6 +1367,136 @@ describe("drift refusal and CLI edges", () => {
       else process.env.HOME = previousHome;
       if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
       else process.env.XDG_CONFIG_HOME = previousXdg;
+    }
+  });
+});
+
+describe("config home resolution", () => {
+  test("a trusted XDG wins on every platform and matches the canonical helper", () => {
+    const env = { HOME: "/home/u", XDG_CONFIG_HOME: "/custom/xdg" };
+    expect(resolveConfigHome(env, "/home/u")).toBe("/custom/xdg");
+    expect(resolveConfigHome(env, "/home/u", "win32")).toBe("/custom/xdg");
+    // The installer's root and the shared config file's root are the same one.
+    expect(userConfigHome(env, "/home/u", "win32")).toBe(resolveConfigHome(env, "/home/u", "win32"));
+  });
+
+  test("an inherited XDG is dropped when HOME was rewritten, on every platform", () => {
+    const env = { HOME: "/real/home", XDG_CONFIG_HOME: "/real/home/.config" };
+    expect(resolveConfigHome(env, "/sandbox/home")).toBe(join("/sandbox/home", ".config"));
+    expect(resolveConfigHome(env, "C:\\sandbox", "win32")).toBe("C:\\sandbox\\AppData\\Roaming");
+  });
+
+  test("win32 without XDG: %APPDATA% applies, with the home Roaming fallback behind it", () => {
+    const appdata = "C:\\Users\\u\\AppData\\Roaming";
+    expect(resolveConfigHome({ HOME: "C:\\Users\\u", APPDATA: appdata }, "C:\\Users\\u", "win32")).toBe(appdata);
+    expect(resolveConfigHome({ APPDATA: appdata }, "C:\\Users\\u", "win32")).toBe(appdata);
+    expect(resolveConfigHome({}, "C:\\Users\\u", "win32")).toBe("C:\\Users\\u\\AppData\\Roaming");
+  });
+
+  test("win32: init writes global records and the opencode config under %APPDATA%", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-win32-home-"));
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-win32-cwd-"));
+    const appdata = mkdtempSync(join(tmpdir(), "dwr-win32-appdata-"));
+    const previousHome = process.env.HOME;
+    const previousXdg = process.env.XDG_CONFIG_HOME;
+    const previousAppdata = process.env.APPDATA;
+    process.env.HOME = home;
+    process.env.APPDATA = appdata;
+    delete process.env.XDG_CONFIG_HOME;
+    try {
+      const out: string[] = [];
+      const io = {
+        out: (line: string) => out.push(line),
+        err: (line: string) => out.push(line),
+        platform: "win32" as const,
+      };
+      const code = await runInstallerCli(
+        [
+          "init",
+          "--host",
+          "opencode",
+          "--scope",
+          "global",
+          "--search",
+          "optional",
+          "--fetch",
+          "optional",
+          "--cwd",
+          cwd,
+          "--apply",
+        ],
+        io,
+      );
+      expect(code).toBe(0);
+      expect(existsSync(join(appdata, "deepseek-web-retrieval", "install.opencode.json"))).toBe(true);
+      expect(existsSync(join(appdata, "opencode", "opencode.jsonc"))).toBe(true);
+      expect(existsSync(join(home, ".config", "opencode", "opencode.jsonc"))).toBe(false);
+
+      out.length = 0;
+      expect(await runInstallerCli(["uninstall", "--host", "opencode", "--scope", "global", "--cwd", cwd], io)).toBe(0);
+      expect(existsSync(join(appdata, "deepseek-web-retrieval", "install.opencode.json"))).toBe(false);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previousXdg;
+      if (previousAppdata === undefined) delete process.env.APPDATA;
+      else process.env.APPDATA = previousAppdata;
+    }
+  });
+
+  test("win32: list and uninstall keep tracking a pre-%APPDATA% install and say where it lives", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-preappdata-home-"));
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-preappdata-cwd-"));
+    const appdata = mkdtempSync(join(tmpdir(), "dwr-preappdata-appdata-"));
+    // A pre-switch install: applied with no explicit config home, so its record
+    // landed under ~/.config/deepseek-web-retrieval.
+    const legacyInput: InstallerInput = {
+      host: "pi",
+      scope: "global",
+      search: "optional",
+      fetch: "optional",
+      packageRef: "deepseek-web-retrieval",
+      home,
+      cwd,
+    };
+    applyPlan(planForHost("pi", legacyInput), legacyInput);
+    const previousHome = process.env.HOME;
+    const previousXdg = process.env.XDG_CONFIG_HOME;
+    const previousAppdata = process.env.APPDATA;
+    process.env.HOME = home;
+    process.env.APPDATA = appdata;
+    delete process.env.XDG_CONFIG_HOME;
+    try {
+      const out: string[] = [];
+      const io = {
+        out: (line: string) => out.push(line),
+        err: (line: string) => out.push(line),
+        platform: "win32" as const,
+      };
+      expect(await runInstallerCli(["list", "--cwd", cwd], io)).toBe(0);
+      const text = out.join("\n");
+      expect(text).toContain("pi (global)");
+      expect(text).toContain(join(home, ".config", "deepseek-web-retrieval"));
+      expect(text).toContain("read from the legacy");
+
+      // Without the win32 lens the flow is unchanged: ~/.config is canonical there.
+      out.length = 0;
+      expect(await runInstallerCli(["list", "--cwd", cwd], { out: io.out, err: io.err })).toBe(0);
+      const posixText = out.join("\n");
+      expect(posixText).toContain("pi (global)");
+      expect(posixText).not.toContain("read from the legacy");
+
+      expect(await runInstallerCli(["uninstall", "--host", "pi", "--scope", "global", "--cwd", cwd], io)).toBe(0);
+      expect(existsSync(join(home, ".config", "deepseek-web-retrieval", "install.pi.json"))).toBe(false);
+      expect(existsSync(join(home, ".pi", "agent", "settings.json"))).toBe(false);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previousXdg;
+      if (previousAppdata === undefined) delete process.env.APPDATA;
+      else process.env.APPDATA = previousAppdata;
     }
   });
 });

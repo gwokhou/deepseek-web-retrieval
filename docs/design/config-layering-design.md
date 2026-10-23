@@ -61,7 +61,11 @@ built-in defaults  <  shared config file  <  DEEPSEEK_* environment  <  host-nat
 ## The shared config file
 
 - **Path:** `$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json`, defaulting to
-  `~/.config/deepseek-web-retrieval/config.json`. User scope, one file. A project-scope file
+  `~/.config/deepseek-web-retrieval/config.json`. On win32 an explicit, non-empty
+  `XDG_CONFIG_HOME` still wins; otherwise the conventional Roaming root applies —
+  `%APPDATA%\deepseek-web-retrieval\config.json`, falling back to
+  `<home>\AppData\Roaming\deepseek-web-retrieval\config.json` when `%APPDATA%` is
+  unset. User scope, one file. A project-scope file
   is a confirmed non-goal for this iteration (open question below).
 - **Format:** JSON object; keys are the camelCase `PluginOptions` vocabulary (class 1 and 2
   only). Example:
@@ -156,6 +160,6 @@ guides' option tables gain a shared-file column; the control-matrix note's Pi se
 2. **Invalid-key warnings:** one stderr line per bad key at first resolution — the noise
    buys typo detection (`"retries"` vs `"maxRetries"`) in a hand-edited file.
 3. **File naming:** `config.json` inside the `~/.config/deepseek-web-retrieval/`
-   directory — room for future siblings.
+   directory (win32: `%APPDATA%\deepseek-web-retrieval\`) — room for future siblings.
 4. **ADR:** the layering decision is recorded as
    [ADR 0002](../adr/0002-shared-config-base-layer.md) alongside this design note.

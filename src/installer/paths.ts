@@ -7,7 +7,13 @@ export function join(...parts: readonly string[]): string {
   return nonEmpty.length === 0 ? "" : pathJoin(...nonEmpty);
 }
 
-/** Config home: an explicit root wins; otherwise ~/.config. The CLI resolves XDG at the edge. */
+/**
+ * Config home: an explicit root wins; otherwise `~/.config`. The CLI edge now
+ * supplies the platform-aware explicit root (see userConfigHome in
+ * core/config-file: an honored XDG on every platform, `%APPDATA%` or
+ * `<home>\AppData\Roaming` on win32), so the `.config` fallback applies only to
+ * callers that construct roots directly without going through the CLI.
+ */
 export function configHome(roots: FsRoots): string {
   return roots.configHome ?? join(roots.home, ".config");
 }

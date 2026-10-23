@@ -2,7 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { configFilePath, readFileOptions, SHARED_CONFIG_KEYS, sharedFileOptions } from "../../src/core/config-file";
+import {
+  configFilePath,
+  readFileOptions,
+  SHARED_CONFIG_KEYS,
+  sharedFileOptions,
+  userConfigDir,
+  userConfigHome,
+} from "../../src/core/config-file";
 
 /** Captures console.error lines so warnings are asserted, not just tolerated. */
 function captureErrors<T>(run: () => T): { lines: string[]; result: T } {
@@ -20,17 +27,74 @@ function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "dwr-config-"));
 }
 
+describe("userConfigHome", () => {
+  test("a non-empty XDG_CONFIG_HOME wins on every platform, win32 included", () => {
+    expect(userConfigHome({ XDG_CONFIG_HOME: "/custom/xdg" }, "/home/u")).toBe("/custom/xdg");
+    expect(userConfigHome({ XDG_CONFIG_HOME: "C:\\custom\\xdg" }, "C:\\Users\\u", "win32")).toBe("C:\\custom\\xdg");
+  });
+
+  test("win32: %APPDATA% applies when XDG_CONFIG_HOME is unset or empty", () => {
+    const appdata = "C:\\Users\\u\\AppData\\Roaming";
+    expect(userConfigHome({ APPDATA: appdata }, "C:\\Users\\u", "win32")).toBe(appdata);
+    expect(userConfigHome({ XDG_CONFIG_HOME: "", APPDATA: appdata }, "C:\\Users\\u", "win32")).toBe(appdata);
+  });
+
+  test("win32: unset or empty %APPDATA% falls back to <home>\\AppData\\Roaming", () => {
+    const expected = "C:\\Users\\u\\AppData\\Roaming";
+    expect(userConfigHome({}, "C:\\Users\\u", "win32")).toBe(expected);
+    expect(userConfigHome({ APPDATA: "" }, "C:\\Users\\u", "win32")).toBe(expected);
+  });
+
+  test("other platforms keep the XDG default <home>/.config", () => {
+    expect(userConfigHome({}, "/home/u", "linux")).toBe(join("/home/u", ".config"));
+    expect(userConfigHome({}, "/home/u", "darwin")).toBe(join("/home/u", ".config"));
+    // %APPDATA% is not a convention outside win32; it must not leak in.
+    expect(userConfigHome({ APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, "/home/u", "linux")).toBe(
+      join("/home/u", ".config"),
+    );
+  });
+});
+
 describe("configFilePath", () => {
-  test("honors a non-empty XDG_CONFIG_HOME", () => {
+  test("posix: unchanged — XDG honored, default <home>/.config", () => {
     expect(configFilePath({ XDG_CONFIG_HOME: "/custom/xdg" }, "/home/u")).toBe(
+      join("/custom/xdg", "deepseek-web-retrieval", "config.json"),
+    );
+    const expected = join("/home/u", ".config", "deepseek-web-retrieval", "config.json");
+    expect(configFilePath({ XDG_CONFIG_HOME: "" }, "/home/u")).toBe(expected);
+    expect(configFilePath({}, "/home/u")).toBe(expected);
+    expect(configFilePath({ XDG_CONFIG_HOME: "/custom/xdg" }, "/home/u", "linux")).toBe(
       join("/custom/xdg", "deepseek-web-retrieval", "config.json"),
     );
   });
 
-  test("falls back to <home>/.config when XDG_CONFIG_HOME is empty or unset", () => {
-    const expected = join("/home/u", ".config", "deepseek-web-retrieval", "config.json");
-    expect(configFilePath({ XDG_CONFIG_HOME: "" }, "/home/u")).toBe(expected);
-    expect(configFilePath({}, "/home/u")).toBe(expected);
+  test("win32: config.json under %APPDATA% with backslash separators", () => {
+    expect(configFilePath({ APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, "C:\\Users\\u", "win32")).toBe(
+      "C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval\\config.json",
+    );
+  });
+
+  test("win32: a pinned XDG_CONFIG_HOME wins over %APPDATA%", () => {
+    expect(
+      configFilePath(
+        { XDG_CONFIG_HOME: "D:\\xdg", APPDATA: "C:\\Users\\u\\AppData\\Roaming" },
+        "C:\\Users\\u",
+        "win32",
+      ),
+    ).toBe("D:\\xdg\\deepseek-web-retrieval\\config.json");
+  });
+
+  test("win32: without %APPDATA%, <home>\\AppData\\Roaming applies", () => {
+    expect(configFilePath({}, "C:\\Users\\u", "win32")).toBe(
+      "C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval\\config.json",
+    );
+  });
+
+  test("userConfigDir is the shared-file directory under the same root", () => {
+    expect(userConfigDir({}, "/home/u")).toBe(join("/home/u", ".config", "deepseek-web-retrieval"));
+    expect(userConfigDir({ APPDATA: "C:\\Users\\u\\AppData\\Roaming" }, "C:\\Users\\u", "win32")).toBe(
+      "C:\\Users\\u\\AppData\\Roaming\\deepseek-web-retrieval",
+    );
   });
 });
 

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSyn
 import { basename, dirname, join, resolve } from "node:path";
 import { isPlainObject } from "../core/object";
 import { pruneEmptyDir } from "./revert";
-import { statePathFor } from "./state";
+import { recordReadPath, statePathFor } from "./state";
 import type { InstallerInput, RecordedFile, Scope } from "./types";
 
 type ClaimedFile = Pick<RecordedFile, "file" | "format" | "shared">;
@@ -63,6 +63,10 @@ function readOwner(file: string): FileOwner | undefined {
 function assertOwner(input: InstallerInput, claim: string): void {
   const owner = readOwner(claim);
   if (owner === undefined || owner.recordPath === ownerOf(input).recordPath) return;
+  // A win32 sidecar written before the config home moved to %APPDATA% names the
+  // legacy record location; when that is where this input's record is read
+  // from (see recordReadPath), it still identifies this same install lineage.
+  if (owner.recordPath === canonicalPath(recordReadPath(input))) return;
   throw new Error(
     `A ${input.host} install is already recorded at the ${owner.scope} scope (${owner.recordPath}) and claims the same config file. ` +
       `Uninstall it first: deepseek-web-retrieval uninstall --host ${input.host} --scope ${owner.scope} --cwd ${JSON.stringify(owner.cwd)}. ` +

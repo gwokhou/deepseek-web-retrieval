@@ -152,7 +152,8 @@ Set these in the server's `env` table. Values map onto the shared option pipelin
 defaults and clamping match the other adapters. `DEEPSEEK_API_KEY` goes in `env_vars`.
 
 > [!NOTE]
-> A shared config file — `~/.config/deepseek-web-retrieval/config.json`, camelCase keys —
+> A shared config file — `~/.config/deepseek-web-retrieval/config.json`
+> (Windows: `%APPDATA%\deepseek-web-retrieval\config.json`), camelCase keys —
 > sits under the environment layer and works with no env forwarding at all: the server
 > reads the file itself, making it the way to set knobs without editing `env_vars` (the
 > installer's `env_vars` entry also forwards every `DEEPSEEK_*` name). The file carries

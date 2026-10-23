@@ -1,4 +1,4 @@
-import { expect, spyOn, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,8 +6,15 @@ import { applyPlan } from "../../src/installer/apply";
 import { writeConfig } from "../../src/installer/formats";
 import { planForHost } from "../../src/installer/hosts";
 import { withOperationLock } from "../../src/installer/operation-lock";
-import { readRecord, statePathFor, writeRecord } from "../../src/installer/state";
-import type { InstallerInput } from "../../src/installer/types";
+import {
+  deleteRecord,
+  listRecords,
+  readingLegacyGlobalRecords,
+  readRecord,
+  statePathFor,
+  writeRecord,
+} from "../../src/installer/state";
+import type { InstallerInput, InstallRecord } from "../../src/installer/types";
 import { uninstall } from "../../src/installer/uninstall";
 
 test("config replacement keeps the old bytes on failure before rename", () => {
@@ -178,4 +185,119 @@ test("a shared config operation lock excludes another project and symlink aliase
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+describe("win32 legacy global records", () => {
+  /** A pre-%APPDATA% install (record under ~/.config) and its post-switch self. */
+  function preAppdataInstall(): { legacy: InstallerInput; current: InstallerInput } {
+    const home = fs.mkdtempSync(join(tmpdir(), "dwr-preappdata-"));
+    const legacy: InstallerInput = {
+      host: "pi",
+      scope: "global",
+      search: "optional",
+      fetch: "optional",
+      packageRef: "deepseek-web-retrieval",
+      home,
+      cwd: fs.mkdtempSync(join(tmpdir(), "dwr-preappdata-cwd-")),
+    };
+    const current: InstallerInput = {
+      ...legacy,
+      configHome: fs.mkdtempSync(join(tmpdir(), "dwr-preappdata-appdata-")),
+      platform: "win32",
+    };
+    return { legacy, current };
+  }
+
+  function recordFor(input: InstallerInput, createdAt: string): InstallRecord {
+    return {
+      version: 1,
+      host: input.host,
+      scope: input.scope,
+      tiers: { search: "optional", fetch: "optional" },
+      createdAt,
+      files: [],
+    };
+  }
+
+  test("readRecord finds a legacy global record on win32, and only on win32", () => {
+    const { legacy, current } = preAppdataInstall();
+    try {
+      writeRecord(legacy, recordFor(legacy, "2026-01-01T00:00:00.000Z"));
+      expect(fs.existsSync(statePathFor(current))).toBe(false);
+      expect(readRecord(current)?.createdAt).toBe("2026-01-01T00:00:00.000Z");
+      expect(readRecord({ ...current, platform: undefined })).toBeUndefined();
+    } finally {
+      fs.rmSync(legacy.home, { recursive: true, force: true });
+      fs.rmSync(current.cwd, { recursive: true, force: true });
+      fs.rmSync(current.configHome ?? "", { recursive: true, force: true });
+    }
+  });
+
+  test("a canonical record wins once one exists; listRecords never double-lists", () => {
+    const { legacy, current } = preAppdataInstall();
+    try {
+      writeRecord(legacy, recordFor(legacy, "2026-01-01T00:00:00.000Z"));
+      expect(readingLegacyGlobalRecords(current)).toBe(true);
+      expect(listRecords(current).map((record) => record.createdAt)).toEqual(["2026-01-01T00:00:00.000Z"]);
+
+      writeRecord(current, recordFor(current, "2026-06-01T00:00:00.000Z"));
+      expect(readingLegacyGlobalRecords(current)).toBe(false);
+      expect(readRecord(current)?.createdAt).toBe("2026-06-01T00:00:00.000Z");
+      expect(listRecords(current).map((record) => record.createdAt)).toEqual(["2026-06-01T00:00:00.000Z"]);
+    } finally {
+      fs.rmSync(legacy.home, { recursive: true, force: true });
+      fs.rmSync(current.cwd, { recursive: true, force: true });
+      fs.rmSync(current.configHome ?? "", { recursive: true, force: true });
+    }
+  });
+
+  test("deleteRecord removes the legacy file a win32 read found", () => {
+    const { legacy, current } = preAppdataInstall();
+    try {
+      writeRecord(legacy, recordFor(legacy, "2026-01-01T00:00:00.000Z"));
+      expect(readRecord(current)).toBeDefined();
+      deleteRecord(current);
+      expect(fs.existsSync(statePathFor(legacy))).toBe(false);
+      expect(fs.existsSync(statePathFor(current))).toBe(false);
+    } finally {
+      fs.rmSync(legacy.home, { recursive: true, force: true });
+      fs.rmSync(current.cwd, { recursive: true, force: true });
+      fs.rmSync(current.configHome ?? "", { recursive: true, force: true });
+    }
+  });
+
+  test("project-scope records never fall back, on any platform", () => {
+    const { legacy, current } = preAppdataInstall();
+    try {
+      writeRecord(legacy, recordFor(legacy, "2026-01-01T00:00:00.000Z"));
+      const project: InstallerInput = {
+        ...legacy,
+        scope: "project",
+        configHome: current.configHome,
+        platform: "win32",
+      };
+      // The fallback is for reading global tracking, never a project record's own path.
+      expect(readRecord(project)).toBeUndefined();
+      expect(fs.existsSync(join(project.cwd, ".deepseek-web-retrieval"))).toBe(false);
+    } finally {
+      fs.rmSync(legacy.home, { recursive: true, force: true });
+      fs.rmSync(legacy.cwd, { recursive: true, force: true });
+      fs.rmSync(current.configHome ?? "", { recursive: true, force: true });
+    }
+  });
+
+  test("non-win32 platforms never read the legacy location behind an explicit config home", () => {
+    const { legacy, current } = preAppdataInstall();
+    try {
+      writeRecord(legacy, recordFor(legacy, "2026-01-01T00:00:00.000Z"));
+      const rooted = { ...current, platform: undefined } as const;
+      expect(readRecord(rooted)).toBeUndefined();
+      expect(readingLegacyGlobalRecords(rooted)).toBe(false);
+      expect(listRecords(rooted)).toEqual([]);
+    } finally {
+      fs.rmSync(legacy.home, { recursive: true, force: true });
+      fs.rmSync(current.cwd, { recursive: true, force: true });
+      fs.rmSync(current.configHome ?? "", { recursive: true, force: true });
+    }
+  });
 });

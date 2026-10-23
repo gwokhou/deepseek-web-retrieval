@@ -3,10 +3,36 @@ import { isAbsolute, join } from "node:path";
 import { z } from "zod/v4";
 import { stateDir } from "./paths";
 import { atomicWrite } from "./persistence";
-import type { FsRoots, InstallerInput, InstallRecord } from "./types";
+import type { FsRoots, InstallerInput, InstallRecord, Scope } from "./types";
 
 export function statePathFor(input: InstallerInput): string {
   return join(stateDir(input, input.scope), `install.${input.host}.json`);
+}
+
+/** The platform a read resolves for: injected at the CLI edge, process.platform otherwise. */
+function platformOf(roots: FsRoots): NodeJS.Platform {
+  return roots.platform ?? process.platform;
+}
+
+/**
+ * Windows-only read compatibility: global records written before the config
+ * home moved to %APPDATA% live under `~/.config`. Kept readable so `list` and
+ * `uninstall` keep tracking installs made by older releases.
+ */
+export function legacyGlobalStateDir(roots: FsRoots): string {
+  return join(roots.home, ".config", "deepseek-web-retrieval");
+}
+
+/**
+ * The file a record is read from: the canonical state path, except that a
+ * missing win32 global record falls back to the legacy `~/.config` location
+ * (see legacyGlobalStateDir). Writes always target the canonical path.
+ */
+export function recordReadPath(input: InstallerInput, platform: NodeJS.Platform = platformOf(input)): string {
+  const canonical = statePathFor(input);
+  if (platform !== "win32" || input.scope !== "global" || existsSync(canonical)) return canonical;
+  const legacy = join(legacyGlobalStateDir(input), `install.${input.host}.json`);
+  return existsSync(legacy) ? legacy : canonical;
 }
 
 const keyPath = z.array(z.string().min(1)).min(1);
@@ -86,7 +112,7 @@ function readRecordFile(file: string, host: string, scope: string): InstallRecor
 }
 
 export function readRecord(input: InstallerInput): InstallRecord | undefined {
-  return readRecordFile(statePathFor(input), input.host, input.scope);
+  return readRecordFile(recordReadPath(input), input.host, input.scope);
 }
 
 /**
@@ -123,27 +149,54 @@ export function appendedByPrevious(record: InstallRecord | undefined, path: read
 }
 
 export function deleteRecord(input: InstallerInput): void {
-  const file = statePathFor(input);
+  // Win32 legacy records are removed where they were found, so uninstalling a
+  // pre-APPDATA install clears its tracking instead of a canonical file that
+  // was never written.
+  const file = recordReadPath(input);
   if (existsSync(file)) rmSync(file);
+}
+
+/** Reads every valid record in one scope's directory; an absent directory is empty. */
+function readRecordsFromDir(dir: string, scope: Scope): InstallRecord[] {
+  const records: InstallRecord[] = [];
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return records;
+    throw new InstallRecordError(dir, "unreadable", (error as NodeJS.ErrnoException).code ?? "list failed");
+  }
+  for (const name of names) {
+    if (!name.startsWith("install.") || !name.endsWith(".json")) continue;
+    const record = readRecordFile(join(dir, name), name.slice("install.".length, -".json".length), scope);
+    if (record !== undefined) records.push(record);
+  }
+  return records;
+}
+
+function hasRecordFiles(dir: string): boolean {
+  try {
+    return readdirSync(dir).some((name) => name.startsWith("install.") && name.endsWith(".json"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when the global records must be read from the legacy win32 `~/.config`
+ * location: win32, nothing recorded under the canonical config home, and
+ * pre-%APPDATA% records still present there. `list` says so when this holds.
+ */
+export function readingLegacyGlobalRecords(roots: FsRoots): boolean {
+  if (platformOf(roots) !== "win32") return false;
+  if (hasRecordFiles(stateDir(roots, "global"))) return false;
+  return hasRecordFiles(legacyGlobalStateDir(roots));
 }
 
 /** Lists install records found in both scope locations for the given roots. */
 export function listRecords(roots: FsRoots): InstallRecord[] {
-  const records: InstallRecord[] = [];
-  for (const scope of ["global", "project"] as const) {
-    const dir = stateDir(roots, scope);
-    let names: string[];
-    try {
-      names = readdirSync(dir);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw new InstallRecordError(dir, "unreadable", (error as NodeJS.ErrnoException).code ?? "list failed");
-    }
-    for (const name of names) {
-      if (!name.startsWith("install.") || !name.endsWith(".json")) continue;
-      const record = readRecordFile(join(dir, name), name.slice("install.".length, -".json".length), scope);
-      if (record !== undefined) records.push(record);
-    }
-  }
-  return records;
+  const global = readRecordsFromDir(stateDir(roots, "global"), "global");
+  const project = readRecordsFromDir(stateDir(roots, "project"), "project");
+  const legacy = readingLegacyGlobalRecords(roots) ? readRecordsFromDir(legacyGlobalStateDir(roots), "global") : [];
+  return [...global, ...legacy, ...project];
 }
