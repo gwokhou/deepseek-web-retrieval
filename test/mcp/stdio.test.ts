@@ -76,7 +76,11 @@ async function spawnCli(
  * temp dir (with the shared config file written into it when given) so a real
  * user config file can never leak into the assertion.
  */
-async function spawnCliStderr(env: Record<string, string>, configFile?: Record<string, unknown>): Promise<string> {
+async function spawnCliStderr(
+  env: Record<string, string>,
+  configFile?: Record<string, unknown>,
+  clientInfo: { name: string; version: string } = { name: "deepseek-web-retrieval-test", version: "0.0.0" },
+): Promise<string> {
   const xdg = mkdtempSync(join(tmpdir(), "dwr-serve-xdg-"));
   if (configFile) {
     mkdirSync(join(xdg, "deepseek-web-retrieval"), { recursive: true });
@@ -92,7 +96,7 @@ async function spawnCliStderr(env: Record<string, string>, configFile?: Record<s
   transport.stderr?.on("data", (chunk) => {
     stderr = `${stderr}${String(chunk)}`;
   });
-  const client = new Client({ name: "deepseek-web-retrieval-test", version: "0.0.0" });
+  const client = new Client(clientInfo);
   try {
     await client.connect(transport, { timeout: 3000 });
     // The boot lines print before the handshake completes; give the pipe a
@@ -124,6 +128,26 @@ describe("startup deviation summary", () => {
     const stderr = await spawnCliStderr({ DEEPSEEK_API_KEY: "sk-test" });
     expect(stderr).toContain("deepseek-web-retrieval MCP server on stdio");
     expect(stderr).not.toContain("config:");
+  });
+});
+
+describe("client identity log", () => {
+  test("logs the connected client with the text + structuredContent shaping", async () => {
+    const stderr = await spawnCliStderr({ DEEPSEEK_API_KEY: "sk-test" }, undefined, {
+      name: "identity-probe",
+      version: "9.9.9",
+    });
+    expect(stderr).toContain("mcp client: identity-probe 9.9.9 — text + structuredContent results");
+  });
+
+  test("logs the text-only shaping for a client that replaces content with serialized JSON", async () => {
+    const stderr = await spawnCliStderr({ DEEPSEEK_API_KEY: "sk-test" }, undefined, {
+      name: "codex-mcp-client",
+      version: "0.163.0",
+    });
+    expect(stderr).toContain(
+      "mcp client: codex-mcp-client 0.163.0 — text-only results (this client replaces content with serialized structuredContent)",
+    );
   });
 });
 

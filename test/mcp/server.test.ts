@@ -15,29 +15,7 @@ import { resolveEnvOptions } from "../../src/core/env";
 import { resolvePluginOptions } from "../../src/core/options";
 import type { ResolvedOptions } from "../../src/core/types";
 import { createDeepSeekServer, servePrecheck } from "../../src/mcp/server";
-
-function createStub() {
-  let captured: { url: string; init: RequestInit } | undefined;
-  let response: { body: unknown; status: number } | undefined;
-  return {
-    get captured() {
-      return captured;
-    },
-    respond(body: unknown, status = 200) {
-      captured = undefined;
-      response = { body, status };
-    },
-    reject() {
-      captured = undefined;
-      response = undefined;
-    },
-    fetchImpl: (async (url, init) => {
-      if (!response) throw new Error("network must not be reached");
-      captured = { url: String(url), init: init ?? {} };
-      return Response.json(response.body, { status: response.status });
-    }) as typeof fetch,
-  };
-}
+import { createStub } from "../helpers";
 
 interface Persona {
   client: Client;

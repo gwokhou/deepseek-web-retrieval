@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { userConfigHome } from "../../src/core/config-file";
 import { API_KEY_ENV } from "../../src/core/constants";
 import { OPTION_ENV_VARS } from "../../src/core/env";
@@ -37,13 +37,25 @@ import type { ConfigOp, InstallerInput, JsonEdit, RecordedFile, RulesEdit, TomlE
 import { uninstall } from "../../src/installer/uninstall";
 import { TOOL_VERSION } from "../../src/version";
 
-const homes: string[] = [];
-const cwds: string[] = [];
+const scratchDirs: string[] = [];
+
+/** Creates a temp dir registered for best-effort removal after the test. */
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  scratchDirs.push(dir);
+  return dir;
+}
 
 afterEach(() => {
-  // Temp dirs are left for the OS cleaner; nothing to restore process-wide.
-  homes.length = 0;
-  cwds.length = 0;
+  // Best effort: an unreadable leftover must not fail the test run, but the
+  // normal case leaves nothing behind in the OS temp dir.
+  for (const dir of scratchDirs.splice(0)) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Left for the OS cleaner; nothing to restore process-wide.
+    }
+  }
 });
 
 function makeInput(
@@ -53,10 +65,8 @@ function makeInput(
   fetch: InstallerInput["fetch"],
   path?: "extension" | "mcp",
 ): InstallerInput {
-  const home = mkdtempSync(join(tmpdir(), "dwr-home-"));
-  const cwd = mkdtempSync(join(tmpdir(), "dwr-cwd-"));
-  homes.push(home);
-  cwds.push(cwd);
+  const home = tempDir("dwr-home-");
+  const cwd = tempDir("dwr-cwd-");
   return {
     host,
     scope,
@@ -270,6 +280,15 @@ describe("apply and uninstall round-trips", () => {
     expect(listRecords(input).map((record) => record.host)).toContain("pi");
     uninstall(input);
     expect(existsSync(join(input.cwd, ".pi/mcp.json"))).toBe(false);
+    expect(listRecords(input)).toEqual([]);
+  });
+
+  test("uninstall reports a config file the user already deleted and still clears the record", () => {
+    const input = makeInput("pi", "project", "optional", "optional", "mcp");
+    applyPlan(planPi(input, readRecord(input)), input);
+    rmSync(join(input.cwd, ".pi/mcp.json"));
+    const lines = uninstall(input);
+    expect(lines.join("\n")).toContain(`already absent: ${join(input.cwd, ".pi/mcp.json")}`);
     expect(listRecords(input)).toEqual([]);
   });
 
@@ -584,7 +603,7 @@ describe("apply rollback", () => {
       expect(String(failure)).not.toContain("nothing was left applied");
       expect(readFileSync(config, "utf8")).toBe('web_search = "disabled"\n');
       expect(readRecord(input)).toBeUndefined();
-      const other = { ...input, scope: "project" as const, cwd: mkdtempSync(join(tmpdir(), "dwr-other-")) };
+      const other = { ...input, scope: "project" as const, cwd: tempDir("dwr-other-") };
       expect(planForHost(other.host, other).errors[0]?.message).toContain("claims the same config file");
     });
   }
@@ -617,7 +636,7 @@ describe("apply rollback", () => {
     expect(existsSync(rules)).toBe(false);
     expect(readRecord(input)).toBeUndefined();
     // A different installation can claim the restored config after rollback.
-    const other = { ...input, scope: "project" as const, cwd: mkdtempSync(join(tmpdir(), "dwr-other-")) };
+    const other = { ...input, scope: "project" as const, cwd: tempDir("dwr-other-") };
     expect(planForHost(other.host, other).errors).toEqual([]);
     expect(readdirSync(dirname(config))).toEqual(["config.toml"]);
   });
@@ -659,7 +678,7 @@ describe("apply rollback", () => {
       expect(readFileSync(config, "utf8")).toBe(configBefore);
       expect(readFileSync(rules, "utf8")).toBe(rulesBefore);
       expect(readRecord(input)).toEqual(recordBefore);
-      const other = { ...input, scope: "project" as const, cwd: mkdtempSync(join(tmpdir(), "dwr-other-")) };
+      const other = { ...input, scope: "project" as const, cwd: tempDir("dwr-other-") };
       expect(planForHost(other.host, other).errors[0]?.message).toContain("claims the same config file");
       uninstall(input);
       expect(existsSync(config)).toBe(false);
@@ -841,8 +860,11 @@ describe("review fixes", () => {
     console.log = (line: string) => logs.push(line);
     console.error = (line: string) => errorsOut.push(line);
     try {
-      const home = mkdtempSync(join(tmpdir(), "dwr-cli-home-"));
-      const cwd = mkdtempSync(join(tmpdir(), "dwr-cli-cwd-"));
+      const home = tempDir("dwr-cli-home-");
+      const cwd = tempDir("dwr-cli-cwd-");
+      // A genuinely relative path (with .. segments when tmpdir sits outside the
+      // repo): the CLI must resolve it against process.cwd() — an absolute
+      // input would bypass that branch untested.
       const relative = relativePath(process.cwd(), cwd);
       const code = await runInstallerCli([
         "init",
@@ -1111,9 +1133,9 @@ describe("format codecs", () => {
 
 describe("drift refusal and CLI edges", () => {
   test("runInstallerCli probes codex --version and surfaces drift in the plan", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-cli-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-cli-cwd-"));
-    const bin = mkdtempSync(join(tmpdir(), "dwr-cli-bin-"));
+    const home = tempDir("dwr-cli-home-");
+    const cwd = tempDir("dwr-cli-cwd-");
+    const bin = tempDir("dwr-cli-bin-");
     writeFileSync(join(bin, "codex"), "#!/bin/sh\necho 'codex-cli 9.9.9'\n");
     chmodSync(join(bin, "codex"), 0o755);
     const logs: string[] = [];
@@ -1282,8 +1304,8 @@ describe("drift refusal and CLI edges", () => {
   });
 
   test("list and uninstall run end to end through the CLI with injectable output", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-cli2-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-cli2-cwd-"));
+    const home = tempDir("dwr-cli2-home-");
+    const cwd = tempDir("dwr-cli2-cwd-");
     const previousHome = process.env.HOME;
     process.env.HOME = home;
     try {
@@ -1334,8 +1356,8 @@ describe("drift refusal and CLI edges", () => {
     }
   });
   test("XDG_CONFIG_HOME routes the global config home when it belongs to the real home", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-xdg-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-xdg-cwd-"));
+    const home = tempDir("dwr-xdg-home-");
+    const cwd = tempDir("dwr-xdg-cwd-");
     const xdg = join(home, "xdg");
     mkdirSync(xdg, { recursive: true });
     const previousHome = process.env.HOME;
@@ -1398,9 +1420,9 @@ describe("config home resolution", () => {
   });
 
   test("win32: init writes global records and the opencode config under %APPDATA%", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-win32-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-win32-cwd-"));
-    const appdata = mkdtempSync(join(tmpdir(), "dwr-win32-appdata-"));
+    const home = tempDir("dwr-win32-home-");
+    const cwd = tempDir("dwr-win32-cwd-");
+    const appdata = tempDir("dwr-win32-appdata-");
     const previousHome = process.env.HOME;
     const previousXdg = process.env.XDG_CONFIG_HOME;
     const previousAppdata = process.env.APPDATA;
@@ -1450,9 +1472,9 @@ describe("config home resolution", () => {
   });
 
   test("win32: list and uninstall keep tracking a pre-%APPDATA% install and say where it lives", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-preappdata-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-preappdata-cwd-"));
-    const appdata = mkdtempSync(join(tmpdir(), "dwr-preappdata-appdata-"));
+    const home = tempDir("dwr-preappdata-home-");
+    const cwd = tempDir("dwr-preappdata-cwd-");
+    const appdata = tempDir("dwr-preappdata-appdata-");
     // A pre-switch install: applied with no explicit config home, so its record
     // landed under ~/.config/deepseek-web-retrieval.
     const legacyInput: InstallerInput = {
@@ -1783,8 +1805,8 @@ describe("pinned package refs (--pin)", () => {
   });
 
   test("init --pin writes the running version into each host's registration", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-pin-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-pin-cwd-"));
+    const home = tempDir("dwr-pin-home-");
+    const cwd = tempDir("dwr-pin-cwd-");
     const previousHome = process.env.HOME;
     process.env.HOME = home;
     const output: string[] = [];
@@ -1834,7 +1856,7 @@ describe("pinned package refs (--pin)", () => {
   });
 
   test("--pin appends the version to a custom --package ref but never a second suffix", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-pin2-home-"));
+    const home = tempDir("dwr-pin2-home-");
     const previousHome = process.env.HOME;
     process.env.HOME = home;
     const output: string[] = [];
@@ -1862,14 +1884,14 @@ describe("pinned package refs (--pin)", () => {
         io,
       );
     try {
-      const bare = mkdtempSync(join(tmpdir(), "dwr-pin2-bare-"));
+      const bare = tempDir("dwr-pin2-bare-");
       expect(await initAt(bare, ["--package", "custom-web-search"])).toBe(0);
       const bareEntry = JSON.parse(readFileSync(join(bare, ".pi/mcp.json"), "utf8")) as {
         mcpServers: { deepseek: { args: string[] } };
       };
       expect(bareEntry.mcpServers.deepseek.args).toEqual(["-y", `custom-web-search@${TOOL_VERSION}`]);
 
-      const versioned = mkdtempSync(join(tmpdir(), "dwr-pin2-versioned-"));
+      const versioned = tempDir("dwr-pin2-versioned-");
       expect(await initAt(versioned, ["--package", "custom-web-search@1.2.3"])).toBe(0);
       const versionedEntry = JSON.parse(readFileSync(join(versioned, ".pi/mcp.json"), "utf8")) as {
         mcpServers: { deepseek: { args: string[] } };
@@ -1882,8 +1904,8 @@ describe("pinned package refs (--pin)", () => {
   });
 
   test("without --pin the default ref is written unpinned, byte-identical to before", async () => {
-    const home = mkdtempSync(join(tmpdir(), "dwr-unpin-home-"));
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-unpin-cwd-"));
+    const home = tempDir("dwr-unpin-home-");
+    const cwd = tempDir("dwr-unpin-cwd-");
     const previousHome = process.env.HOME;
     process.env.HOME = home;
     const output: string[] = [];
@@ -1982,7 +2004,7 @@ describe("pinned package refs (--pin)", () => {
 });
 
 function relativePath(from: string, to: string): string {
-  return to.startsWith(from) ? to.slice(from.length + 1) : to;
+  return relative(from, to);
 }
 
 describe("whole-repo review regressions", () => {
@@ -2061,7 +2083,7 @@ describe("whole-repo review regressions", () => {
   for (const secondScope of ["project", "global"] as const) {
     test(`Codex rejects another project's ${secondScope} install and permits it after uninstall`, () => {
       const first = makeInput("codex", "project", "optional", "optional");
-      const second = { ...first, scope: secondScope, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+      const second = { ...first, scope: secondScope, cwd: tempDir("dwr-other-project-") };
       applyPlan(planForHost("codex", first), first);
       const config = join(first.home, ".codex/config.toml");
       const before = readFileSync(config, "utf8");
@@ -2081,7 +2103,7 @@ describe("whole-repo review regressions", () => {
 
   test("Codex apply rechecks ownership acquired after the plan was rendered", () => {
     const first = makeInput("codex", "project", "optional", "optional");
-    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    const second = { ...first, cwd: tempDir("dwr-other-project-") };
     const stalePlan = planForHost("codex", second);
     applyPlan(planForHost("codex", first), first);
     const config = join(first.home, ".codex/config.toml");
@@ -2094,7 +2116,7 @@ describe("whole-repo review regressions", () => {
 
   test("Codex uninstall rejects a copied record owned by a different project", () => {
     const first = makeInput("codex", "project", "optional", "optional");
-    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    const second = { ...first, cwd: tempDir("dwr-other-project-") };
     applyPlan(planForHost("codex", first), first);
     const record = readRecord(first);
     expect(record).toBeDefined();
@@ -2130,7 +2152,7 @@ describe("shared config ownership lifecycle", () => {
     mkdirSync(join(first.cwd, ".deepseek-web-retrieval/install.codex.json"), { recursive: true });
     expect(() => applyPlan(planForHost("codex", first), first)).toThrow("Cannot read install record");
     expect(existsSync(join(first.home, ".codex"))).toBe(false);
-    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    const second = { ...first, cwd: tempDir("dwr-other-project-") };
     expect(applyPlan(planForHost("codex", second), second).lines.length).toBeGreaterThan(0);
     uninstall(second);
   });
@@ -2146,7 +2168,7 @@ describe("shared config ownership lifecycle", () => {
     expect(() => applyPlan(planForHost("codex", reinit), reinit)).toThrow("apply failed and was rolled back");
     expect(readFileSync(config, "utf8")).toBe(before);
     expect(readRecord(first)).toEqual(recorded);
-    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    const second = { ...first, cwd: tempDir("dwr-other-project-") };
     expect(planForHost("codex", second).errors[0]?.message).toContain(first.cwd);
     uninstall(first);
   });
@@ -2154,7 +2176,7 @@ describe("shared config ownership lifecycle", () => {
   test("ownership is independent of XDG config home and follows a symlinked home", () => {
     const first = makeInput("codex", "project", "optional", "optional");
     applyPlan(planForHost("codex", first), first);
-    const cwd = mkdtempSync(join(tmpdir(), "dwr-other-project-"));
+    const cwd = tempDir("dwr-other-project-");
     const alias = join(cwd, "home-alias");
     symlinkSync(first.home, alias);
     const second = { ...first, cwd, home: alias, configHome: join(cwd, "other-config-home") };
@@ -2173,7 +2195,7 @@ describe("shared config ownership lifecycle", () => {
     const record = readRecord(first);
     if (!record) throw new Error("missing fixture record");
     writeRecord(first, { ...record, files: record.files.map(({ shared: _shared, ...file }) => file) });
-    const second = { ...first, cwd: mkdtempSync(join(tmpdir(), "dwr-other-project-")) };
+    const second = { ...first, cwd: tempDir("dwr-other-project-") };
     expect(planForHost("codex", second).errors[0]?.message).toContain("older install");
     expect(applyPlan(planForHost("codex", first), first).lines.length).toBeGreaterThan(0);
     const claims = readdirSync(directory).filter((name) => name.endsWith(".owner.json"));

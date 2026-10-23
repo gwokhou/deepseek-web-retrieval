@@ -113,11 +113,14 @@ follow the [upgrade instructions](../integration.md#upgrading-existing-installs)
 **Global checkout**
 
 ```bash
-git clone https://github.com/gwokhou/deepseek-web-retrieval.git \
+git clone https://github.com/guokhou/deepseek-web-retrieval.git \
   ~/.config/opencode/vendor/deepseek-web-retrieval
 ```
 
-Use `"package": "./vendor/deepseek-web-retrieval"`.
+Use `"package": "./vendor/deepseek-web-retrieval"`. On Windows the global config root is
+`%APPDATA%\opencode\` (unless `XDG_CONFIG_HOME` is explicitly set), so clone into
+`%APPDATA%\opencode\vendor\deepseek-web-retrieval` there — the same root the installer
+writes to.
 
 **Project checkout**
 
@@ -132,7 +135,8 @@ Use `"package": "./.opencode/vendor/deepseek-web-retrieval"`.
 **Auto-discovery**
 
 Clone or copy the repository into `~/.config/opencode/plugins/deepseek-web-retrieval` or
-`.opencode/plugins/deepseek-web-retrieval`. Auto-discovered plugins do not receive options,
+`.opencode/plugins/deepseek-web-retrieval` (on Windows, `%APPDATA%\opencode\plugins\…`).
+Auto-discovered plugins do not receive options,
 so `webfetch` stays in place; the `deepseek` search provider and `deepseek_fetch` are still
 added.
 

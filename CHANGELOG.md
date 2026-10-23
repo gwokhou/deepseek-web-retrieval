@@ -1,6 +1,17 @@
 # Changelog
 
-All notable changes to this project are documented here, with one sentence per item.
+All notable changes to this project are documented here, one sentence per item.
+
+## Unreleased
+
+- Layer a shared config file (`$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json`, camelCase keys) under the environment on every host, with the precedence `built-in defaults < shared file < DEEPSEEK_* environment < host-native config`; unknown and host-integration keys are warned about and ignored, and the API key stays out of the file.
+- Add a `config` command that prints every knob with its effective value and source (default, file, or environment — a count-derived `maxResults` is labeled `count`), replays shared-file problems, and verifies the key, config, and network end to end with `config --search "<query>"`.
+- Forward every `DEEPSEEK_*` option variable — not just the API key — in the Codex installer's `env_vars` entry, so shell-set knobs reach the stdio server without hand-editing `config.toml`.
+- Surface DeepSeek's `rerank_score`, `authority`, and `site_name` on search results in both text and structured output, accept an optional `original_question` on the MCP and Pi search tools (sent as `ori_question`), and add the `searchLocalization` deployment knob.
+- Couple `maxResults` to `count` when left unset — configuring only `count` was a silent no-op — and retry transient failures (408/425/429/5xx) twice by default instead of failing the billed call on the first attempt.
+- Resolve the shared config directory the Windows way on win32 (`%APPDATA%`, with an explicitly set `XDG_CONFIG_HOME` still winning), for the shared config file and the installer's global records alike.
+- Add `init --pin` to register the exact running CLI version (`deepseek-web-retrieval@<version>`) instead of the unpinned name, with package-identity comparisons that still match a pinned ref to its lineage.
+- `config` now warns and exits 1 when a `DEEPSEEK_*` variable is set but unusable (unknown name, non-numeric value, no-op switch value) instead of silently showing the default.
 
 ## 0.6.0
 

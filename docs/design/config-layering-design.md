@@ -8,22 +8,25 @@ surface inventory was verified against the code on 2026-10-23.
 
 ## Problem
 
-The option pipeline is already single-sourced (names, defaults, clamping in
-`src/core/constants.ts` → `src/core/env.ts` → `src/core/options.ts`), but the *channels* that
-feed it are fragmented per host, and a multi-host user configures the same intent in up to
-three ways:
+The state this design replaced — recorded here as history, not as the present. The option
+pipeline was already single-sourced (names, defaults, clamping in
+`src/core/constants.ts` → `src/core/env.ts` → `src/core/options.ts`), but the *channels*
+that fed it were fragmented per host, and a multi-host user configured the same intent in
+up to three ways:
 
-- **Pi** — extension runs in-process; `DEEPSEEK_*` shell variables just work.
+- **Pi** — extension runs in-process; `DEEPSEEK_*` shell variables just worked.
 - **Codex** — stdio children do not inherit the parent environment, and the installer's
-  `env_vars` entry forwards **only** `DEEPSEEK_API_KEY`
-  ([codex.ts](../../src/installer/hosts/codex.ts)); every other knob set in the shell never
-  reaches the server unless the user hand-edits `config.toml` to add each variable name.
-- **OpenCode** — the plugin resolves **only** `ctx.options` (opencode.json plugin options,
-  camelCase); `DEEPSEEK_*` variables configure nothing there, so the same knob has a second,
-  differently-named vocabulary.
+  `env_vars` entry forwarded **only** `DEEPSEEK_API_KEY`; every other knob set in the
+  shell never reached the server unless the user hand-edited `config.toml` to add each
+  variable name. (The entry now forwards every `DEEPSEEK_*` name — see the Codex
+  consequence in [ADR-0002](../adr/0002-shared-config-base-layer.md).)
+- **OpenCode** — the plugin resolved **only** `ctx.options` (opencode.json plugin
+  options, camelCase); `DEEPSEEK_*` variables configured nothing there, so the same
+  knob had a second, differently-named vocabulary. (The plugin now composes
+  file < environment < `ctx.options` — see the per-adapter composition below.)
 
-One intent ("20 results, block pinterest.com"), three configuration acts, two vocabularies,
-one silent-failure trap. The isolation is accidental, not chosen.
+One intent ("20 results, block pinterest.com"), three configuration acts, two
+vocabularies, one silent-failure trap. The isolation was accidental, not chosen.
 
 ## Parameter taxonomy
 

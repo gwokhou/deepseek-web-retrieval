@@ -75,12 +75,12 @@ Tiers: search=preferred, fetch=preferred
 
 Files:
   ~/.codex/config.toml
-    set mcp_servers.deepseek = {"command":"npx","args":["-y","deepseek-web-retrieval"],"env_vars":["DEEPSEEK_API_KEY"]} (was (absent))
+    set mcp_servers.deepseek = {"command":"npx","args":["-y","deepseek-web-retrieval"],"env_vars":["DEEPSEEK_API_KEY","DEEPSEEK_... (was (absent))
   ~/.codex/AGENTS.md
     upsert marked rules block
 
 Notes:
-  - Codex stdio children do not inherit the parent environment, so the entry forwards DEEPSEEK_API_KEY explicitly via env_vars; the key must be set in the shell that launches Codex.
+  - Codex stdio children do not inherit the parent environment, so the entry forwards DEEPSEEK_API_KEY and every DEEPSEEK_* option variable explicitly via env_vars; shell-set knobs reach the server without hand-editing config.toml (the shared config file works without any forwarding).
   - Rules block upserted in ~/.codex/AGENTS.md; Codex reads ~/.codex/AGENTS.md plus every AGENTS.md from the project root to the cwd.
   - Shared config ownership is recorded in ~/.codex/.config.toml.deepseek-web-retrieval.codex.owner.json; uninstall releases it. Keep this local metadata with the config.
 
@@ -116,9 +116,10 @@ binary files, per-request billing) are documented there.
 - Returns at most ten results by default (matching the API's `count` default and the
   industry norm for AI-native search APIs), deduplicating URLs.
 - Optional `rerank_score` and `authority` thresholds are off by default — the default
-  returns exactly what DeepSeek ranked, including results without a score;
-  when a positive threshold is set, results below it (or without a score to
-  compare) are dropped.
+  returns exactly what DeepSeek ranked, including results without a score. A positive
+  `rerank_score` threshold drops results below it and results without a score; a positive
+  `authority` threshold drops known authorities below it, while results with an unknown
+  authority stay unless `allowUnknownAuthority` is set to false.
 - Builds `blockedDomains`, `includeDomains`, and `language` into query operators and
   rejects the final query locally when it exceeds the API's 128-character limit.
 - On the paths where this package defines the search tool's inputs (the MCP server and
@@ -213,8 +214,9 @@ host-sensitive knob would cross its host's cap or deadline.
 
 To see what actually resolves, run `npx deepseek-web-retrieval config`: every knob
 printed with its value and its source (`default`, `file`, or `env`), plus any problems
-in the file replayed as visible warnings — it exits 1 when the file has problems, so it
-doubles as a dotfile CI check. `npx deepseek-web-retrieval config --search "<query>"`
+in the file or in `DEEPSEEK_*` variables (unknown names, unusable values) replayed as
+visible warnings — it exits 1 when there are problems, so it doubles as a dotfile CI
+check. `npx deepseek-web-retrieval config --search "<query>"`
 runs one billed search through the effective configuration to verify the key, config,
 and network end to end.
 

@@ -1,8 +1,9 @@
 {
   "$schema": "https://opencode.ai/config.json",
 
-  // Global config: ~/.config/opencode/opencode.jsonc
-  // Assumes the repo is cloned to ~/.config/opencode/vendor/deepseek-web-retrieval.
+  // Global config: ~/.config/opencode/opencode.jsonc (%APPDATA%\opencode\opencode.jsonc on Windows)
+  // Assumes the repo is cloned to the vendor/ directory beside the config
+  // (~/.config/opencode/vendor/deepseek-web-retrieval; %APPDATA%\opencode\vendor\... on Windows).
   "plugins": [
     {
       "package": "./vendor/deepseek-web-retrieval",

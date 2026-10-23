@@ -98,6 +98,35 @@ describe("transport postJson", () => {
     expect(error).toBeInstanceOf(DeepSeekApiError);
     expect((error as DeepSeekApiError).message).toContain("boom");
   });
+
+  test("rejects a 200 with an empty body without retrying", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return new Response("", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const pending = postJson(SEARCH_ENDPOINT, { query: "bun" }, "DeepSeek Search", opts({ fetchImpl }));
+    await expect(pending).rejects.toThrow("DeepSeek Search returned an empty response body");
+    expect(calls).toBe(1);
+  });
+
+  test("a network error is thrown as-is, never retried", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      throw new Error("fetch failed");
+    }) as unknown as typeof fetch;
+
+    const pending = postJson(
+      SEARCH_ENDPOINT,
+      { query: "bun" },
+      "DeepSeek Search",
+      opts({ retry: { maxRetries: 2, baseDelayMs: 0 }, fetchImpl }),
+    );
+    await expect(pending).rejects.toThrow("fetch failed");
+    expect(calls).toBe(1);
+  });
 });
 
 describe("parseRetryAfter", () => {

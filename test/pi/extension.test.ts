@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { createRetrievalClient } from "../../src/core/client";
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../src/core/constants";
@@ -17,6 +14,7 @@ import deepSeekWebRetrieval, {
   resolveExtensionOptions,
   searchTool,
 } from "../../src/pi/extension";
+import { captureErrors, pinEnvironment, xdgRoot } from "../helpers";
 
 interface CapturedTool {
   readonly name: string;
@@ -85,45 +83,6 @@ function capturingSearchFetch(bodies: unknown[]): typeof fetch {
     bodies.push(JSON.parse(String(init.body)));
     return new Response(JSON.stringify({ results: [] }), { status: 200 });
   }) as typeof fetch;
-}
-
-/** A fresh temp XDG root, optionally carrying a shared config file. */
-function xdgRoot(configFile?: Record<string, unknown>): string {
-  const xdg = mkdtempSync(join(tmpdir(), "dwr-pi-xdg-"));
-  if (configFile) {
-    mkdirSync(join(xdg, "deepseek-web-retrieval"), { recursive: true });
-    writeFileSync(join(xdg, "deepseek-web-retrieval", "config.json"), JSON.stringify(configFile));
-  }
-  return xdg;
-}
-
-/**
- * Makes process.env hermetic for the extension entry point's own resolution:
- * XDG_CONFIG_HOME pinned to the given root, the given DEEPSEEK_* overrides
- * applied, every other DEEPSEEK_* variable cleared. Returns the restore.
- */
-function pinEnvironment(xdg: string, env: Record<string, string> = {}): () => void {
-  const savedXdg = process.env.XDG_CONFIG_HOME;
-  const savedDeepseek = Object.entries(process.env).filter(([key]) => key.startsWith("DEEPSEEK_"));
-  process.env.XDG_CONFIG_HOME = xdg;
-  for (const [key] of savedDeepseek) delete process.env[key];
-  Object.assign(process.env, env);
-  return () => {
-    if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
-    else process.env.XDG_CONFIG_HOME = savedXdg;
-    for (const key of Object.keys(process.env)) {
-      if (key.startsWith("DEEPSEEK_")) delete process.env[key];
-    }
-    for (const [key, value] of savedDeepseek) process.env[key] = value;
-  };
-}
-
-/** Captures console.error lines so the deviation summary is asserted, not tolerated. */
-function captureErrors(): { lines: string[]; restore: () => void } {
-  const lines: string[] = [];
-  const originalError = console.error;
-  console.error = (line: string) => lines.push(line);
-  return { lines, restore: () => (console.error = originalError) };
 }
 
 describe("pi extension wiring", () => {
