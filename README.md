@@ -186,17 +186,30 @@ in the environment, or OpenCode's stored credential).
 
 Knobs fall into three classes; the shared file carries the first two:
 
-| Knob class | Shared file | `DEEPSEEK_*` environment | Host-native layer |
-| --- | --- | --- | --- |
-| API behavior — the user↔DeepSeek relationship (`count`, `blockedDomains`, `language`, `maxRetries`) | yes — that is the point of the file | the shell, or the per-server `env` block where stdio children don't inherit it (Codex: `env_vars`; Pi's in-process extension reads the shell directly) | OpenCode: opencode.json plugin `options`, the same camelCase keys |
-| Host-sensitive — interacts with host output caps and deadlines (`searchTimeoutMs`, `fetchTimeoutMs`, `fetchMaxChars`, `maxSummaryChars`) | carries the safe defaults | same channel | the recommended override point — e.g. against Pi MCP's 20 KB / 60 s or OpenCode's 2,000-line / 50 KiB caps |
-| Host integration — the host's tool landscape (`searchEnabled`, `setDefaultWebsearch`, `apiKeySource`) | rejected — warned about and ignored | the enable switches (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`) on MCP hosts | the only full channel: installer-written host config (OpenCode `options`, Pi's `deepseekWebRetrieval` switches) |
+| Knob class | Shared file | Examples |
+| --- | --- | --- |
+| API behavior — the user↔DeepSeek relationship | yes — that is the point of the file | `count`, `blockedDomains`, `language`, `maxRetries` |
+| Host-sensitive — interacts with host output caps and deadlines | carries the safe defaults; a host layer is the recommended override point | `searchTimeoutMs`, `fetchTimeoutMs`, `fetchMaxChars`, `maxSummaryChars` |
+| Host integration — the host's tool landscape | rejected — warned about and ignored | `searchEnabled`, `setDefaultWebsearch`, `apiKeySource` |
 
-The `DEEPSEEK_*` names and the camelCase keys are two vocabularies for one pipeline,
-documented side by side in the [Codex](docs/agents/codex.md), [Pi](docs/agents/pi.md),
-and [OpenCode](docs/agents/opencode-v2.md) guides. Prefer a host layer when a
-host-sensitive knob would cross its host's output cap or deadline; keep the
-host-independent intent in the shared file.
+The same knob has two names — the camelCase key for the shared file and OpenCode's
+options, the `DEEPSEEK_*` variable for the environment:
+
+| Shared file / OpenCode options | Environment |
+| --- | --- |
+| `count` | `DEEPSEEK_SEARCH_COUNT` |
+| `blockedDomains` | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` |
+| `language` | `DEEPSEEK_SEARCH_LANGUAGE` |
+| `searchLocalization` | `DEEPSEEK_SEARCH_LOCALIZATION` |
+| `fetchMaxChars` | `DEEPSEEK_FETCH_MAX_CHARS` |
+| `maxRetries` | `DEEPSEEK_MAX_RETRIES` |
+
+The full per-knob mapping is documented side by side in each guide's option table;
+per-host mechanics — how the environment reaches a stdio server, each host's output
+caps and deadlines — live there too: [Codex](docs/agents/codex.md),
+[Pi](docs/agents/pi.md), [OpenCode](docs/agents/opencode-v2.md). Keep
+host-independent intent in the shared file; prefer a host layer when a
+host-sensitive knob would cross its host's cap or deadline.
 
 To see what actually resolves, run `npx deepseek-web-retrieval config`: every knob
 printed with its value and its source (`default`, `file`, or `env`), plus any problems

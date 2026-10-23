@@ -166,39 +166,42 @@ defaults and clamping match the other adapters. `DEEPSEEK_API_KEY` goes in `env_
 
 ### Search
 
-| Env variable | Default | Description |
-| --- | --- | --- |
-| `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the search tool. Only an explicit `false`/`0`/`no`/`off` disables it; at least one tool must stay enabled. |
-| `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
-| `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50; defaults to `DEEPSEEK_SEARCH_COUNT` when unset. `0` returns no results. |
-| `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score (0–3); results without a finite score pass at zero and are dropped at a positive threshold. |
-| `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` | Drop known authorities below this tier. Authority is 0–4. |
-| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0`/`no`/`off` to drop them. |
-| `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset | Comma-separated; adds `-site:` operators to the query. |
-| `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Comma-separated; restricts results with `site:` operators. |
-| `DEEPSEEK_SEARCH_LANGUAGE` | unset | Adds a `lang:` operator, for example `zh,en`. |
-| `DEEPSEEK_SEARCH_LOCALIZATION` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
-| `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `1200` | Per-result summary cap, 0–1,000,000. |
-| `DEEPSEEK_SEARCH_TIMEOUT_MS` | `30000` | Search timeout, 1,000–120,000 ms. |
+The "Config file" column names each key's camelCase twin in the shared config file —
+one vocabulary pair, one pipeline. `—` marks host-integration entries the file rejects.
+
+| Env variable | Config file | Default | Description |
+| --- | --- | --- | --- |
+| `DEEPSEEK_ENABLE_SEARCH` | — | `true` | Register the search tool. Only an explicit `false`/`0`/`no`/`off` disables it; at least one tool must stay enabled. |
+| `DEEPSEEK_SEARCH_COUNT` | `count` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
+| `DEEPSEEK_SEARCH_MAX_RESULTS` | `maxResults` | `10` | Results returned to the model after filtering, 0–50; defaults to `DEEPSEEK_SEARCH_COUNT` when unset. `0` returns no results. |
+| `DEEPSEEK_SEARCH_MIN_RERANK` | `minRerank` | `0` | Drop results below this relevance score (0–3); results without a finite score pass at zero and are dropped at a positive threshold. |
+| `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `minAuthority` | `0` | Drop known authorities below this tier. Authority is 0–4. |
+| `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `allowUnknownAuthority` | `true` | Keep results whose authority is missing or unknown. Set `false`/`0`/`no`/`off` to drop them. |
+| `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | `blockedDomains` | unset | Comma-separated; adds `-site:` operators to the query. |
+| `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | `includeDomains` | unset | Comma-separated; restricts results with `site:` operators. |
+| `DEEPSEEK_SEARCH_LANGUAGE` | `language` | unset | Adds a `lang:` operator, for example `zh,en`. |
+| `DEEPSEEK_SEARCH_LOCALIZATION` | `searchLocalization` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
+| `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `maxSummaryChars` | `1200` | Per-result summary cap, 0–1,000,000. |
+| `DEEPSEEK_SEARCH_TIMEOUT_MS` | `searchTimeoutMs` | `30000` | Search timeout, 1,000–120,000 ms. |
 
 ### Fetch
 
-| Env variable | Default | Description |
-| --- | --- | --- |
-| `DEEPSEEK_ENABLE_FETCH` | `true` | Register the fetch tool. Same false-only semantics as `DEEPSEEK_ENABLE_SEARCH`. |
-| `DEEPSEEK_FETCH_MAX_CHARS` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
-| `DEEPSEEK_FETCH_TIMEOUT_MS` | `30000` | Fetch timeout, 1,000–120,000 ms. |
-| `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | unset | If set, only these hosts and subdomains may be fetched. |
-| `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | unset | Always block these hosts and subdomains. Blocked wins over allowed. |
-| `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. |
+| Env variable | Config file | Default | Description |
+| --- | --- | --- | --- |
+| `DEEPSEEK_ENABLE_FETCH` | — | `true` | Register the fetch tool. Same false-only semantics as `DEEPSEEK_ENABLE_SEARCH`. |
+| `DEEPSEEK_FETCH_MAX_CHARS` | `fetchMaxChars` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
+| `DEEPSEEK_FETCH_TIMEOUT_MS` | `fetchTimeoutMs` | `30000` | Fetch timeout, 1,000–120,000 ms. |
+| `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | `fetchAllowedDomains` | unset | If set, only these hosts and subdomains may be fetched. |
+| `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | `fetchBlockedDomains` | unset | Always block these hosts and subdomains. Blocked wins over allowed. |
+| `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `fetchBlockPrivateHosts` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. |
 
 ### Credentials and retries
 
-| Env variable | Default | Description |
-| --- | --- | --- |
-| `DEEPSEEK_API_KEY` | required | DeepSeek API key, forwarded via `env_vars`. The server refuses to start without it. |
-| `DEEPSEEK_MAX_RETRIES` | `2` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
-| `DEEPSEEK_RETRY_BASE_DELAY_MS` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
+| Env variable | Config file | Default | Description |
+| --- | --- | --- | --- |
+| `DEEPSEEK_API_KEY` | — | required | DeepSeek API key, forwarded via `env_vars`. The server refuses to start without it. |
+| `DEEPSEEK_MAX_RETRIES` | `maxRetries` | `2` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
+| `DEEPSEEK_RETRY_BASE_DELAY_MS` | `retryBaseDelayMs` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
 
 ## Troubleshooting
 

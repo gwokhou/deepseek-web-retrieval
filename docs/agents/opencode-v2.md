@@ -189,42 +189,47 @@ Set these in the plugin's `options` object.
 
 ### Search
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `searchEnabled` | `true` | Register the DeepSeek search provider at all. Only an explicit `false` disables it. |
-| `count` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
-| `maxResults` | `10` | Results returned to the model after filtering, 0–50; defaults to `count` when unset. `0` returns no results. |
-| `minRerank` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. A result without a finite score passes while the threshold is `0` and is dropped once it is positive. |
-| `minAuthority` | `0` | Drop known authorities below this tier. Authority is 0–4. |
-| `allowUnknownAuthority` | `true` | Keep results whose authority is missing or unknown. Only an explicit `false` disables it. |
-| `blockedDomains` | `[]` | Add `-site:` operators to the search query. |
-| `includeDomains` | `[]` | Restrict results with `site:` operators. |
-| `language` | unset | Add a `lang:` operator, for example `zh,en`. |
-| `searchLocalization` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
-| `maxSummaryChars` | `1200` | Per-result summary cap, 0–1,000,000. |
-| `searchTimeoutMs` | `30000` | Search timeout, 1,000–120,000 ms. |
-| `setDefaultWebsearch` | `false` | Make `deepseek` the default websearch provider when the plugin loads. |
+The "Environment" column names each option's `DEEPSEEK_*` twin — the plugin reads the
+environment as the layer beneath these options, and the same camelCase keys also work
+in the shared config file beneath both. `—` marks host-integration options with no
+environment or file channel.
+
+| Option | Environment | Default | Description |
+| --- | --- | --- | --- |
+| `searchEnabled` | `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the DeepSeek search provider at all. Only an explicit `false` disables it. |
+| `count` | `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
+| `maxResults` | `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50; defaults to `count` when unset. `0` returns no results. |
+| `minRerank` | `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. A result without a finite score passes while the threshold is `0` and is dropped once it is positive. |
+| `minAuthority` | `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` | Drop known authorities below this tier. Authority is 0–4. |
+| `allowUnknownAuthority` | `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Only an explicit `false` disables it. |
+| `blockedDomains` | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | `[]` | Add `-site:` operators to the search query. |
+| `includeDomains` | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | `[]` | Restrict results with `site:` operators. |
+| `language` | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Add a `lang:` operator, for example `zh,en`. |
+| `searchLocalization` | `DEEPSEEK_SEARCH_LOCALIZATION` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
+| `maxSummaryChars` | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `1200` | Per-result summary cap, 0–1,000,000. |
+| `searchTimeoutMs` | `DEEPSEEK_SEARCH_TIMEOUT_MS` | `30000` | Search timeout, 1,000–120,000 ms. |
+| `setDefaultWebsearch` | — | `false` | Make `deepseek` the default websearch provider when the plugin loads. |
 
 ### Fetch
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `fetchEnabled` | `true` | Register any DeepSeek fetch tooling (the separate tool and the webfetch override). |
-| `fetchMaxChars` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
-| `fetchTimeoutMs` | `30000` | Fetch timeout, 1,000–120,000 ms. |
-| `fetchOverrideWebfetch` | `false` | Replace the built-in `webfetch`. |
-| `fetchRegisterTool` | `true` | Register the separate `deepseek_fetch` tool. |
-| `fetchAllowedDomains` | `[]` | If non-empty, only these hosts and subdomains may be fetched. |
-| `fetchBlockedDomains` | `[]` | Always block these hosts and subdomains. Blocked wins over allowed. |
-| `fetchBlockPrivateHosts` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. |
+| Option | Environment | Default | Description |
+| --- | --- | --- | --- |
+| `fetchEnabled` | `DEEPSEEK_ENABLE_FETCH` | `true` | Register any DeepSeek fetch tooling (the separate tool and the webfetch override). |
+| `fetchMaxChars` | `DEEPSEEK_FETCH_MAX_CHARS` | `16000` | Maximum characters returned, including the title, 0–1,000,000. |
+| `fetchTimeoutMs` | `DEEPSEEK_FETCH_TIMEOUT_MS` | `30000` | Fetch timeout, 1,000–120,000 ms. |
+| `fetchOverrideWebfetch` | — | `false` | Replace the built-in `webfetch`. |
+| `fetchRegisterTool` | — | `true` | Register the separate `deepseek_fetch` tool. |
+| `fetchAllowedDomains` | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | `[]` | If non-empty, only these hosts and subdomains may be fetched. |
+| `fetchBlockedDomains` | `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | `[]` | Always block these hosts and subdomains. Blocked wins over allowed. |
+| `fetchBlockPrivateHosts` | `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. |
 
 ### Credentials and retries
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `apiKeySource` | `"auto"` | Credential strategy: `"auto"`, `"opencode"`, or `"env"`. |
-| `maxRetries` | `2` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
-| `retryBaseDelayMs` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
+| Option | Environment | Default | Description |
+| --- | --- | --- | --- |
+| `apiKeySource` | — | `"auto"` | Credential strategy: `"auto"`, `"opencode"`, or `"env"`. |
+| `maxRetries` | `DEEPSEEK_MAX_RETRIES` | `2` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
+| `retryBaseDelayMs` | `DEEPSEEK_RETRY_BASE_DELAY_MS` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
 
 ## Troubleshooting
 

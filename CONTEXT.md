@@ -30,6 +30,20 @@ _Avoid_: WebSearchResult (that is OpenCode's shape)
 How strongly a capability's tools are routed: optional, preferred, forced, or off.
 _Avoid_: level, mode
 
+## Configuration
+
+**Shared config file**:
+The user-scope base config layer (`~/.config/deepseek-web-retrieval/config.json`; `%APPDATA%\` on Windows): camelCase keys, read by every adapter beneath the environment and host-native layers.
+_Avoid_: global config (it is one layer of the chain, not the whole configuration)
+
+**Host-integration key**:
+An option describing the host's tool landscape (enable switches, registration flags, credential source) rather than the DeepSeek call; rejected by the shared config file, configured host-natively. Distinct from Adapter, which is code, not a key.
+_Avoid_: adapter option (that means any option an adapter consumes)
+
+**Config vocabulary**:
+The one ordered set of knob names shared by the file, the options tables, and the summaries (`SHARED_CONFIG_KEYS`/`CONFIG_KEYS`); host-integration keys are not part of it.
+_Avoid_: schema (that is the JSON Schema of a tool input)
+
 ## Installing
 
 **Plan**:

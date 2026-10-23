@@ -31,7 +31,7 @@ Isolation versus unification is decided per class, not globally:
 
 | Class | Parameters | Policy |
 | --- | --- | --- |
-| **API behavior** — describes the user↔DeepSeek relationship, host-independent | `count`, `maxResults`, `minRerank`, `minAuthority`, `allowUnknownAuthority`, `blockedDomains`, `includeDomains`, `language`, `localization`, `maxRetries`, `retryBaseDelayMs` | Shared base; identical everywhere unless a host layer overrides |
+| **API behavior** — describes the user↔DeepSeek relationship, host-independent | `count`, `maxResults`, `minRerank`, `minAuthority`, `allowUnknownAuthority`, `blockedDomains`, `includeDomains`, `language`, `searchLocalization`, `maxRetries`, `retryBaseDelayMs` | Shared base; identical everywhere unless a host layer overrides |
 | **Host-sensitive** — interacts with host output caps / deadlines (OpenCode 2,000 lines / 50 KiB; Pi MCP 20 KB + 60 s; Pi extension uncapped; Claude Code 25k tokens) | `searchTimeoutMs`, `fetchTimeoutMs`, `fetchMaxChars`, `maxSummaryChars` | Shared base gives the safe default; **per-host override in the host-native layer is the recommended place** to raise them |
 | **Host integration** — describes the host's tool landscape, not the API | `searchEnabled`, `fetchEnabled`, `setDefaultWebsearch`, `fetchOverrideWebfetch`, `fetchRegisterTool`, `apiKeySource` | **Deliberately isolated.** Installer-written, host-native config only; the shared file rejects them |
 
@@ -152,6 +152,18 @@ existing layers changes. Documentation updates ship with the code: README gains 
 guides' option tables gain a shared-file column; the control-matrix note's Pi sentence
 ("There is no per-extension options channel: the runtime config surface is the
 `DEEPSEEK_*` environment") is updated to name the file as part of that surface.
+
+**Amendment, 2026-10-23** — two changes approved after this design was confirmed alter
+the effective behavior of *untouched* configurations, superseding the "no existing
+configuration loses effect" sentence for those two knobs:
+
+1. `maxResults` now follows the effective `count` when unset, so `count`-only
+   configurations return `count` results instead of silently truncating to the old
+   default of 10 (the one-directional asymmetry is documented at the resolution site in
+   `src/core/options.ts`).
+2. Transient failures (408/425/429/5xx) retry twice by default instead of zero
+   (rationale and the dated vendor-survey correction live in
+   `docs/research/search-api-defaults.md`).
 
 ## Decisions (confirmed 2026-10-23)
 
