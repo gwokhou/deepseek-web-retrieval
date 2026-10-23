@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
@@ -68,6 +70,61 @@ async function spawnCli(
     });
   }
 }
+
+/**
+ * Boot stderr for one isolated CLI run. XDG_CONFIG_HOME is pinned to a fresh
+ * temp dir (with the shared config file written into it when given) so a real
+ * user config file can never leak into the assertion.
+ */
+async function spawnCliStderr(env: Record<string, string>, configFile?: Record<string, unknown>): Promise<string> {
+  const xdg = mkdtempSync(join(tmpdir(), "dwr-serve-xdg-"));
+  if (configFile) {
+    mkdirSync(join(xdg, "deepseek-web-retrieval"), { recursive: true });
+    writeFileSync(join(xdg, "deepseek-web-retrieval", "config.json"), JSON.stringify(configFile));
+  }
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: [CLI],
+    env: { PATH: process.env.PATH ?? "", XDG_CONFIG_HOME: xdg, ...env },
+    stderr: "pipe",
+  });
+  let stderr = "";
+  transport.stderr?.on("data", (chunk) => {
+    stderr = `${stderr}${String(chunk)}`;
+  });
+  const client = new Client({ name: "deepseek-web-retrieval-test", version: "0.0.0" });
+  try {
+    await client.connect(transport, { timeout: 3000 });
+    // The boot lines print before the handshake completes; give the pipe a
+    // moment to drain.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return stderr;
+  } finally {
+    await client.close().catch(() => undefined);
+  }
+}
+
+describe("startup deviation summary", () => {
+  test("prints a config: line for environment deviations from defaults", async () => {
+    const stderr = await spawnCliStderr({ DEEPSEEK_API_KEY: "sk-test", DEEPSEEK_SEARCH_COUNT: "20" });
+    expect(stderr).toContain("deepseek-web-retrieval MCP server on stdio");
+    expect(stderr.split("\n")).toContain("config: count=20");
+  });
+
+  test("prints a config: line for deviations read from the shared config file", async () => {
+    const stderr = await spawnCliStderr(
+      { DEEPSEEK_API_KEY: "sk-test" },
+      { count: 20, blockedDomains: ["pinterest.com"], language: "zh" },
+    );
+    expect(stderr.split("\n")).toContain("config: count=20 blockedDomains=1 language=zh");
+  });
+
+  test("prints no config: line when nothing deviates from defaults", async () => {
+    const stderr = await spawnCliStderr({ DEEPSEEK_API_KEY: "sk-test" });
+    expect(stderr).toContain("deepseek-web-retrieval MCP server on stdio");
+    expect(stderr).not.toContain("config:");
+  });
+});
 
 describe("built CLI smoke test", () => {
   test("handshakes over real stdio and lists both tools", async () => {

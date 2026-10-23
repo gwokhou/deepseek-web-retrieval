@@ -1,5 +1,39 @@
 import { describe, expect, test } from "bun:test";
-import { pluginOptionsFromEnv, resolveEnvOptions } from "../../src/core/env";
+import { OPTION_ENV_VARS, pluginOptionsFromEnv, resolveEnvOptions } from "../../src/core/env";
+
+describe("OPTION_ENV_VARS", () => {
+  test("lists every option variable exactly once, in map order, without the API key", () => {
+    expect(OPTION_ENV_VARS).toEqual([
+      // NUMBER_ENV
+      "DEEPSEEK_SEARCH_COUNT",
+      "DEEPSEEK_SEARCH_MAX_RESULTS",
+      "DEEPSEEK_SEARCH_MIN_RERANK",
+      "DEEPSEEK_SEARCH_MIN_AUTHORITY",
+      "DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS",
+      "DEEPSEEK_SEARCH_TIMEOUT_MS",
+      "DEEPSEEK_FETCH_MAX_CHARS",
+      "DEEPSEEK_FETCH_TIMEOUT_MS",
+      "DEEPSEEK_MAX_RETRIES",
+      "DEEPSEEK_RETRY_BASE_DELAY_MS",
+      // TEXT_ENV
+      "DEEPSEEK_SEARCH_LANGUAGE",
+      "DEEPSEEK_SEARCH_LOCALIZATION",
+      // DOMAINS_ENV
+      "DEEPSEEK_SEARCH_BLOCKED_DOMAINS",
+      "DEEPSEEK_SEARCH_INCLUDE_DOMAINS",
+      "DEEPSEEK_FETCH_ALLOWED_DOMAINS",
+      "DEEPSEEK_FETCH_BLOCKED_DOMAINS",
+      // FALSE_ONLY_ENV
+      "DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY",
+      "DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS",
+      "DEEPSEEK_ENABLE_SEARCH",
+      "DEEPSEEK_ENABLE_FETCH",
+    ]);
+    expect(OPTION_ENV_VARS.every((name) => /^DEEPSEEK_/.test(name))).toBe(true);
+    expect(new Set(OPTION_ENV_VARS).size).toBe(OPTION_ENV_VARS.length);
+    expect(OPTION_ENV_VARS).not.toContain("DEEPSEEK_API_KEY");
+  });
+});
 
 describe("pluginOptionsFromEnv", () => {
   test("maps numeric environment variables onto plugin option keys", () => {
@@ -110,5 +144,26 @@ describe("resolveEnvOptions", () => {
     expect(resolved.search.maxResults).toBe(10);
     expect(resolved.fetch.maxChars).toBe(16000);
     expect(resolved.retry.maxRetries).toBe(0);
+  });
+
+  test("layers file options beneath environment options", () => {
+    const resolved = resolveEnvOptions(
+      { DEEPSEEK_SEARCH_COUNT: "30", DEEPSEEK_SEARCH_LANGUAGE: "en" },
+      {
+        count: 20,
+        language: "zh",
+        maxResults: 5,
+      },
+    );
+    // Same key: the environment wins. Key the environment lacks: the file applies.
+    expect(resolved.search.count).toBe(30);
+    expect(resolved.search.language).toBe("en");
+    expect(resolved.search.maxResults).toBe(5);
+  });
+
+  test("file options alone still resolve over the built-in defaults", () => {
+    const resolved = resolveEnvOptions({}, { count: 20 });
+    expect(resolved.search.count).toBe(20);
+    expect(resolved.search.maxResults).toBe(10);
   });
 });

@@ -1,5 +1,7 @@
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { apiKeyFromEnv } from "../core/auth";
+import { sharedFileOptions } from "../core/config-file";
+import { configDeviations } from "../core/config-summary";
 import { resolveEnvOptions } from "../core/env";
 import { MISSING_API_KEY_MESSAGE } from "./auth";
 import { isJsonReplacingClient } from "./client";
@@ -14,7 +16,9 @@ export function serveMcp(): void {
     process.exit(1);
   }
 
-  const config = resolveEnvOptions(env);
+  // Defaults < shared config file < environment: the server reads the file
+  // itself, so hosts that forward only DEEPSEEK_API_KEY still honor it.
+  const config = resolveEnvOptions(env, sharedFileOptions(env));
   const precheck = servePrecheck(config);
   if (precheck) {
     console.error(precheck);
@@ -45,6 +49,11 @@ export function serveMcp(): void {
     .filter(Boolean)
     .join(", ");
   console.error(`deepseek-web-retrieval MCP server on stdio (${tools})`);
+  // Deviations only, so the line stays short while still showing every
+  // non-default knob the layered resolution produced; nothing deviating
+  // means no line at all.
+  const deviations = configDeviations(config);
+  if (deviations) console.error(`config: ${deviations}`);
 
   process.on("SIGINT", () => void handle.close());
   process.on("SIGTERM", () => void handle.close());

@@ -3,7 +3,10 @@ import type { Context } from "@opencode/plugin/promise/plugin";
 import type { ToolContext } from "@opencode/plugin/promise/tool";
 import type { RetrievalClient } from "../core/client";
 import { inspectFetchTarget, retrievalClient } from "../core/client";
+import { sharedFileOptions } from "../core/config-file";
+import { configDeviations } from "../core/config-summary";
 import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions";
+import { pluginOptionsFromEnv } from "../core/env";
 import { formatQualityMarker } from "../core/format";
 import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options";
 import type { PluginOptions, ResolvedOptions, SearchResult } from "../core/types";
@@ -148,8 +151,20 @@ export function createOpenCodePlugin(client: RetrievalClient = retrievalClient) 
   return Plugin.define({
     id: "deepseek-web-retrieval",
     async setup(ctx) {
-      const config = resolvePluginOptions(ctx.options);
+      // Defaults < shared config file < DEEPSEEK_* environment < opencode.json
+      // options: the host layer keeps winning exactly as before — the change
+      // is that the file and the environment now configure this host too.
+      const config = resolvePluginOptions({
+        ...sharedFileOptions(),
+        ...pluginOptionsFromEnv(process.env),
+        ...ctx.options,
+      });
       const registration = resolveRegistration(ctx.options);
+      // Deviations only, printed once at setup: one stderr line so a
+      // multi-layer resolution is visible; nothing deviating means no line at
+      // all (same contract as the MCP server).
+      const deviations = configDeviations(config);
+      if (deviations) console.error(`deepseek-web-retrieval config: ${deviations}`);
 
       if (config.search.enabled) {
         await ctx.websearch.transform((editor) => {

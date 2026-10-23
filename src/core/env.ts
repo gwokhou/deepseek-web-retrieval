@@ -40,13 +40,27 @@ const FALSE_ONLY_ENV = {
 } as const;
 
 /**
+ * Every option's `DEEPSEEK_*` variable name, in map order — the names a host that
+ * isolates its children from the parent environment (Codex) must forward for
+ * shell-set options to reach the server. `DEEPSEEK_API_KEY` is deliberately
+ * absent: it is not an option variable, and installers compose it separately.
+ */
+export const OPTION_ENV_VARS: readonly string[] = [
+  ...Object.values(NUMBER_ENV),
+  ...Object.values(TEXT_ENV),
+  ...Object.values(DOMAINS_ENV),
+  ...Object.values(FALSE_ONLY_ENV),
+];
+
+/**
  * Maps `DEEPSEEK_*` environment variables onto the shared plugin option keys and
  * resolves them through the shared pipeline, so defaults and clamping stay
  * identical across every adapter. Invalid values are dropped and the shared
- * default applies.
+ * default applies. `fileOptions` (the shared config file) layer beneath the
+ * environment: for the same key the environment wins.
  */
-export function resolveEnvOptions(env: Env = process.env): ResolvedOptions {
-  return resolvePluginOptions(pluginOptionsFromEnv(env));
+export function resolveEnvOptions(env: Env = process.env, fileOptions?: PluginOptions): ResolvedOptions {
+  return resolvePluginOptions({ ...fileOptions, ...pluginOptionsFromEnv(env) });
 }
 
 export function pluginOptionsFromEnv(env: Env): PluginOptions {

@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import plugin from "../../index";
 import { createRetrievalClient } from "../../src/core/client";
 import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../../src/core/descriptions";
@@ -110,6 +113,78 @@ function toolContext() {
     id: "call_test",
     signal: new AbortController().signal,
   };
+}
+
+/** A fresh temp XDG root, optionally carrying a shared config file. */
+function xdgRoot(configFile?: Record<string, unknown>): string {
+  const xdg = mkdtempSync(join(tmpdir(), "dwr-oc-xdg-"));
+  if (configFile) {
+    mkdirSync(join(xdg, "deepseek-web-retrieval"), { recursive: true });
+    writeFileSync(join(xdg, "deepseek-web-retrieval", "config.json"), JSON.stringify(configFile));
+  }
+  return xdg;
+}
+
+/**
+ * Makes process.env hermetic for the plugin's own resolution: XDG_CONFIG_HOME
+ * pinned to the given root, the given DEEPSEEK_* overrides applied, every
+ * other DEEPSEEK_* variable cleared. Returns the restore.
+ */
+function pinEnvironment(xdg: string, env: Record<string, string> = {}): () => void {
+  const savedXdg = process.env.XDG_CONFIG_HOME;
+  const savedDeepseek = Object.entries(process.env).filter(([key]) => key.startsWith("DEEPSEEK_"));
+  process.env.XDG_CONFIG_HOME = xdg;
+  for (const [key] of savedDeepseek) delete process.env[key];
+  Object.assign(process.env, env);
+  return () => {
+    if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = savedXdg;
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("DEEPSEEK_")) delete process.env[key];
+    }
+    for (const [key, value] of savedDeepseek) process.env[key] = value;
+  };
+}
+
+/** Captures console.error lines so the deviation summary is asserted, not tolerated. */
+function captureErrors(): { lines: string[]; restore: () => void } {
+  const lines: string[] = [];
+  const originalError = console.error;
+  console.error = (line: string) => lines.push(line);
+  return { lines, restore: () => (console.error = originalError) };
+}
+
+/** A search fetch stub that records the resolved count from the request body. */
+function countingSearchFetch(counter: { count?: number }): typeof fetch {
+  return (async (_input: string | URL | Request, init: RequestInit) => {
+    counter.count = (JSON.parse(String(init.body)) as { count: number }).count;
+    return new Response(JSON.stringify({ results: [] }), { status: 200 });
+  }) as typeof fetch;
+}
+
+/**
+ * Runs one pinned search round and returns the count that reached the API.
+ * The deviation line setup prints for these fixtures is expected behavior
+ * (asserted by its own tests), so it is captured rather than leaked.
+ */
+async function effectiveSearchCount(
+  xdg: string,
+  env: Record<string, string>,
+  options: Record<string, unknown>,
+): Promise<number> {
+  const counter: { count?: number } = {};
+  const { restore: restoreConsole } = captureErrors();
+  const restore = pinEnvironment(xdg, env);
+  try {
+    const captured = await setup(options, countingSearchFetch(counter));
+    assert.ok(captured.provider, "Search provider must be registered");
+    await captured.provider.execute({ query: "bun" }, { signal: new AbortController().signal });
+  } finally {
+    restore();
+    restoreConsole();
+  }
+  assert.ok(counter.count !== undefined, "Search request must be captured");
+  return counter.count;
 }
 
 describe("OpenCode plugin wiring", () => {
@@ -412,5 +487,66 @@ describe("OpenCode plugin wiring", () => {
     const webfetch = captured.tools.get("webfetch");
     expect(webfetch?.description).toContain(FETCH_MARKDOWN_ONLY);
     expect(webfetch?.description).toContain(FETCH_OUTPUT_TRUNCATED);
+  });
+});
+
+describe("option layering (defaults < shared file < environment < opencode.json options)", () => {
+  test("resolves file < DEEPSEEK_* environment < opencode.json options for the same key", async () => {
+    const xdg = xdgRoot({ count: 20 });
+
+    // File-only: the shared config file configures this host too.
+    expect(await effectiveSearchCount(xdg, { DEEPSEEK_API_KEY: "sk-test" }, {})).toBe(20);
+    // The environment outranks the file for the same key.
+    expect(await effectiveSearchCount(xdg, { DEEPSEEK_API_KEY: "sk-test", DEEPSEEK_SEARCH_COUNT: "30" }, {})).toBe(30);
+    // ctx.options keeps winning exactly as before.
+    expect(
+      await effectiveSearchCount(xdg, { DEEPSEEK_API_KEY: "sk-test", DEEPSEEK_SEARCH_COUNT: "30" }, { count: 5 }),
+    ).toBe(5);
+  });
+
+  test("registration keeps reading ctx.options only, with the file present", async () => {
+    const { restore: restoreConsole } = captureErrors();
+    const restore = pinEnvironment(xdgRoot({ count: 20 }));
+    try {
+      const captured = await setup({ setDefaultWebsearch: true, fetchRegisterTool: false });
+      expect(captured.defaultProvider).toBe("deepseek");
+      expect(captured.tool).toBeUndefined();
+      expect(captured.added).toEqual([]);
+      expect(captured.tools.get("webfetch")).toBe(captured.builtinWebfetch);
+    } finally {
+      restore();
+      restoreConsole();
+    }
+  });
+
+  test("no shared file keeps the current resolution", async () => {
+    expect(await effectiveSearchCount(xdgRoot(), { DEEPSEEK_API_KEY: "sk-test" }, {})).toBe(10);
+  });
+});
+
+describe("setup-time deviation summary", () => {
+  test("prints one config line when the layered resolution deviates from defaults", async () => {
+    const { lines, restore: restoreConsole } = captureErrors();
+    const restoreEnv = pinEnvironment(xdgRoot({ count: 20, language: "zh" }));
+    try {
+      await setup();
+    } finally {
+      restoreConsole();
+      restoreEnv();
+    }
+    expect(lines).toEqual(["deepseek-web-retrieval config: count=20 language=zh"]);
+  });
+
+  test("prints no config line when nothing deviates from defaults", async () => {
+    const { lines, restore: restoreConsole } = captureErrors();
+    const restoreEnv = pinEnvironment(xdgRoot());
+    try {
+      const captured = await setup();
+      expect(captured.provider?.id).toBe("deepseek");
+    } finally {
+      restoreConsole();
+      restoreEnv();
+    }
+    expect(lines).toEqual([]);
   });
 });

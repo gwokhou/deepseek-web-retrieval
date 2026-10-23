@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { createRetrievalClient } from "../../src/core/client";
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../../src/core/constants";
@@ -82,6 +85,45 @@ function capturingSearchFetch(bodies: unknown[]): typeof fetch {
     bodies.push(JSON.parse(String(init.body)));
     return new Response(JSON.stringify({ results: [] }), { status: 200 });
   }) as typeof fetch;
+}
+
+/** A fresh temp XDG root, optionally carrying a shared config file. */
+function xdgRoot(configFile?: Record<string, unknown>): string {
+  const xdg = mkdtempSync(join(tmpdir(), "dwr-pi-xdg-"));
+  if (configFile) {
+    mkdirSync(join(xdg, "deepseek-web-retrieval"), { recursive: true });
+    writeFileSync(join(xdg, "deepseek-web-retrieval", "config.json"), JSON.stringify(configFile));
+  }
+  return xdg;
+}
+
+/**
+ * Makes process.env hermetic for the extension entry point's own resolution:
+ * XDG_CONFIG_HOME pinned to the given root, the given DEEPSEEK_* overrides
+ * applied, every other DEEPSEEK_* variable cleared. Returns the restore.
+ */
+function pinEnvironment(xdg: string, env: Record<string, string> = {}): () => void {
+  const savedXdg = process.env.XDG_CONFIG_HOME;
+  const savedDeepseek = Object.entries(process.env).filter(([key]) => key.startsWith("DEEPSEEK_"));
+  process.env.XDG_CONFIG_HOME = xdg;
+  for (const [key] of savedDeepseek) delete process.env[key];
+  Object.assign(process.env, env);
+  return () => {
+    if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = savedXdg;
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("DEEPSEEK_")) delete process.env[key];
+    }
+    for (const [key, value] of savedDeepseek) process.env[key] = value;
+  };
+}
+
+/** Captures console.error lines so the deviation summary is asserted, not tolerated. */
+function captureErrors(): { lines: string[]; restore: () => void } {
+  const lines: string[] = [];
+  const originalError = console.error;
+  console.error = (line: string) => lines.push(line);
+  return { lines, restore: () => (console.error = originalError) };
 }
 
 describe("pi extension wiring", () => {
@@ -170,6 +212,61 @@ describe("pi extension wiring", () => {
         },
       },
     });
+  });
+});
+
+describe("pi option layering (defaults < shared file < environment < settings)", () => {
+  test("the environment outranks the file for the same key; settings stay on top for their switches", () => {
+    const xdg = xdgRoot({ count: 20, language: "zh" });
+    const env = { XDG_CONFIG_HOME: xdg, DEEPSEEK_SEARCH_COUNT: "30" };
+
+    const resolved = resolveExtensionOptions(env);
+    expect(resolved.search.count).toBe(30);
+    // A file-only key survives when the environment is silent about it.
+    expect(resolved.search.language).toBe("zh");
+
+    // The settings namespace remains the top layer for its two switches.
+    expect(resolved.search.enabled).toBe(true);
+    expect(resolveExtensionOptions(env, { enableSearch: false }).search.enabled).toBe(false);
+    expect(resolveExtensionOptions(env, { enableFetch: false }).fetch.enabled).toBe(false);
+  });
+
+  test("file-only keys are effective when the environment omits them", () => {
+    const resolved = resolveExtensionOptions({ XDG_CONFIG_HOME: xdgRoot({ count: 20 }) });
+    expect(resolved.search.count).toBe(20);
+  });
+
+  test("no shared file keeps the built-in defaults", () => {
+    const resolved = resolveExtensionOptions({ XDG_CONFIG_HOME: xdgRoot() });
+    expect(resolved.search.count).toBe(10);
+    expect(resolved.search.language).toBeUndefined();
+    expect(resolved.search.enabled).toBe(true);
+  });
+});
+
+describe("pi registration-time deviation summary", () => {
+  test("prints one config line when the layered resolution deviates from defaults", () => {
+    const { lines, restore: restoreConsole } = captureErrors();
+    const restoreEnv = pinEnvironment(xdgRoot({ count: 20, language: "zh" }));
+    try {
+      deepSeekWebRetrieval(fakePi().pi);
+    } finally {
+      restoreConsole();
+      restoreEnv();
+    }
+    expect(lines).toEqual(["deepseek-web-retrieval config: count=20 language=zh"]);
+  });
+
+  test("prints no config line when nothing deviates from defaults", () => {
+    const { lines, restore: restoreConsole } = captureErrors();
+    const restoreEnv = pinEnvironment(xdgRoot());
+    try {
+      deepSeekWebRetrieval(fakePi().pi);
+    } finally {
+      restoreConsole();
+      restoreEnv();
+    }
+    expect(lines).toEqual([]);
   });
 });
 

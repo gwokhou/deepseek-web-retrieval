@@ -5,6 +5,8 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import { apiKeyFromEnv } from "../core/auth";
 import type { RequestOptions, RetrievalClient } from "../core/client";
 import { inspectFetchTarget, retrievalClient } from "../core/client";
+import { sharedFileOptions } from "../core/config-file";
+import { configDeviations } from "../core/config-summary";
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants";
 import {
   FETCH_TOOL_DESCRIPTION,
@@ -59,14 +61,15 @@ const FETCH_OUTPUT = Type.Object({
 const NEVER_ABORTS = new AbortController().signal;
 
 /**
- * Resolves the extension's options: the shared DEEPSEEK_* environment
- * pipeline, with the settings namespace layered on top. Settings outrank the
- * environment because the installer wrote them as the explicit install-time
- * intent (the off tier lands there — the installer cannot write the shell
- * environment).
+ * Resolves the extension's options: defaults < shared config file < the shared
+ * DEEPSEEK_* environment pipeline < the settings namespace. The file's path
+ * follows the passed environment (XDG_CONFIG_HOME), so the function stays
+ * injectable. Settings outrank both lower layers because the installer wrote
+ * them as the explicit install-time intent (the off tier lands there — the
+ * installer cannot write the shell environment).
  */
 export function resolveExtensionOptions(env: Env = process.env, settings: ExtensionSettings = {}): ResolvedOptions {
-  const options: Record<string, unknown> = { ...pluginOptionsFromEnv(env) };
+  const options: Record<string, unknown> = { ...sharedFileOptions(env), ...pluginOptionsFromEnv(env) };
   if (settings.enableSearch === false) options.searchEnabled = false;
   if (settings.enableFetch === false) options.fetchEnabled = false;
   return resolvePluginOptions(options);
@@ -156,6 +159,11 @@ export default function deepSeekWebRetrieval(pi: ExtensionAPI): void {
   const config = resolveExtensionOptions(process.env, readExtensionSettings(homedir(), process.cwd()));
   const precheck = extensionPrecheck(config);
   if (precheck) throw new Error(precheck);
+  // Deviations only, printed once at registration: one stderr line so a
+  // multi-layer resolution is visible where Pi surfaces extension output;
+  // nothing deviating means no line at all (same contract as the MCP server).
+  const deviations = configDeviations(config);
+  if (deviations) console.error(`deepseek-web-retrieval config: ${deviations}`);
   if (config.search.enabled) pi.registerTool(searchTool(config));
   if (config.fetch.enabled) pi.registerTool(fetchTool(config));
 }
