@@ -15,6 +15,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { API_KEY_ENV } from "../../src/core/constants";
+import { OPTION_ENV_VARS } from "../../src/core/env";
 import { parseJsonc } from "../../src/core/jsonc";
 import { ApplyError, applyPlan } from "../../src/installer/apply";
 import { exitCodeForError, runInstallerCli } from "../../src/installer/cli";
@@ -241,11 +243,14 @@ describe("plans", () => {
       ?.ops.find((op) => op.op === "set" && op.path.join(".") === "mcp_servers.deepseek");
     const entry =
       setOp && "value" in setOp
-        ? (setOp.value as { disabled_tools?: string[]; env?: Record<string, string> })
+        ? (setOp.value as { disabled_tools?: string[]; env_vars?: string[]; env?: Record<string, string> })
         : undefined;
     // The user's own entry rides along; the stale deepseek_fetch (ours) is filtered so
     // only the off tier's choice is written fresh.
     expect(entry?.disabled_tools).toEqual(["their_tool", "deepseek_web_search"]);
+    // env_vars forwards the API key plus every DEEPSEEK_* option variable, so
+    // shell-set knobs reach the stdio child without hand-editing config.toml.
+    expect(entry?.env_vars).toEqual([API_KEY_ENV, ...OPTION_ENV_VARS]);
     expect(entry?.env).toBeUndefined();
     expect(plan.notes.join(" ")).toContain("disabled_tools");
     expect(plan.notes.join(" ")).toContain("deepseek_web_search");

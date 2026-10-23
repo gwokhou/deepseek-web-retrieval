@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { API_KEY_ENV } from "../../core/constants";
+import { OPTION_ENV_VARS } from "../../core/env";
 import { FORCED_COST_NOTE, othersStayRegisteredNote, replacingExistingEntryNote, splitCompetitors } from "../detect";
 import { codecFor } from "../formats";
 import { buildRulesBlock } from "../formats/rules";
@@ -111,7 +112,7 @@ export function planCodex(input: InstallerInput, _previous: InstallRecord | unde
     command: "npx",
     args: ["-y", input.packageRef],
     ...(keptDisabled.length > 0 || offDisabled.length > 0 ? { disabled_tools: [...keptDisabled, ...offDisabled] } : {}),
-    env_vars: [API_KEY_ENV],
+    env_vars: [API_KEY_ENV, ...OPTION_ENV_VARS],
   };
 
   const ops: ConfigOp[] = [{ op: "set", path: ["mcp_servers", "deepseek"], value: entry, previous: existingEntry }];
@@ -133,8 +134,9 @@ export function planCodex(input: InstallerInput, _previous: InstallRecord | unde
   edits.push({ file: paths.config, format: "toml", shared: true, ops });
 
   notes.push(
-    `Codex stdio children do not inherit the parent environment, so the entry forwards ${API_KEY_ENV} explicitly ` +
-      "via env_vars; the key must be set in the shell that launches Codex.",
+    `Codex stdio children do not inherit the parent environment, so the entry forwards ${API_KEY_ENV} and every ` +
+      "DEEPSEEK_* option variable explicitly via env_vars; shell-set knobs reach the server without hand-editing " +
+      "config.toml (the shared config file works without any forwarding).",
   );
   if (input.scope === "project") {
     notes.push(
