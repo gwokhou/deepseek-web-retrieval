@@ -11,6 +11,7 @@ import {
 import { codecFor } from "../formats";
 import { buildRulesBlock } from "../formats/rules";
 import { isPlainObject } from "../formats/value";
+import { samePackageName } from "../ownership";
 import { join } from "../paths";
 import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent";
 import { appendedByPrevious } from "../state";
@@ -60,14 +61,17 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
   const packages = Array.isArray(loaded.value.packages) ? loaded.value.packages : [];
   const source = piSourceRef(input.packageRef);
   // Precisely ours: what a tracked init appended, plus what this init would write.
-  // Only a tracked init can excuse a same-name source — without a record, even an
+  // Sources compare by package name (samePackageName), so a pinned source
+  // excuses the unpinned lineage a previous init wrote and vice versa. Only a
+  // tracked init can excuse a same-name source — without a record, even an
   // exact match is an untracked install this installer must not adopt silently.
   const trackedSources = appendedByPrevious(previous, ["packages"]).filter(
     (entry): entry is string => typeof entry === "string",
   );
-  const excused = previous === undefined ? new Set<string>() : new Set<string>([...trackedSources, source]);
   const sources = packages.filter((entry): entry is string => typeof entry === "string");
-  const foreignOwn = sources.filter((entry) => looksLikeOwnPackage(entry) && !excused.has(entry));
+  const excusedSources = previous === undefined ? [] : [...trackedSources, source];
+  const isExcusedSource = (entry: string) => excusedSources.some((excused) => samePackageName(excused, entry));
+  const foreignOwn = sources.filter((entry) => looksLikeOwnPackage(entry) && !isExcusedSource(entry));
   if (foreignOwn.length > 0) {
     errors.push({
       message:
@@ -75,7 +79,7 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
         "write. Remove it (pi remove <source>, or uninstall if it came from a previous init), then retry.",
     });
   }
-  if (previous !== undefined && sources.some((entry) => excused.has(entry))) {
+  if (previous !== undefined && sources.some((entry) => isExcusedSource(entry))) {
     notes.push(
       "A previous init wrote the packages entry; re-applying reuses it (an unchanged source deduplicates, a changed " +
         "--package ref replaces the old source) and the original snapshots carry over.",
@@ -87,9 +91,9 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
     // Pi has no per-package kill switch in settings.json, so a web-capable
     // package or extension source cannot be excluded from the plan — refuse the
     // tier instead of promising routing that is not actually forced.
-    const ownSources = new Set<string>([...trackedSources, source]);
+    const ownSources = [...trackedSources, source];
     const unexcludable = [...collectSources(loaded.value.packages), ...collectSources(loaded.value.extensions)].filter(
-      (entry) => !ownSources.has(entry) && looksWebCapable(entry, undefined),
+      (entry) => !ownSources.some((own) => samePackageName(own, entry)) && looksWebCapable(entry, undefined),
     );
     if (unexcludable.length > 0) {
       errors.push({

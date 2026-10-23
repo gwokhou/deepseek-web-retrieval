@@ -42,7 +42,9 @@ npx deepseek-web-retrieval init --host pi --scope <project|global> \
 ```
 
 It prints the full plan — every file, old value → new value, and notes about existing
-packages and MCP servers — and writes nothing until you pass `--apply`. The default path is
+packages and MCP servers — and writes nothing until you pass `--apply`. Add `--pin` to
+register the exact version of the CLI you are running instead of the always-latest
+package name. The default path is
 the extension: the plan appends `npm:deepseek-web-retrieval` to the `packages` array in
 `~/.pi/agent/settings.json` (global) or `.pi/settings.json` (project), and Pi resolves the
 source at the next session start (the first launch fetches the package from npm;

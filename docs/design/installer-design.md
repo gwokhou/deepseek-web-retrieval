@@ -198,6 +198,14 @@ into any existing `permissions` array rather than replacing it.
   documents a layer above user config, so there is nothing to check there yet.
 - Only a bare `--apply` enables writes; assigning a value such as `--apply=false`
   is a usage error and writes nothing.
+- `--pin` is opt-in version pinning: the ref written into host config gets the
+  running CLI's version appended (`name` becomes `name@<version>`; a ref already
+  ending in a version keeps it), so a host resolves that exact release instead of
+  the latest publish. Without the flag the ref stays unpinned, byte-identical to
+  before; re-running `init --pin` from a newer CLI moves the pin. Ref identity —
+  orphan, upgrade, and unexcludable-competitor detection — compares package names
+  with the `@version` suffix stripped (`samePackageName` in ownership.ts), so a
+  pinned ref still matches the lineage an earlier init registered.
 - File verification precedes the install-record commit. A write or verification
   failure restores the pre-apply files and record and checks the restored values.
   `ApplyError.status` is `rolled_back` only after recovery and new-claim cleanup

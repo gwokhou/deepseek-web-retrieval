@@ -7,6 +7,44 @@ import type { InstallerInput, RecordedFile, Scope } from "./types";
 
 type ClaimedFile = Pick<RecordedFile, "file" | "format" | "shared">;
 
+/**
+ * True when a ref's final `@` segment is a version spec — it starts with a digit
+ * (`name@<version>`, `npm:name@<version>`) — and not an npm scope
+ * (`@scope/name`, whose only `@` leads the string) or a dist-tag (`name@canary`).
+ */
+function hasVersionSuffix(ref: string): boolean {
+  const at = ref.lastIndexOf("@");
+  return at > 0 && /^[0-9]/.test(ref.slice(at + 1));
+}
+
+function stripVersionSuffix(ref: string): string {
+  const at = ref.lastIndexOf("@");
+  return hasVersionSuffix(ref) ? ref.slice(0, at) : ref;
+}
+
+/**
+ * Package-ref identity, the one comparison for "is this entry our package":
+ * two refs are the same package when they are equal after stripping a trailing
+ * `@version` suffix, so a pinned ref (`deepseek-web-retrieval@<version>`,
+ * `npm:deepseek-web-retrieval@<version>`) still matches its lineage
+ * (`deepseek-web-retrieval`). Forks, dist-tags, and lookalike names compare
+ * unequal. Everywhere a recorded or configured ref is matched against this
+ * install's ref — orphan detection, upgrade detection — goes through this
+ * helper instead of exact string equality.
+ */
+export function samePackageName(a: string, b: string): boolean {
+  return stripVersionSuffix(a) === stripVersionSuffix(b);
+}
+
+/**
+ * The `--pin` rule: append the running CLI's version to the ref unless its
+ * final `@` segment already is a version (`name` → `name@<version>`; a ref
+ * already ending in a version keeps it).
+ */
+export function pinPackageRef(ref: string, version: string): string {
+  return hasVersionSuffix(ref) ? ref : `${ref}@${version}`;
+}
+
 interface FileOwner {
   readonly recordPath: string;
   readonly scope: Scope;

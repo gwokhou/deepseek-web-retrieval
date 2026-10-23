@@ -29,11 +29,13 @@ import { planForHost } from "../../src/installer/hosts";
 import { parseCodexVersion, planCodex } from "../../src/installer/hosts/codex";
 import { planOpenCode } from "../../src/installer/hosts/opencode";
 import { planPi } from "../../src/installer/hosts/pi";
+import { samePackageName } from "../../src/installer/ownership";
 import * as persistence from "../../src/installer/persistence";
 import { renderPlan } from "../../src/installer/render";
 import { claimedByOtherScope, listRecords, readRecord, statePathFor, writeRecord } from "../../src/installer/state";
 import type { ConfigOp, InstallerInput, JsonEdit, RecordedFile, RulesEdit, TomlEdit } from "../../src/installer/types";
 import { uninstall } from "../../src/installer/uninstall";
+import { TOOL_VERSION } from "../../src/version";
 
 const homes: string[] = [];
 const cwds: string[] = [];
@@ -1761,6 +1763,219 @@ describe("self-package detection", () => {
       JSON.stringify({ plugins: [{ package: "deepseek-web-retrieval-extra" }] }, null, 2),
     );
     expect(planOpenCode(input, readRecord(input)).errors).toEqual([]);
+  });
+});
+
+describe("pinned package refs (--pin)", () => {
+  const pinned = `deepseek-web-retrieval@${TOOL_VERSION}`;
+
+  test("samePackageName: a version suffix is the only difference that compares equal", () => {
+    expect(samePackageName(pinned, "deepseek-web-retrieval")).toBe(true);
+    expect(samePackageName(`npm:${pinned}`, "npm:deepseek-web-retrieval")).toBe(true);
+    expect(samePackageName(pinned, pinned)).toBe(true);
+    expect(samePackageName("@scope/deepseek-web-retrieval@1.2.3", "@scope/deepseek-web-retrieval")).toBe(true);
+    expect(samePackageName("deepseek-web-retrieval@canary", "deepseek-web-retrieval")).toBe(false);
+    expect(samePackageName("deepseek-web-retrieval-extra", "deepseek-web-retrieval")).toBe(false);
+    expect(samePackageName("@scope/deepseek-web-retrieval", "deepseek-web-retrieval")).toBe(false);
+    expect(samePackageName("my-web-search-fork@1.2.3", "my-web-search-fork@1.2.4")).toBe(true);
+  });
+
+  test("init --pin writes the running version into each host's registration", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-pin-home-"));
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-pin-cwd-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = home;
+    const output: string[] = [];
+    const io = { out: (line: string) => output.push(line), err: (line: string) => output.push(line) };
+    const init = (host: string) =>
+      runInstallerCli(
+        [
+          "init",
+          "--host",
+          host,
+          "--scope",
+          "project",
+          "--search",
+          "optional",
+          "--fetch",
+          "optional",
+          "--cwd",
+          cwd,
+          "--pin",
+          "--apply",
+        ],
+        io,
+      );
+    try {
+      expect(await init("pi")).toBe(0);
+      expect(
+        (parseJsonc(readFileSync(join(cwd, ".pi/settings.json"), "utf8")) as { packages: string[] }).packages,
+      ).toEqual([`npm:${pinned}`]);
+
+      expect(await init("opencode")).toBe(0);
+      const ocConfig = parseJsonc(readFileSync(join(cwd, "opencode.jsonc"), "utf8")) as {
+        plugins: { package: string; options: Record<string, unknown> }[];
+      };
+      expect(ocConfig.plugins).toEqual([{ package: pinned, options: {} }]);
+
+      output.length = 0;
+      expect(await init("codex")).toBe(0);
+      // The plan preview itself carries the pinned ref, not just the written file.
+      expect(output.join("\n")).toContain(pinned);
+      expect(output.join("\n")).not.toContain('"deepseek-web-retrieval"]');
+      const toml = readFileSync(join(home, ".codex/config.toml"), "utf8");
+      expect(toml).toContain(`"${pinned}"`);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+    }
+  });
+
+  test("--pin appends the version to a custom --package ref but never a second suffix", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-pin2-home-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = home;
+    const output: string[] = [];
+    const io = { out: (line: string) => output.push(line), err: (line: string) => output.push(line) };
+    const initAt = (cwd: string, extra: readonly string[]) =>
+      runInstallerCli(
+        [
+          "init",
+          "--host",
+          "pi",
+          "--scope",
+          "project",
+          "--search",
+          "optional",
+          "--fetch",
+          "optional",
+          "--path",
+          "mcp",
+          "--cwd",
+          cwd,
+          "--pin",
+          ...extra,
+          "--apply",
+        ],
+        io,
+      );
+    try {
+      const bare = mkdtempSync(join(tmpdir(), "dwr-pin2-bare-"));
+      expect(await initAt(bare, ["--package", "custom-web-search"])).toBe(0);
+      const bareEntry = JSON.parse(readFileSync(join(bare, ".pi/mcp.json"), "utf8")) as {
+        mcpServers: { deepseek: { args: string[] } };
+      };
+      expect(bareEntry.mcpServers.deepseek.args).toEqual(["-y", `custom-web-search@${TOOL_VERSION}`]);
+
+      const versioned = mkdtempSync(join(tmpdir(), "dwr-pin2-versioned-"));
+      expect(await initAt(versioned, ["--package", "custom-web-search@1.2.3"])).toBe(0);
+      const versionedEntry = JSON.parse(readFileSync(join(versioned, ".pi/mcp.json"), "utf8")) as {
+        mcpServers: { deepseek: { args: string[] } };
+      };
+      expect(versionedEntry.mcpServers.deepseek.args).toEqual(["-y", "custom-web-search@1.2.3"]);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+    }
+  });
+
+  test("without --pin the default ref is written unpinned, byte-identical to before", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dwr-unpin-home-"));
+    const cwd = mkdtempSync(join(tmpdir(), "dwr-unpin-cwd-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = home;
+    const output: string[] = [];
+    try {
+      expect(
+        await runInstallerCli(
+          [
+            "init",
+            "--host",
+            "pi",
+            "--scope",
+            "project",
+            "--search",
+            "optional",
+            "--fetch",
+            "optional",
+            "--path",
+            "mcp",
+            "--cwd",
+            cwd,
+            "--apply",
+          ],
+          { out: (line: string) => output.push(line), err: (line: string) => output.push(line) },
+        ),
+      ).toBe(0);
+      const entry = JSON.parse(readFileSync(join(cwd, ".pi/mcp.json"), "utf8")) as {
+        mcpServers: { deepseek: { args: string[] } };
+      };
+      expect(entry.mcpServers.deepseek.args).toEqual(["-y", "deepseek-web-retrieval"]);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+    }
+  });
+
+  test("pi: --pin over an unpinned install replaces the source instead of keeping both", () => {
+    const input = makeInput("pi", "project", "optional", "optional");
+    applyPlan(planForHost("pi", input), input);
+    const settings = join(input.cwd, ".pi/settings.json");
+    expect((parseJsonc(readFileSync(settings, "utf8")) as { packages: string[] }).packages).toEqual([
+      "npm:deepseek-web-retrieval",
+    ]);
+    const pinnedInput = { ...input, packageRef: pinned };
+    applyPlan(planForHost("pi", pinnedInput), pinnedInput);
+    expect((parseJsonc(readFileSync(settings, "utf8")) as { packages: string[] }).packages).toEqual([`npm:${pinned}`]);
+    uninstall(pinnedInput);
+    expect(existsSync(settings)).toBe(false);
+  });
+
+  test("pi: a pinned re-init adopts a version variant of the tracked lineage", () => {
+    const input = makeInput("pi", "project", "optional", "optional");
+    applyPlan(planForHost("pi", input), input);
+    const settings = join(input.cwd, ".pi/settings.json");
+    // The config carries a versioned form of the same source — hand-edited or
+    // left by an older pinned run — that matches neither the tracked entry nor
+    // this init's ref exactly; package-name identity must adopt it.
+    writeFileSync(settings, JSON.stringify({ packages: ["npm:deepseek-web-retrieval@0.5.9"] }, null, 2));
+    const pinnedInput = { ...input, packageRef: pinned };
+    const plan = planForHost("pi", pinnedInput);
+    expect(plan.errors).toEqual([]);
+    expect(plan.notes.join(" ")).toContain("A previous init wrote the packages entry");
+  });
+
+  test("pi: an unpinned re-init adopts a pinned lineage", () => {
+    const input = makeInput("pi", "project", "optional", "optional");
+    const pinnedInput = { ...input, packageRef: pinned };
+    applyPlan(planForHost("pi", pinnedInput), pinnedInput);
+    const settings = join(input.cwd, ".pi/settings.json");
+    writeFileSync(settings, JSON.stringify({ packages: ["npm:deepseek-web-retrieval@0.5.9"] }, null, 2));
+    expect(planForHost("pi", input).errors).toEqual([]);
+  });
+
+  test("pi forced: a version variant of the tracked source is not an unexcludable competitor", () => {
+    const fork = makeInput("pi", "project", "optional", "optional");
+    const oldPin = { ...fork, packageRef: "my-web-search-fork@1.2.3" };
+    applyPlan(planForHost("pi", oldPin), oldPin);
+    const settings = join(fork.cwd, ".pi/settings.json");
+    writeFileSync(settings, JSON.stringify({ packages: ["npm:my-web-search-fork@1.2.4"] }, null, 2));
+    const newPin = { ...fork, packageRef: "my-web-search-fork@1.2.5", search: "forced" as const };
+    expect(planForHost("pi", newPin).errors).toEqual([]);
+  });
+
+  test("opencode: a pinned re-init adopts a version variant of the tracked lineage", () => {
+    const input = makeInput("opencode", "project", "optional", "optional");
+    applyPlan(planForHost("opencode", input), input);
+    const config = join(input.cwd, "opencode.jsonc");
+    writeFileSync(
+      config,
+      JSON.stringify({ plugins: [{ package: "deepseek-web-retrieval@0.5.9", options: {} }] }, null, 2),
+    );
+    const pinnedInput = { ...input, packageRef: pinned };
+    const plan = planForHost("opencode", pinnedInput);
+    expect(plan.errors).toEqual([]);
+    expect(plan.notes.join(" ")).toContain("A previous init wrote the plugins entry");
   });
 });
 

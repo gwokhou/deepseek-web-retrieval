@@ -6,6 +6,7 @@ import { TOOL_VERSION } from "../version";
 import { ApplyError, applyPlan } from "./apply";
 import { runConfigCommand } from "./config-command";
 import { HOST_PLANNERS, HOST_VERSION_PROBES, planForHost } from "./hosts";
+import { pinPackageRef } from "./ownership";
 import { renderPlan } from "./render";
 import { legacyGlobalStateDir, listRecords, readingLegacyGlobalRecords } from "./state";
 import type { HostName, InstallerInput, Scope, Tier } from "./types";
@@ -23,7 +24,7 @@ const EXIT_RECOVERY = 3;
 const USAGE = `Usage:
   deepseek-web-retrieval init --host ${HOST_CHOICES} --scope <project|global> \
 --search <optional|preferred|forced|off> --fetch <optional|preferred|forced|off> \
-[--path <extension|mcp>] [--package <npm ref>] [--cwd <dir>] [--apply]
+[--path <extension|mcp>] [--package <npm ref>] [--pin] [--cwd <dir>] [--apply]
   deepseek-web-retrieval uninstall --host ${HOST_CHOICES} --scope <project|global> [--cwd <dir>]
   deepseek-web-retrieval list [--cwd <dir>]
   deepseek-web-retrieval config [--search <query>]
@@ -35,7 +36,9 @@ the integration mechanism for hosts with more than one (Pi: extension by
 default, mcp for the stdio MCP server). --package overrides the package ref
 written into host config; the Pi extension path turns it into the packages
 source (a bare name is prefixed with npm:, a ref that already starts with npm:
-is written as-is).
+is written as-is). --pin appends the running CLI's version to the package ref
+(a ref already ending in a version keeps it), so hosts resolve that exact
+release instead of the latest publish; re-run init --pin to move the pin.
 
 config prints the effective configuration — every knob with its value and its
 source (default, shared file, or environment), resolved the way the MCP server
@@ -56,7 +59,7 @@ interface Flags {
 }
 
 const VALUE_FLAGS = new Set(["host", "scope", "search", "fetch", "path", "package", "cwd"]);
-const BOOLEAN_FLAGS = new Set(["apply"]);
+const BOOLEAN_FLAGS = new Set(["apply", "pin"]);
 const PATH_CHOICES: readonly ["extension", "mcp"] = ["extension", "mcp"];
 
 function parseFlags(args: readonly string[]): Flags {
@@ -290,6 +293,7 @@ function requireInput(
   }
   if (home === "") problems.push("HOME is not set and the user home cannot be resolved; cannot proceed");
   if (problems.length > 0) return { ok: false, problems };
+  const packageRef = flags.values.get("package") ?? "deepseek-web-retrieval";
   return {
     ok: true,
     input: {
@@ -297,7 +301,7 @@ function requireInput(
       scope: scope as Scope,
       search: search as Tier,
       fetch: fetch as Tier,
-      packageRef: flags.values.get("package") ?? "deepseek-web-retrieval",
+      packageRef: flags.booleans.has("pin") ? pinPackageRef(packageRef, TOOL_VERSION) : packageRef,
       home,
       cwd,
       configHome,

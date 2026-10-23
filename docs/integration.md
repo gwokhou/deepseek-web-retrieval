@@ -94,9 +94,12 @@ For an installation managed by `init`:
    needed for uninstall. A global install can still claim shared configuration from a
    particular project, so keep the original working directory for upgrades.
 3. Refresh the package in the host and start or reload a session as described in its
-   guide. For Pi's extension path, use `pi update --extensions`. If you pin the host's
-   package version, pass the desired `--package deepseek-web-retrieval@X.Y.Z` to init;
-   updating the CLI alone does not update an independently pinned host package.
+   guide. For Pi's extension path, use `pi update --extensions`. To pin the host's
+   package to the exact version being run, pass `--pin` to init (it writes
+   `deepseek-web-retrieval@X.Y.Z` into the registration); upgrading a pinned install
+   means re-running init with the newer CLI, since updating the CLI alone does not
+   move an independently pinned host package. `--package` still overrides the ref
+   entirely.
 
 When upgrading from 0.4.0, Pi's default changes from MCP to the native extension.
 Pass `--path mcp` explicitly to retain MCP, or `--path extension` to migrate; the plan

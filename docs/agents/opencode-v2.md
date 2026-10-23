@@ -38,7 +38,8 @@ npx deepseek-web-retrieval init --host opencode --scope <project|global> \
 ```
 
 It prints the full plan — every file, old value → new value — and writes nothing until
-you pass `--apply`. It snapshots the current `websearch.provider` before the forced tier
+you pass `--apply`. Add `--pin` to register the exact version of the CLI you are running
+instead of the always-latest package name. It snapshots the current `websearch.provider` before the forced tier
 replaces it, merges `permissions` without touching yours, preserves comments in
 `opencode.jsonc`, and `uninstall` restores recorded values that have not since been edited.
 Search has no `preferred` tier on OpenCode (the provider is host-level config, never a

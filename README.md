@@ -89,7 +89,10 @@ Plan only — re-run with --apply to write these changes.
 
 Repeat your chosen command with `--apply` to write the plan. The host guides explain
 activation steps and per-host tier limits. Pi defaults to the extension path; add
-`--path mcp` to use its MCP fallback.
+`--path mcp` to use its MCP fallback. Add `--pin` to register the exact version of the
+CLI you are running (`deepseek-web-retrieval@<version>`) instead of the unpinned name,
+so hosts keep resolving that release rather than every latest publish — reproducible
+setups trade away auto-updates; re-run `init --pin` from a newer CLI to move the pin.
 
 Other stdio MCP hosts may use the server, but the supported setup guides and installer
 currently cover the three hosts above. See the [integration model](docs/integration.md)

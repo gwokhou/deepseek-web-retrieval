@@ -44,7 +44,9 @@ npx deepseek-web-retrieval init --host codex --scope global \
 ```
 
 It prints the full plan — every file, old value → new value, and notes about existing
-MCP servers — and writes nothing until you pass `--apply`. `uninstall` removes recorded
+MCP servers — and writes nothing until you pass `--apply`. Add `--pin` to register the
+exact version of the CLI you are running instead of the always-latest package name.
+`uninstall` removes recorded
 additions and restores snapshotted values that have not since been edited. Codex's config
 lives in `~/.codex/config.toml` at the user level only, so the server registration and kill switch
 are written there even for `--scope project`; the rules file follows the scope. An `off`

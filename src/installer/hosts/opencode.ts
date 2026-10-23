@@ -2,6 +2,7 @@ import { FORCED_COST_NOTE, looksLikeOwnPackage } from "../detect";
 import { codecFor } from "../formats";
 import { buildRulesBlock } from "../formats/rules";
 import { isPlainObject } from "../formats/value";
+import { samePackageName } from "../ownership";
 import { configHome, join } from "../paths";
 import { rulesLines } from "../rulesContent";
 import { appendedByPrevious } from "../state";
@@ -44,8 +45,10 @@ export function planOpenCode(input: InstallerInput, previous: InstallRecord | un
 
   const plugins = Array.isArray(loaded.value.plugins) ? loaded.value.plugins : [];
   // Precisely ours: plugin packages a tracked init appended, plus this init's ref.
-  // Without a record nothing is excused — an untracked same-name plugin (a fork
-  // registers the same tool ids and would collide) must be removed first.
+  // Refs compare by package name (samePackageName), so a pinned ref excuses the
+  // unpinned lineage a previous init wrote and vice versa. Without a record
+  // nothing is excused — an untracked same-name plugin (a fork registers the
+  // same tool ids and would collide) must be removed first.
   const trackedPackages = new Set(
     appendedByPrevious(previous, ["plugins"])
       .filter((entry): entry is { package: string } => isPlainObject(entry) && typeof entry.package === "string")
@@ -54,9 +57,10 @@ export function planOpenCode(input: InstallerInput, previous: InstallRecord | un
   const pluginPackages = plugins.filter(
     (entry): entry is { package: string } => isPlainObject(entry) && typeof entry.package === "string",
   );
-  const excused = previous === undefined ? new Set<string>() : new Set<string>([...trackedPackages, input.packageRef]);
+  const excusedRefs = previous === undefined ? [] : [...trackedPackages, input.packageRef];
+  const isExcusedRef = (ref: string) => excusedRefs.some((excused) => samePackageName(excused, ref));
   const foreignOwn = pluginPackages.filter(
-    (entry) => looksLikeOwnPackage(entry.package) && !excused.has(entry.package),
+    (entry) => looksLikeOwnPackage(entry.package) && !isExcusedRef(entry.package),
   );
   if (foreignOwn.length > 0) {
     errors.push({
@@ -65,7 +69,7 @@ export function planOpenCode(input: InstallerInput, previous: InstallRecord | un
         "write. Remove it (or run uninstall if it came from a previous init), then retry.",
     });
   }
-  if (previous !== undefined && pluginPackages.some((entry) => excused.has(entry.package))) {
+  if (previous !== undefined && pluginPackages.some((entry) => isExcusedRef(entry.package))) {
     notes.push(
       "A previous init wrote the plugins entry; re-applying keeps it the only entry (a changed package ref or tier " +
         "options replace it, an unchanged one is a no-op) and the original snapshots carry over.",
