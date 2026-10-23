@@ -67,11 +67,17 @@ export function processResults(raw: readonly DeepSeekSearchResult[], options: Se
     const content = truncate(optionalText(item.summary) ?? optionalText(item.snippet) ?? "", options.maxSummaryChars);
     const published = parsePublished(item.date);
     const title = optionalText(item.title);
+    const rerankScore = typeof rerank === "number" && Number.isFinite(rerank) ? rerank : undefined;
+    const authorityScore = typeof authority === "number" && Number.isFinite(authority) ? authority : undefined;
+    const siteName = optionalText(item.site_name);
     results.push({
       url,
       ...(title ? { title } : {}),
       ...(content ? { content } : {}),
       ...(published !== undefined ? { published } : {}),
+      ...(rerankScore !== undefined ? { rerankScore } : {}),
+      ...(authorityScore !== undefined ? { authority: authorityScore } : {}),
+      ...(siteName ? { siteName } : {}),
     });
   }
 

@@ -151,7 +151,14 @@ describe("OpenCode plugin wiring", () => {
       return new Response(
         JSON.stringify({
           results: [
-            { url: "https://a", title: "A", summary: "summary", rerank_score: 2.5, authority: 3 },
+            {
+              url: "https://a",
+              title: "A",
+              summary: "summary",
+              rerank_score: 2.5,
+              authority: 3,
+              site_name: "GitHub",
+            },
             { url: "https://b", title: "B", summary: "low", rerank_score: 1, authority: 4 },
           ],
         }),
@@ -164,8 +171,8 @@ describe("OpenCode plugin wiring", () => {
     const results = await captured.provider.execute({ query: "bun" }, { signal: new AbortController().signal });
 
     expect(results).toEqual([
-      { url: "https://a/", title: "A", content: "summary", time: {} },
-      { url: "https://b/", title: "B", content: "low", time: {} },
+      { url: "https://a/", title: "A", content: "summary [rerank 2.5 · authority 3 · GitHub]", time: {} },
+      { url: "https://b/", title: "B", content: "low [rerank 1 · authority 4]", time: {} },
     ]);
     assert.ok(request, "Search request must be captured");
     expect(request.url).toBe("https://api.deepseek.com/v1/tools/search");
@@ -175,6 +182,30 @@ describe("OpenCode plugin wiring", () => {
       need_content: false,
     });
     expect((request.init.headers as Record<string, string>).Authorization).toBe("Bearer sk-test");
+  });
+
+  test("search appends the quality marker to the content string without unknown fields", async () => {
+    process.env.DEEPSEEK_API_KEY = "sk-test";
+    const fetchImpl = (async () =>
+      new Response(
+        JSON.stringify({
+          results: [
+            { url: "https://u", title: "U", summary: "snip", rerank_score: 1.9, authority: -1 },
+            { url: "https://bare", title: "Bare" },
+          ],
+        }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+
+    const captured = await setup({}, fetchImpl);
+    assert.ok(captured.provider, "Search provider must be registered");
+    const results = (await captured.provider.execute(
+      { query: "quality" },
+      { signal: new AbortController().signal },
+    )) as { url: string; title?: string; content?: string; time: unknown }[];
+
+    expect(results[0]).toEqual({ url: "https://u/", title: "U", content: "snip [rerank 1.9]", time: {} });
+    expect(results[1]).toEqual({ url: "https://bare/", title: "Bare", time: {} });
   });
 
   test("uses the DeepSeek credential stored by OpenCode when env is absent", async () => {

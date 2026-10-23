@@ -169,6 +169,10 @@ Fetch https://opencode.ai/v2/docs/build/plugins and summarize the plugin lifecyc
 The model calls `websearch` (provider `deepseek`) or `deepseek_fetch`. When
 `fetchOverrideWebfetch` is enabled, Markdown fetches go through `webfetch` instead.
 
+DeepSeek's optional `ori_question` is not sent on this path: OpenCode's `websearch` tool
+input is fixed to `query` at 2.0.32, so the provider has no channel for it (see the
+[research note](../research/ori-question-sourcing.md)).
+
 ## Configuration
 
 Set these in the plugin's `options` object.
@@ -186,6 +190,7 @@ Set these in the plugin's `options` object.
 | `blockedDomains` | `[]` | Add `-site:` operators to the search query. |
 | `includeDomains` | `[]` | Restrict results with `site:` operators. |
 | `language` | unset | Add a `lang:` operator, for example `zh,en`. |
+| `searchLocalization` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
 | `maxSummaryChars` | `1200` | Per-result summary cap, 0–1,000,000. |
 | `searchTimeoutMs` | `30000` | Search timeout, 1,000–120,000 ms. |
 | `setDefaultWebsearch` | `false` | Make `deepseek` the default websearch provider when the plugin loads. |

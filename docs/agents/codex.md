@@ -142,6 +142,10 @@ Fetch https://learn.chatgpt.com/docs/extend/mcp and summarize the config keys.
 
 The model calls `mcp__deepseek__deepseek_web_search` or `mcp__deepseek__deepseek_fetch`.
 
+The search tool accepts an optional `original_question` argument — the user's question in
+their own words — forwarded as DeepSeek's `ori_question` to sharpen search intent; omit it
+when the query already stands alone.
+
 ## Configuration
 
 Set these in the server's `env` table. Values map onto the shared option pipeline, so
@@ -160,6 +164,7 @@ defaults and clamping match the other adapters. `DEEPSEEK_API_KEY` goes in `env_
 | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset | Comma-separated; adds `-site:` operators to the query. |
 | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Comma-separated; restricts results with `site:` operators. |
 | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Adds a `lang:` operator, for example `zh,en`. |
+| `DEEPSEEK_SEARCH_LOCALIZATION` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
 | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `1200` | Per-result summary cap, 0–1,000,000. |
 | `DEEPSEEK_SEARCH_TIMEOUT_MS` | `30000` | Search timeout, 1,000–120,000 ms. |
 

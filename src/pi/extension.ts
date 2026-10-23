@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { Type } from "@earendil-works/pi-ai";
-import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { apiKeyFromEnv } from "../core/auth";
 import type { RequestOptions, RetrievalClient } from "../core/client";
@@ -9,6 +9,7 @@ import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/consta
 import {
   FETCH_TOOL_DESCRIPTION,
   FETCH_URL_PARAMETER,
+  SEARCH_ORI_QUESTION_PARAMETER,
   SEARCH_QUERY_PARAMETER,
   SEARCH_TOOL_DESCRIPTION,
 } from "../core/descriptions";
@@ -22,6 +23,11 @@ import { readExtensionSettings, SETTINGS_NAMESPACE } from "./settings";
 
 const SEARCH_PARAMETERS = Type.Object({
   query: Type.String({ minLength: 1, description: SEARCH_QUERY_PARAMETER }),
+  original_question: Type.Optional(
+    Type.String({
+      description: `${SEARCH_ORI_QUESTION_PARAMETER} When left blank, the most recent user message in the session is sent instead, truncated to fit.`,
+    }),
+  ),
 });
 
 const SEARCH_OUTPUT = Type.Object({
@@ -31,6 +37,9 @@ const SEARCH_OUTPUT = Type.Object({
       title: Type.Optional(Type.String()),
       content: Type.Optional(Type.String()),
       published: Type.Optional(Type.Number()),
+      rerankScore: Type.Optional(Type.Number()),
+      authority: Type.Optional(Type.Number()),
+      siteName: Type.Optional(Type.String()),
     }),
   ),
 });
@@ -83,9 +92,15 @@ export function searchTool(config: ResolvedOptions, client: RetrievalClient = re
     outputSchema: SEARCH_OUTPUT,
     annotations: { readOnlyHint: true, openWorldHint: true },
     exposure: "direct",
-    async execute(_toolCallId, params, signal): Promise<AgentToolResult> {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx): Promise<AgentToolResult> {
       try {
-        const results = await client.searchWeb(params.query, config.search, requestContext(config, signal));
+        // The explicit parameter wins; only when the model left it blank does
+        // the session fallback get a say.
+        const explicit = params.original_question?.trim() ? params.original_question : undefined;
+        const results = await client.searchWeb(params.query, config.search, {
+          ...requestContext(config, signal),
+          oriQuestion: explicit ?? sessionOriQuestion(ctx),
+        });
         return {
           content: [{ type: "text", text: formatSearchResults(results) }],
           structuredContent: { results: results.map(toStructuredResult) },
@@ -147,6 +162,52 @@ export default function deepSeekWebRetrieval(pi: ExtensionAPI): void {
 
 function requestContext(config: ResolvedOptions, signal: AbortSignal | undefined): RequestOptions {
   return { signal: signal ?? NEVER_ABORTS, auth: { apiKey: requireApiKey() }, retry: config.retry };
+}
+
+/**
+ * Best-effort `ori_question` fallback for when the model left the tool input
+ * blank: the most recent user message text in the session projection, readable
+ * synchronously at call time. Best-effort is the contract — Pi's runtime may
+ * call `execute` without a context (the fifth argument is typed non-optional
+ * but `wrapToolDefinition` passes `ctx ?? ctxFactory?.()`), and any surprise
+ * (missing manager, thrown error, odd shape) must degrade to "no fallback"
+ * rather than fail the search itself. Length handling stays in the core
+ * client, which trims and clamps to the API's 128-char budget.
+ */
+function sessionOriQuestion(ctx: ExtensionToolContext | undefined): string | undefined {
+  try {
+    const messages = ctx?.sessionManager?.buildSessionProjection()?.messages;
+    if (!Array.isArray(messages)) return undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const text = userMessageText(messages[i]);
+      if (text !== undefined) return text;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The trimmed text of a user message's string or `text`-block content, if any. */
+function userMessageText(message: unknown): string | undefined {
+  if (typeof message !== "object" || message === null) return undefined;
+  const { role, content } = message as { role?: unknown; content?: unknown };
+  if (role !== "user") return undefined;
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((part) =>
+              typeof part === "object" && part !== null && (part as { type?: unknown }).type === "text"
+                ? (part as { text?: unknown }).text
+                : undefined,
+            )
+            .filter((part): part is string => typeof part === "string")
+            .join(" ")
+        : undefined;
+  const trimmed = text?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function requireApiKey(): string {

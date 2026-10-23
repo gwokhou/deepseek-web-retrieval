@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import {
   DEFAULT_API_KEY_SOURCE,
   DEFAULT_FETCH_MAX_CHARS,
@@ -44,6 +45,7 @@ export function resolveSearchOptions(input?: PluginOptions): SearchOptions {
     blockedDomains: normalizeDomains(input?.blockedDomains),
     includeDomains: normalizeDomains(input?.includeDomains),
     language: optionalText(input?.language),
+    localization: localizationValue(input?.searchLocalization),
     maxSummaryChars: clampInt(input?.maxSummaryChars, DEFAULT_MAX_SUMMARY_CHARS, 0, 1_000_000),
     timeoutMs: clampInt(input?.searchTimeoutMs, DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS),
     enabled: input?.searchEnabled !== false,
@@ -91,6 +93,19 @@ function optionalText(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+/**
+ * Constraint: only a valid IPv4 dotted-quad (four 0-255 octets) or IPv6
+ * address (including "::" compression) survives; anything else drops to
+ * undefined so the request omits `localization` entirely. This is the
+ * enforcement point no matter which config channel delivered the value.
+ */
+function localizationValue(value: unknown): string | undefined {
+  const text = optionalText(value);
+  // isIP is the platform's strict parser; its one lax spot is IPv6 zone IDs
+  // ("%eth0"), which name a local link, not a geolocation — reject those.
+  return text !== undefined && !text.includes("%") && isIP(text) !== 0 ? text : undefined;
 }
 
 function finiteNumber(value: unknown, fallback: number): number {

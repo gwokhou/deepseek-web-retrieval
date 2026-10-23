@@ -1,4 +1,4 @@
-import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "./constants";
+import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, SEARCH_LOCALIZATION_ENV } from "./constants";
 import { resolvePluginOptions } from "./options";
 import type { PluginOptions, ResolvedOptions } from "./types";
 
@@ -21,6 +21,7 @@ const NUMBER_ENV = {
 
 const TEXT_ENV = {
   language: "DEEPSEEK_SEARCH_LANGUAGE",
+  searchLocalization: SEARCH_LOCALIZATION_ENV,
 } as const;
 
 const DOMAINS_ENV = {
@@ -59,6 +60,7 @@ export function pluginOptionsFromEnv(env: Env): PluginOptions {
   putDomains(options, "blockedDomains", env);
   putDomains(options, "includeDomains", env);
   putText(options, "language", env);
+  putText(options, "searchLocalization", env);
   putNumber(options, "maxSummaryChars", env);
   putNumber(options, "searchTimeoutMs", env);
 

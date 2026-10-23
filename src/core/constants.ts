@@ -19,6 +19,8 @@ export const MIN_TIMEOUT_MS = 1000;
 export const MAX_TIMEOUT_MS = 120000;
 
 export const MAX_QUERY_CHARS = 128;
+/** DeepSeek documents ori_question as 1-128 characters; longer values are clamped, not rejected. */
+export const MAX_ORI_QUESTION_CHARS = 128;
 export const MAX_URL_CHARS = 8192;
 export const MAX_ERROR_BODY_CHARS = 2000;
 export const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
@@ -34,3 +36,4 @@ export const MAX_RETRY_DELAY_MS = 10000;
 export const API_KEY_ENV = "DEEPSEEK_API_KEY";
 export const ENABLE_SEARCH_ENV = "DEEPSEEK_ENABLE_SEARCH";
 export const ENABLE_FETCH_ENV = "DEEPSEEK_ENABLE_FETCH";
+export const SEARCH_LOCALIZATION_ENV = "DEEPSEEK_SEARCH_LOCALIZATION";

@@ -85,6 +85,17 @@ describe("pluginOptionsFromEnv", () => {
   test("passes language text through", () => {
     expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_LANGUAGE: "zh" })).toEqual({ language: "zh" });
   });
+
+  test("maps DEEPSEEK_SEARCH_LOCALIZATION text through for shared validation", () => {
+    expect(pluginOptionsFromEnv({ DEEPSEEK_SEARCH_LOCALIZATION: "203.0.113.7" })).toEqual({
+      searchLocalization: "203.0.113.7",
+    });
+    expect(resolveEnvOptions({ DEEPSEEK_SEARCH_LOCALIZATION: " 2001:db8::1 " }).search.localization).toBe(
+      "2001:db8::1",
+    );
+    expect(resolveEnvOptions({ DEEPSEEK_SEARCH_LOCALIZATION: "example.com" }).search.localization).toBeUndefined();
+    expect(resolveEnvOptions({ DEEPSEEK_SEARCH_LOCALIZATION: "  " }).search.localization).toBeUndefined();
+  });
 });
 
 describe("resolveEnvOptions", () => {

@@ -5,6 +5,7 @@ import {
   formatFetchedContent,
   formatSearchResults,
   redactSecrets,
+  toStructuredResult,
   truncate,
 } from "../../src/core/format";
 import type { SearchResult } from "../../src/core/types";
@@ -114,5 +115,44 @@ describe("formatSearchResults", () => {
   test("collapses newlines inside summaries", () => {
     const text = formatSearchResults([result({ content: "line one\nline two" })]);
     expect(text).toContain("line one line two");
+  });
+
+  test("appends the quality marker to the heading line", () => {
+    const text = formatSearchResults([result({ rerankScore: 2.1, authority: 3, siteName: "GitHub" })]);
+    expect(text).toBe(
+      "1. [Example page](https://example.com/page) [rerank 2.1 · authority 3 · GitHub]\n   A short summary.",
+    );
+  });
+
+  test("omits unknown authority from the marker and drops the marker when empty", () => {
+    const unknownAuthority = formatSearchResults([result({ rerankScore: 1.9, authority: -1 })]);
+    expect(unknownAuthority).toContain("1. [Example page](https://example.com/page) [rerank 1.9]");
+    expect(unknownAuthority).not.toContain("authority");
+
+    const siteOnly = formatSearchResults([result({ siteName: "MDN" })]);
+    expect(siteOnly).toContain("(https://example.com/page) [MDN]");
+
+    expect(formatSearchResults([result()])).toBe("1. [Example page](https://example.com/page)\n   A short summary.");
+  });
+});
+
+describe("toStructuredResult", () => {
+  test("mirrors the quality fields, keeping unknown authority faithful", () => {
+    expect(toStructuredResult(result({ rerankScore: 2.1, authority: -1, siteName: "GitHub" }))).toEqual({
+      url: "https://example.com/page",
+      title: "Example page",
+      content: "A short summary.",
+      rerankScore: 2.1,
+      authority: -1,
+      siteName: "GitHub",
+    });
+  });
+
+  test("omits the quality fields when absent", () => {
+    expect(toStructuredResult(result())).toEqual({
+      url: "https://example.com/page",
+      title: "Example page",
+      content: "A short summary.",
+    });
   });
 });

@@ -4,6 +4,7 @@ import type { ToolContext } from "@opencode/plugin/promise/tool";
 import type { RetrievalClient } from "../core/client";
 import { inspectFetchTarget, retrievalClient } from "../core/client";
 import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions";
+import { formatQualityMarker } from "../core/format";
 import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options";
 import type { PluginOptions, ResolvedOptions, SearchResult } from "../core/types";
 import { resolveApiKey } from "./auth";
@@ -58,10 +59,14 @@ interface OpenCodeSearchResult {
 
 /** Maps the core's neutral SearchResult onto the shape OpenCode expects. */
 function toOpenCodeResult(result: SearchResult): OpenCodeSearchResult {
+  // OpenCode's result shape is closed and only `content` reaches the model,
+  // so the quality marker rides at the end of the content string.
+  const marker = formatQualityMarker(result);
+  const content = marker ? (result.content ? `${result.content} ${marker}` : marker) : result.content;
   return {
     url: result.url,
     ...(result.title ? { title: result.title } : {}),
-    ...(result.content ? { content: result.content } : {}),
+    ...(content ? { content } : {}),
     ...(result.published !== undefined ? { time: { published: result.published } } : { time: {} }),
   };
 }

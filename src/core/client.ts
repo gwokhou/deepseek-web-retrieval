@@ -1,6 +1,6 @@
-import { FETCH_ENDPOINT, MAX_QUERY_CHARS, SEARCH_ENDPOINT } from "./constants";
+import { FETCH_ENDPOINT, MAX_ORI_QUESTION_CHARS, MAX_QUERY_CHARS, SEARCH_ENDPOINT } from "./constants";
 import { assertFetchHostPolicy } from "./domains";
-import { formatFetchedContent } from "./format";
+import { formatFetchedContent, truncate } from "./format";
 import { buildQuery, processResults } from "./search";
 import { postJson } from "./transport";
 import type {
@@ -22,6 +22,16 @@ function effectiveTimeout(configuredMs: number, perCallMs: number | undefined): 
   return perCallMs === undefined ? configuredMs : Math.min(configuredMs, perCallMs);
 }
 
+/**
+ * The wire value for ori_question: absent/whitespace-only means "not
+ * provided"; longer values are clamped rather than rejected — the field is
+ * auxiliary and a hard error would punish the model for verbosity.
+ */
+function oriQuestionValue(oriQuestion: string | undefined): string | undefined {
+  const trimmed = oriQuestion?.trim();
+  return trimmed ? truncate(trimmed, MAX_ORI_QUESTION_CHARS) : undefined;
+}
+
 interface SearchResponse {
   readonly results?: unknown;
 }
@@ -41,10 +51,19 @@ export interface RequestOptions {
   readonly timeoutMs?: number;
 }
 
+export interface SearchRequest extends RequestOptions {
+  /**
+   * Per-call only — the option-resolution pipeline never populates this. The
+   * user's original question behind the search, sent as DeepSeek's optional
+   * ori_question to sharpen intent; adapters fill it from tool input.
+   */
+  readonly oriQuestion?: string;
+}
+
 export async function searchWeb(
   query: string,
   options: SearchOptions,
-  request: RequestOptions,
+  request: SearchRequest,
 ): Promise<SearchResult[]> {
   const trimmed = query.trim();
   if (!trimmed) throw new Error("DeepSeek search query must not be empty");
@@ -63,12 +82,15 @@ export async function searchWeb(
   }
 
   const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs);
+  const oriQuestion = oriQuestionValue(request.oriQuestion);
   const payload = await postJson<SearchResponse>(
     SEARCH_ENDPOINT,
     {
       query: builtQuery,
       count: options.count,
       need_content: false,
+      ...(oriQuestion === undefined ? {} : { ori_question: oriQuestion }),
+      ...(options.localization === undefined ? {} : { localization: options.localization }),
     },
     "DeepSeek Search",
     { ...request, timeoutMs: timeout },
@@ -129,7 +151,7 @@ export async function fetchDocument(
 export function createRetrievalClient(dependencies: { readonly fetchImpl?: typeof fetch } = {}) {
   const bind = (request: RequestOptions): RequestOptions => ({ ...request, ...dependencies });
   return {
-    searchWeb: (query: string, options: SearchOptions, request: RequestOptions) =>
+    searchWeb: (query: string, options: SearchOptions, request: SearchRequest) =>
       searchWeb(query, options, bind(request)),
     fetchPage: (url: URL, options: FetchOptions, request: RequestOptions) => fetchPage(url, options, bind(request)),
     fetchDocument: (url: string | URL, options: FetchOptions, request: RequestOptions) =>

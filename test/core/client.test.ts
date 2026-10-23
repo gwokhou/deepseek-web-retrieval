@@ -45,8 +45,8 @@ describe("DeepSeek client", () => {
     const results = await searchWeb("bun", resolveSearchOptions({ count: 20 }), request(fetchImpl));
 
     expect(results).toEqual([
-      { url: "https://a/", title: "A", content: "summary" },
-      { url: "https://b/", title: "B", content: "low" },
+      { url: "https://a/", title: "A", content: "summary", rerankScore: 2.5, authority: 3 },
+      { url: "https://b/", title: "B", content: "low", rerankScore: 1, authority: 4 },
     ]);
     assert.ok(captured, "Search request must be captured");
     expect(captured.url).toBe("https://api.deepseek.com/v1/tools/search");
@@ -56,6 +56,68 @@ describe("DeepSeek client", () => {
       need_content: false,
     });
     expect((captured.init.headers as Record<string, string>).Authorization).toBe("Bearer sk-test");
+  });
+
+  test("search sends ori_question when the option is set, trimmed, and clamped to 128 code points", async () => {
+    const capturedBodies: unknown[] = [];
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
+      capturedBodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    await searchWeb("bun", resolveSearchOptions(), {
+      ...request(fetchImpl),
+      oriQuestion: "  how do I test bun?  ",
+    });
+    await searchWeb("bun", resolveSearchOptions(), { ...request(fetchImpl), oriQuestion: `😀${"x".repeat(129)}` });
+
+    expect(capturedBodies[0]).toEqual({
+      query: "bun",
+      count: 10,
+      need_content: false,
+      ori_question: "how do I test bun?",
+    });
+    // 130 code points (the emoji counts as one) clamp to the first 128.
+    const clamped = String((capturedBodies[1] as { ori_question: string }).ori_question);
+    expect(Array.from(clamped)).toHaveLength(128);
+    expect(Array.from(clamped)[0]).toBe("😀");
+  });
+
+  test("search omits ori_question when absent or whitespace-only", async () => {
+    const capturedBodies: unknown[] = [];
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
+      capturedBodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    await searchWeb("bun", resolveSearchOptions(), request(fetchImpl));
+    await searchWeb("bun", resolveSearchOptions(), { ...request(fetchImpl), oriQuestion: "   " });
+
+    for (const body of capturedBodies) {
+      expect(body).toEqual({ query: "bun", count: 10, need_content: false });
+    }
+  });
+
+  test("search sends localization only when a valid IP resolved it", async () => {
+    const capturedBodies: unknown[] = [];
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
+      capturedBodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    await searchWeb("bun", resolveSearchOptions({ searchLocalization: "203.0.113.7" }), request(fetchImpl));
+    await searchWeb("bun", resolveSearchOptions({ searchLocalization: "not-an-ip" }), request(fetchImpl));
+    await searchWeb("bun", resolveSearchOptions(), request(fetchImpl));
+
+    expect(capturedBodies[0]).toEqual({
+      query: "bun",
+      count: 10,
+      need_content: false,
+      localization: "203.0.113.7",
+    });
+    // An invalid value never resolves onto SearchOptions, so the field is absent.
+    expect(capturedBodies[1]).toEqual({ query: "bun", count: 10, need_content: false });
+    expect(capturedBodies[2]).toEqual({ query: "bun", count: 10, need_content: false });
   });
 
   test("fetch posts the URL and returns title/content", async () => {

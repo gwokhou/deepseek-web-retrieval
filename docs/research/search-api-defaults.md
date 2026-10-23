@@ -255,15 +255,24 @@ quality filtering**. What they do publish, verbatim
 - `rerank_score`: "排序分数，0～3 分，综合考虑相关性、权威性、时效性等维度，**大于等于 1.5 分为优质结果**。"
 - `authority`: "网页权威性，0～4（**-1 表示未知**），**大于等于 3 为极权威结果**。"
 - Request defaults: `count` "否 / 默认值 10 / 返回条数，1～50"; `need_content` "否 / false";
-  `localization` "否 / 空"; `ori_question` optional.
+  `ori_question` optional ("触发搜索的用户原始问题，1～128 个字符").
+- `localization` (checked 2026-10-23): documented as "用于优先返回本地化搜索结果的 IP
+  地址" — an IP address used to prefer geo-localized results, optional, default empty. The
+  docs pin nothing beyond "IP 地址"; this repo accepts exactly what `net.isIP` validates
+  (IPv4 or IPv6) and drops anything else at option resolution.
+- Query operators (checked 2026-10-23): the `query` "会原样传递给搜索服务" and supports
+  `site:` / `-site:` / `lang:` (e.g. `lang:zh,en`) plus the time filters `after:` ("将结果限制在指定日期之后发布的网页")
+  and `before:` ("将结果限制在指定日期之前发布的网页") — each taking a year or a date, with the
+  doc examples "DeepSeek after:2025 或 DeepSeek after:2025-01-01" and
+  "DeepSeek before:2026 或 DeepSeek before:2026-06-01".
 - Response sizing: `snippet` "短摘要 … 通常为 100～200 字符"; `summary` "长摘要 … 通常为 600～800 字符".
 
 Two follow-up notes examine the request parameters this section lists only as defaults:
 [search-inline-content.md](search-inline-content.md) covers `need_content: true` — what
 provably returns, what it costs, how large it can get, and where that collides with
 per-host output caps — and [ori-question-sourcing.md](ori-question-sourcing.md) covers
-`ori_question` — the per-host channels that could supply a value (the repo currently
-never sends the parameter).
+`ori_question` — the per-host channels that could supply a value (the MCP and Pi adapters
+now send it; OpenCode's websearch provider path has no input channel at its lock).
 
 ## What this means for this repo's defaults
 

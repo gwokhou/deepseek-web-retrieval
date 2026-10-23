@@ -16,7 +16,7 @@ export const SEARCH_RANKED_FILTERED =
 export const SEARCH_EMPTY_IS_NORMAL = "An empty result list is normal, not an error.";
 
 export const SEARCH_QUERY_OPERATORS =
-  "Use site:/-site: operators in the query to include or exclude domains; the full query must stay within 128 characters.";
+  "Use site:/-site: operators in the query to include or exclude domains, and after:/before: with a year or date (e.g. after:2025-06-01) to filter by publish time; the full query must stay within 128 characters.";
 
 /**
  * The full tool descriptions, composed from the fact fragments. Every host
@@ -38,6 +38,10 @@ export const FETCH_TOOL_DESCRIPTION =
 
 /** Parameter descriptions shared by every adapter's input schema for the two tools. */
 export const SEARCH_QUERY_PARAMETER =
-  "Search query, 128 characters or fewer including operators (site:, -site:, quoted phrases, lang:).";
+  "Search query, 128 characters or fewer including operators (site:, -site:, quoted phrases, lang:, after:, before:).";
+
+export const SEARCH_ORI_QUESTION_PARAMETER =
+  "The user's original question or task that triggered this search, in the user's own words rather than a " +
+  "reformulated query. Optional; 1-128 characters, and longer values are truncated.";
 
 export const FETCH_URL_PARAMETER = "Absolute http:// or https:// URL to fetch. Credentials are rejected.";

@@ -102,6 +102,12 @@ Fetch https://pi.dev/docs/latest/extensions and summarize the extension lifecycl
 The model calls `deepseek_web_search` or `deepseek_fetch` — the same names over both paths;
 only the MCP fallback prefixes them with `mcp__deepseek__`.
 
+The search tool accepts an optional `original_question` input — the user's question in their
+own words — forwarded as DeepSeek's `ori_question` to sharpen search intent. When the model
+leaves it blank, the extension falls back to the most recent user message in the session
+(best-effort; truncated to the API's 128-character limit). The MCP fallback path has no
+session access, so there a blank input simply omits the parameter.
+
 ## Configuration
 
 The runtime config surface is the same `DEEPSEEK_*` environment the MCP server reads
@@ -122,6 +128,7 @@ it outranks the environment and is preserved by Pi's own settings rewrites).
 | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset | Comma-separated; adds `-site:` operators to the query. |
 | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Comma-separated; restricts results with `site:` operators. |
 | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Adds a `lang:` operator, for example `zh,en`. |
+| `DEEPSEEK_SEARCH_LOCALIZATION` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
 | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `1200` | Per-result summary cap, 0–1,000,000. |
 | `DEEPSEEK_SEARCH_TIMEOUT_MS` | `30000` | Search timeout, 1,000–120,000 ms. No host-side cap applies on the extension path. |
 

@@ -8,7 +8,9 @@ user's original question that triggered the search;
 [search-api-defaults.md](search-api-defaults.md))? Two candidate channels are examined per host:
 **(A)** a model-filled optional tool input parameter (e.g. an optional `original_question` string in
 the tool's input schema), and **(B)** the adapter itself reading the surrounding session/task
-context at tool-call time. The repo currently never sends the parameter.
+context at tool-call time. At the research baseline the repo never sent the parameter; it is
+now sent on the MCP path (channel A) and the Pi path (A plus B as a blank-input fallback),
+while OpenCode's websearch provider path has no channel at 2.0.32 (below).
 
 **Research baseline:** 2026-10-23, using the same version locks as
 [hosts.jsonc](../hosts.jsonc) (baseline 2026-10-19): Cline 0.0.13, Codex 0.163.0
@@ -242,13 +244,13 @@ negotiated revision in the matrix.
 ## What this means for this repo
 
 - **MCP server (`src/mcp/server.ts`).** The tool `inputSchema` is the only channel any MCP host
-  offers. The server declares its inputs as zod objects (`z.object({ query })`, `z.object({ url })`)
-  through SDK v2's `registerTool`; zod's default behavior strips undeclared keys server-side, so a
-  host-side pre-filled undeclared field would be dropped — whatever a host sends must be *declared*
-  in the schema to arrive in the handler. A declared optional string would surface in the JSON
-  Schema every host in this note forwards (Codex and Pi verbatim-small, OpenCode verbatim,
-  Claude Code and Copilot per changelog evidence; Cline, Cursor, Devin unproven but
-  spec-conformant). Nothing in this research forces changes beyond that fact.
+  offers. The server declares its inputs as zod objects (`z.object({ query, original_question })`,
+  `z.object({ url })`) through SDK v2's `registerTool`; zod's default behavior strips undeclared
+  keys server-side, so a host-side pre-filled undeclared field would be dropped — whatever a host
+  sends must be *declared* in the schema to arrive in the handler. The declared optional string
+  surfaces in the JSON Schema every host in this note forwards (Codex and Pi verbatim-small,
+  OpenCode verbatim, Claude Code and Copilot per changelog evidence; Cline, Cursor, Devin
+  unproven but spec-conformant) — exactly the channel the shipped `original_question` rides.
 - **OpenCode plugin (`src/opencode/plugin.ts`).** The fetch tools' `execute` receives a
   `ToolContext` with `sessionID`, and the plugin `Context` can read
   `ctx.session.context({ sessionID })` — user messages with their `text` — at call time, so
@@ -258,11 +260,11 @@ negotiated revision in the matrix.
   `FETCH_INPUT` sets `additionalProperties: false`, which matters if a parameter is ever added on
   channel A: an undeclared field would be rejected by OpenCode's runtime validation with a
   retryable error.
-- **Pi extension (`src/pi/extension.ts`).** `searchTool`/`fetchTool` handlers currently use three
-  of the five `execute` arguments; the fifth (`ExtensionToolContext`) carries
-  `sessionManager.buildSessionProjection()` — the model-visible messages, user prompts included —
-  readable synchronously at call time, so channel B exists on this path too. Channel A is equally
-  open: the TypeBox `parameters` are what the agent loop validates against, and
+- **Pi extension (`src/pi/extension.ts`).** The search handler reads the fifth `execute`
+  argument (`ExtensionToolContext`), whose `sessionManager.buildSessionProjection()` returns the
+  model-visible messages, user prompts included — readable synchronously at call time, so channel
+  B exists on this path; the shipped adapter uses it as the blank-input fallback. Channel A is
+  equally open: the TypeBox `parameters` are what the agent loop validates against, and
   `Type.Optional(Type.String(...))` properties pass validation when the model fills them. The
   extension runs in-process, so B does not pay the MCP detour.
 

@@ -3,7 +3,10 @@
 This note answers one question: through which channel can DeepSeek's per-result quality fields —
 `rerank_score` (0–3, "≥1.5 优质"), `authority` (0–4, -1 unknown, "≥3 极权威"), `site_name`
 (string|null) — reach the **model** (not the human UI) on each host at its locked version? The
-repo filters on the first two today (`src/core/search.ts`) and drops all three before returning.
+repo filters on the first two in `src/core/search.ts` (thresholds default to off); at the
+research baseline it dropped all three before returning — the adapters now pass them through
+as a text marker plus a structured mirror (item 1 below is implemented as
+`formatQualityMarker`).
 Related: [ori-question-sourcing.md](ori-question-sourcing.md) (input side),
 [search-inline-content.md](search-inline-content.md) (content volume).
 

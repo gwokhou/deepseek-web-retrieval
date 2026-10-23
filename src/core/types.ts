@@ -13,6 +13,12 @@ export interface SearchOptions {
   readonly blockedDomains: readonly string[];
   readonly includeDomains: readonly string[];
   readonly language?: string;
+  /**
+   * Deployment-level only — never a per-call tool parameter. A valid IPv4 or
+   * IPv6 address sent as DeepSeek's optional `localization` to prefer
+   * geo-localized results; invalid values are dropped at option resolution.
+   */
+  readonly localization?: string;
   readonly maxSummaryChars: number;
   readonly timeoutMs: number;
   readonly enabled: boolean;
@@ -46,6 +52,7 @@ export interface ResolvedOptions {
 export interface DeepSeekSearchResult {
   readonly rerank_score?: number;
   readonly authority?: number;
+  readonly site_name?: string | null;
   readonly title?: string | null;
   readonly url?: string | null;
   readonly snippet?: string | null;
@@ -59,6 +66,10 @@ export interface SearchResult {
   readonly title?: string;
   readonly content?: string;
   readonly published?: number;
+  readonly rerankScore?: number;
+  /** Faithful to the wire: -1 means unknown authority. */
+  readonly authority?: number;
+  readonly siteName?: string;
 }
 
 export interface FetchedPage {

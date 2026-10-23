@@ -7,6 +7,7 @@ import {
   FETCH_OUTPUT_TRUNCATED,
   FETCH_SERVICE_LIMITS,
   SEARCH_EMPTY_IS_NORMAL,
+  SEARCH_ORI_QUESTION_PARAMETER,
   SEARCH_QUERY_OPERATORS,
   SEARCH_RANKED_FILTERED,
 } from "../../src/core/descriptions";
@@ -97,6 +98,15 @@ describe("MCP server over the legacy protocol eras", () => {
         expect(searchDescription).toContain(SEARCH_RANKED_FILTERED);
         expect(searchDescription).toContain(SEARCH_EMPTY_IS_NORMAL);
         expect(searchDescription).toContain(SEARCH_QUERY_OPERATORS);
+        const searchSchema = listed.tools.find((tool) => tool.name === "deepseek_web_search")?.inputSchema as {
+          properties: Record<string, { type?: string; description?: string }>;
+          required?: string[];
+        };
+        expect(searchSchema.properties.original_question).toEqual({
+          type: "string",
+          description: SEARCH_ORI_QUESTION_PARAMETER,
+        });
+        expect(searchSchema.required).not.toContain("original_question");
         const fetchDescription = listed.tools.find((tool) => tool.name === "deepseek_fetch")?.description;
         expect(fetchDescription).toContain(FETCH_SERVICE_LIMITS);
         expect(fetchDescription).toContain(FETCH_OUTPUT_TRUNCATED);
@@ -164,6 +174,64 @@ describe("MCP server over the legacy protocol eras", () => {
         count: 10,
         need_content: false,
       });
+    } finally {
+      await persona.close();
+    }
+  });
+
+  test("forwards the optional original_question as ori_question on the search payload", async () => {
+    const stub = createStub();
+    stub.respond(SEARCH_RESULTS);
+    const persona = await connectPersona(stub.fetchImpl, "2025-11-25");
+    try {
+      const result = await persona.client.callTool({
+        name: "deepseek_web_search",
+        arguments: { query: "deepseek mcp", original_question: "how do I add DeepSeek search to my agent?" },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(JSON.parse(String(stub.captured?.init.body))).toEqual({
+        query: "deepseek mcp",
+        count: 10,
+        need_content: false,
+        ori_question: "how do I add DeepSeek search to my agent?",
+      });
+    } finally {
+      await persona.close();
+    }
+  });
+
+  test("mirrors the quality fields into structured content and the text marker", async () => {
+    const stub = createStub();
+    stub.respond({
+      results: [
+        {
+          url: "https://a.example/one",
+          title: "First",
+          summary: "Summary one.",
+          rerank_score: 2.1,
+          authority: 3,
+          site_name: "GitHub",
+        },
+        { url: "https://e.example/unknown", title: "Unknown", snippet: "Snippet.", rerank_score: 1.9, authority: -1 },
+      ],
+    });
+    const persona = await connectPersona(stub.fetchImpl, "2025-11-25");
+    try {
+      const result = await persona.client.callTool({
+        name: "deepseek_web_search",
+        arguments: { query: "quality fields" },
+      });
+      expect(result.isError).toBeFalsy();
+
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("1. [First](https://a.example/one) [rerank 2.1 · authority 3 · GitHub]");
+      expect(text).toContain("2. [Unknown](https://e.example/unknown) [rerank 1.9]");
+      expect(text).not.toContain("authority -1");
+
+      const structured = (result as { structuredContent?: { results: Record<string, unknown>[] } }).structuredContent;
+      expect(structured?.results[0]).toMatchObject({ rerankScore: 2.1, authority: 3, siteName: "GitHub" });
+      expect(structured?.results[1]).toMatchObject({ rerankScore: 1.9, authority: -1 });
+      expect(structured?.results[1]).not.toHaveProperty("siteName");
     } finally {
       await persona.close();
     }

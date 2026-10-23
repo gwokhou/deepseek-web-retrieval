@@ -118,6 +118,11 @@ binary files, per-request billing) are documented there.
   compare) are dropped.
 - Builds `blockedDomains`, `includeDomains`, and `language` into query operators and
   rejects the final query locally when it exceeds the API's 128-character limit.
+- On the paths where this package defines the search tool's inputs (the MCP server and
+  the Pi extension), the tool accepts an optional `original_question` — the user's
+  question in their own words — forwarded as DeepSeek's `ori_question`, trimmed and
+  truncated to the API's 128 characters; a blank input on the Pi extension falls back
+  to the most recent user message in the session.
 - An empty result set is normal and is not an error.
 
 ### Fetch

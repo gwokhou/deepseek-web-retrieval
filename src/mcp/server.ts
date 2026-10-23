@@ -8,6 +8,7 @@ import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants";
 import {
   FETCH_TOOL_DESCRIPTION,
   FETCH_URL_PARAMETER,
+  SEARCH_ORI_QUESTION_PARAMETER,
   SEARCH_QUERY_PARAMETER,
   SEARCH_TOOL_DESCRIPTION,
 } from "../core/descriptions";
@@ -21,6 +22,7 @@ export const MCP_SERVER_NAME = "deepseek-web-retrieval";
 
 const SEARCH_INPUT = z.object({
   query: z.string().min(1).describe(SEARCH_QUERY_PARAMETER),
+  original_question: z.string().optional().describe(SEARCH_ORI_QUESTION_PARAMETER),
 });
 
 const FETCH_INPUT = z.object({
@@ -47,10 +49,13 @@ export function createDeepSeekServer(
         inputSchema: SEARCH_INPUT,
         annotations: { readOnlyHint: true },
       },
-      async ({ query }, ctx) => {
+      async ({ query, original_question }, ctx) => {
         try {
           const request = requestContext(config, env, ctx.mcpReq.signal);
-          const results = await client.searchWeb(query, config.search, request);
+          const results = await client.searchWeb(query, config.search, {
+            ...request,
+            oriQuestion: original_question,
+          });
           return callResult(server, ctx, formatSearchResults(results), {
             results: results.map(toStructuredResult),
           });

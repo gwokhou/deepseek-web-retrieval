@@ -20,6 +20,7 @@ describe("resolve options", () => {
         blockedDomains: [],
         includeDomains: [],
         language: undefined,
+        localization: undefined,
         maxSummaryChars: 1200,
         timeoutMs: 30000,
         enabled: true,
@@ -70,6 +71,18 @@ describe("resolve options", () => {
     expect(options.blockedDomains).toEqual(["pinterest.com"]);
     expect(options.includeDomains).toEqual(["nodejs.org"]);
     expect(options.language).toBe("zh,en");
+  });
+
+  test("keeps only valid IPv4/IPv6 addresses as localization", () => {
+    expect(resolveSearchOptions({ searchLocalization: "127.0.0.1" }).localization).toBe("127.0.0.1");
+    expect(resolveSearchOptions({ searchLocalization: " 2001:db8::1 " }).localization).toBe("2001:db8::1");
+    expect(resolveSearchOptions({ searchLocalization: "::1" }).localization).toBe("::1");
+    expect(resolveSearchOptions({ searchLocalization: "::ffff:192.168.0.1" }).localization).toBe("::ffff:192.168.0.1");
+    const invalid = ["foo", "", "   ", "example.com", "999.1.1.1", "1.2.3", "01.2.3.4", "1::2::3", "fe80::1%eth0", 42];
+    for (const value of invalid) {
+      expect(resolveSearchOptions({ searchLocalization: value }).localization).toBeUndefined();
+    }
+    expect(resolveSearchOptions({}).localization).toBeUndefined();
   });
 
   test("resolves fetch safety limits", () => {

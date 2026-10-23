@@ -60,7 +60,24 @@ describe("processResults", () => {
         title: "Example",
         content: "A useful summary.",
         published: Date.parse("2026-06-01T00:00:00+00:00"),
+        rerankScore: 2.4,
+        authority: 3,
       },
+    ]);
+  });
+
+  test("passes quality fields through, keeping unknown authority faithful", () => {
+    const raw: DeepSeekSearchResult[] = [
+      { url: "https://full", rerank_score: 2.1, authority: 3, site_name: "  GitHub  " },
+      { url: "https://unknown", rerank_score: 1.9, authority: -1, site_name: "  " },
+      { url: "https://absent" },
+      { url: "https://invalid", rerank_score: Number.NaN, authority: Number.POSITIVE_INFINITY, site_name: null },
+    ];
+    expect(processResults(raw, resolveSearchOptions({ allowUnknownAuthority: true }))).toEqual([
+      { url: "https://full/", rerankScore: 2.1, authority: 3, siteName: "GitHub" },
+      { url: "https://unknown/", rerankScore: 1.9, authority: -1 },
+      { url: "https://absent/" },
+      { url: "https://invalid/" },
     ]);
   });
 
@@ -100,7 +117,10 @@ describe("processResults", () => {
       { url: "https://a", summary: "   ", snippet: "abcdefgh", rerank_score: 2, authority: 3 },
       { url: "https://b", date: "not a date", rerank_score: 2, authority: 3 },
     ];
-    expect(processResults(raw, options)).toEqual([{ url: "https://a/", content: "abcde" }, { url: "https://b/" }]);
+    expect(processResults(raw, options)).toEqual([
+      { url: "https://a/", content: "abcde", rerankScore: 2, authority: 3 },
+      { url: "https://b/", rerankScore: 2, authority: 3 },
+    ]);
   });
 
   test("deduplicates normalized URLs and caps maxResults", () => {

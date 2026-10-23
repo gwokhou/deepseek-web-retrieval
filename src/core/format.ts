@@ -95,7 +95,8 @@ export function formatSearchResults(results: readonly SearchResult[]): string {
   return results
     .map((result, index) => {
       const title = result.title?.trim() || result.url;
-      const lines = [`${index + 1}. [${escapeBrackets(title)}](${result.url})`];
+      const marker = formatQualityMarker(result);
+      const lines = [`${index + 1}. [${escapeBrackets(title)}](${result.url})${marker ? ` ${marker}` : ""}`];
       if (result.content) {
         lines.push(`   ${result.content.replaceAll("\n", " ")}`);
       }
@@ -105,6 +106,20 @@ export function formatSearchResults(results: readonly SearchResult[]): string {
       return lines.join("\n");
     })
     .join("\n\n");
+}
+
+/**
+ * Renders the quality fields DeepSeek reports as one bracketed token on the
+ * result's heading line; the text channel is the only one every host delivers
+ * to the model. Authority -1 means unknown and stays in the structured shape
+ * only, so it never wastes text.
+ */
+export function formatQualityMarker(result: SearchResult): string {
+  const parts: string[] = [];
+  if (result.rerankScore !== undefined) parts.push(`rerank ${result.rerankScore}`);
+  if (result.authority !== undefined && result.authority >= 0) parts.push(`authority ${result.authority}`);
+  if (result.siteName) parts.push(result.siteName);
+  return parts.length > 0 ? `[${parts.join(" · ")}]` : "";
 }
 
 /**
@@ -118,6 +133,9 @@ export function toStructuredResult(result: SearchResult) {
     ...(result.title ? { title: result.title } : {}),
     ...(result.content ? { content: result.content } : {}),
     ...(result.published !== undefined ? { published: result.published } : {}),
+    ...(result.rerankScore !== undefined ? { rerankScore: result.rerankScore } : {}),
+    ...(result.authority !== undefined ? { authority: result.authority } : {}),
+    ...(result.siteName ? { siteName: result.siteName } : {}),
   };
 }
 
