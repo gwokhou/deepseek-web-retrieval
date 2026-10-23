@@ -12,19 +12,21 @@ host projects.
 
 ## Features
 
-- **Three supported hosts** — OpenCode v2 and Pi use their own plugin and extension APIs;
-  Codex uses the included stdio MCP server
-- **Tiered routing** — optional, preferred, forced, or off, per capability;
-  forced refuses when exclusivity is impossible
-- **Preview and recovery** — review configuration changes before applying them;
-  uninstall uses saved snapshots and preserves subsequent user edits to configuration values
-- **Host-aware setup** — detects conflicting web tools and rules, configures Pi's MCP
-  fallback for direct tool exposure, and reports Codex version drift
-- **Git-safe installs** — the key never enters config files
-  (`${DEEPSEEK_API_KEY}` indirection or `env_vars`), so a project-scope
-  install commits clean
-- **Explicit failures** — no silent provider switches; localhost and private URLs are
-  blocked by default before they leave the machine
+- **One package, three hosts** — a native OpenCode v2 plugin, a native Pi extension,
+  and a stdio MCP server for Codex, all sharing one retrieval core
+- **Routing control per tool** — search and fetch are set independently to optional,
+  preferred, forced, or off; the tier table in Usage explains each
+- **Review before anything is written** — `init` prints the full plan and writes only
+  with `--apply`; uninstall restores from snapshots while preserving edits you made
+  afterwards
+- **Knows the host's web landscape** — detects conflicting web tools and rules,
+  configures Pi's MCP fallback for direct tool exposure, and reports Codex version
+  drift
+- **Your key never enters a config file** — installs reference the environment
+  (`${DEEPSEEK_API_KEY}` indirection or `env_vars`), so a project-scope install
+  commits clean
+- **Fails loudly, never switches silently** — no fallback to another provider, and
+  localhost/private URLs are blocked before a request leaves the machine
 
 ## Usage
 
@@ -53,9 +55,41 @@ npx deepseek-web-retrieval init --host pi --scope project --search preferred --f
 npx deepseek-web-retrieval init --host codex --scope global --search preferred --fetch preferred
 ```
 
-Review the plan, then repeat your chosen command with `--apply` to write it. Choose
-tiers and scope for your workflow; the host guides explain their effects and activation
-steps. Pi defaults to the extension path; add `--path mcp` to use its MCP fallback.
+`--search` and `--fetch` each pick a tier — how strongly the host steers toward the
+DeepSeek tool, chosen independently per capability:
+
+| Tier | Effect |
+| --- | --- |
+| `optional` | The tool is declared; the model picks freely among its web tools |
+| `preferred` | Rules files steer the model toward the DeepSeek tool — probable, not guaranteed |
+| `forced` | Built-in competitors are disabled or replaced so routing is deterministic; the installer refuses rather than pretend when a host cannot guarantee it |
+| `off` | The capability is not installed |
+
+A preview run writes nothing. It prints the complete plan — every file it would touch
+and every old value → new value:
+
+```console
+$ npx deepseek-web-retrieval init --host codex --scope global --search preferred --fetch preferred
+Install plan: codex (global scope)
+Tiers: search=preferred, fetch=preferred
+
+Files:
+  ~/.codex/config.toml
+    set mcp_servers.deepseek = {"command":"npx","args":["-y","deepseek-web-retrieval"],"env_vars":["DEEPSEEK_API_KEY"]} (was (absent))
+  ~/.codex/AGENTS.md
+    upsert marked rules block
+
+Notes:
+  - Codex stdio children do not inherit the parent environment, so the entry forwards DEEPSEEK_API_KEY explicitly via env_vars; the key must be set in the shell that launches Codex.
+  - Rules block upserted in ~/.codex/AGENTS.md; Codex reads ~/.codex/AGENTS.md plus every AGENTS.md from the project root to the cwd.
+  - Shared config ownership is recorded in ~/.codex/.config.toml.deepseek-web-retrieval.codex.owner.json; uninstall releases it. Keep this local metadata with the config.
+
+Plan only — re-run with --apply to write these changes.
+```
+
+Repeat your chosen command with `--apply` to write the plan. The host guides explain
+activation steps and per-host tier limits. Pi defaults to the extension path; add
+`--path mcp` to use its MCP fallback.
 
 Other stdio MCP hosts may use the server, but the supported setup guides and installer
 currently cover the three hosts above. See the [integration model](docs/integration.md)
@@ -77,8 +111,8 @@ binary files, per-request billing) are documented there.
 - Requests summaries only (`need_content: false`, `summary` falling back to `snippet`);
   full page content never enters the results.
 - Returns at most ten results by default (matching the API's `count` default and the
-  industry norm for AI-native search APIs), deduplicating URLs. Optional
-  `rerank_score` and `authority` thresholds are off by default — the default
+  industry norm for AI-native search APIs), deduplicating URLs.
+- Optional `rerank_score` and `authority` thresholds are off by default — the default
   returns exactly what DeepSeek ranked, including results without a score;
   when a positive threshold is set, results below it (or without a score to
   compare) are dropped.
