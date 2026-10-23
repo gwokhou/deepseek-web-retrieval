@@ -42,8 +42,9 @@ release instead of the latest publish; re-run init --pin to move the pin.
 
 config prints the effective configuration — every knob with its value and its
 source (default, shared file, or environment), resolved the way the MCP server
-resolves it — and exits 1 when the config file has problems (unknown or
-rejected keys, unparseable JSON; a missing file is fine). config --search <query>
+resolves it — and exits 1 when the config file or the DEEPSEEK_* environment
+has problems (unknown or rejected keys, unparseable JSON, set-but-unusable
+variable values; a missing file is fine). config --search <query>
 runs one billed search through that configuration to verify the key, config,
 and network end to end; it exits 1 when the key is missing or the search fails.
 

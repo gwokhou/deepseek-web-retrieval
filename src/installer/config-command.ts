@@ -3,7 +3,7 @@ import { createRetrievalClient, type RetrievalClient } from "../core/client";
 import { configFilePath, readFileOptionsReport } from "../core/config-file";
 import { configSummaryValues, formatConfigValue } from "../core/config-summary";
 import type { Env } from "../core/env";
-import { pluginOptionsFromEnv, resolveEnvOptions } from "../core/env";
+import { envOptionsReport, resolveEnvOptions } from "../core/env";
 import { formatSearchResults } from "../core/format";
 
 const EXIT_CONFIG_PROBLEMS = 1;
@@ -28,11 +28,12 @@ export interface ConfigCommandDeps {
  * The `config` subcommand: the user-facing arm of configuration visibility.
  * Prints the effective options exactly as the MCP server would resolve them
  * (defaults < shared file < environment), each knob with its value and source,
- * and replays the file problems that would only whisper past on stderr at
- * runtime. With `query` set, runs one real billed search through that config —
- * the end-to-end verifier for key, config, and network. Returns the exit code:
- * 0 normally, 1 for file problems (plain form) or a failed search, 2 for a
- * blank --search query. A missing file is not a problem.
+ * and replays the problems that would only whisper past on stderr at runtime —
+ * shared-file problems and set-but-unusable `DEEPSEEK_*` variables alike. With
+ * `query` set, runs one real billed search through that config — the
+ * end-to-end verifier for key, config, and network. Returns the exit code: 0
+ * normally, 1 for file or environment problems (plain form) or a failed
+ * search, 2 for a blank --search query. A missing file is not a problem.
  */
 export async function runConfigCommand(
   query: string | undefined,
@@ -48,14 +49,15 @@ export async function runConfigCommand(
   const file = configFilePath({ env });
   const report = readFileOptionsReport(file);
   for (const warning of report.warnings) io.err(`warning: ${warning}`);
+  const envReport = envOptionsReport(env);
+  for (const warning of envReport.warnings) io.err(`warning: ${warning}`);
 
   // The same layers, in the same order, as the MCP server's startup resolution.
-  const envOptions = pluginOptionsFromEnv(env);
   const resolved = resolveEnvOptions(env, report.options);
 
   if (query === undefined) {
-    printConfigReport(file, report.exists, report.options, envOptions, resolved, io);
-    return report.warnings.length > 0 ? EXIT_CONFIG_PROBLEMS : 0;
+    printConfigReport(file, report.exists, report.options, envReport.options, resolved, io);
+    return report.warnings.length > 0 || envReport.warnings.length > 0 ? EXIT_CONFIG_PROBLEMS : 0;
   }
 
   const apiKey = apiKeyFromEnv(env);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { OPTION_ENV_VARS, pluginOptionsFromEnv, resolveEnvOptions } from "../../src/core/env";
+import { envOptionsReport, OPTION_ENV_VARS, pluginOptionsFromEnv, resolveEnvOptions } from "../../src/core/env";
 
 describe("OPTION_ENV_VARS", () => {
   test("lists every option variable exactly once, in map order, without the API key", () => {
@@ -172,5 +172,54 @@ describe("resolveEnvOptions", () => {
     const resolved = resolveEnvOptions({ DEEPSEEK_SEARCH_COUNT: "20" });
     expect(resolved.search.count).toBe(20);
     expect(resolved.search.maxResults).toBe(20);
+  });
+});
+
+describe("envOptionsReport", () => {
+  test("reports nothing for a clean environment", () => {
+    const report = envOptionsReport({
+      DEEPSEEK_API_KEY: "sk-test",
+      DEEPSEEK_SEARCH_COUNT: "20",
+      DEEPSEEK_SEARCH_LANGUAGE: "zh",
+      DEEPSEEK_SEARCH_BLOCKED_DOMAINS: "pinterest.com, x.com",
+      DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS: "false",
+    });
+    expect(report.warnings).toEqual([]);
+    expect(report.options).toEqual({
+      count: 20,
+      language: "zh",
+      blockedDomains: ["pinterest.com", "x.com"],
+      fetchBlockPrivateHosts: false,
+    });
+  });
+
+  test("reports an unknown DEEPSEEK_* variable, but stays silent for empty values and the key", () => {
+    const report = envOptionsReport({
+      DEEPSEEK_FETCH_TIMEOUT: "10000",
+      DEEPSEEK_SEARCH_COUNT: "",
+      DEEPSEEK_TYPO_WITH_NO_VALUE: "  ",
+    });
+    expect(report.options).toEqual({});
+    expect(report.warnings).toEqual(["unknown DEEPSEEK_* variable DEEPSEEK_FETCH_TIMEOUT — ignored"]);
+  });
+
+  test("reports a non-numeric value as dropped", () => {
+    const report = envOptionsReport({ DEEPSEEK_SEARCH_COUNT: "twenty" });
+    expect(report.options).toEqual({});
+    expect(report.warnings).toEqual(['DEEPSEEK_SEARCH_COUNT is not a number ("twenty") — ignored']);
+  });
+
+  test("reports a no-op switch value and unusable domain entries", () => {
+    const report = envOptionsReport({
+      DEEPSEEK_ENABLE_SEARCH: "true",
+      DEEPSEEK_SEARCH_BLOCKED_DOMAINS: "pinterest .com",
+      DEEPSEEK_FETCH_ALLOWED_DOMAINS: ",,",
+    });
+    expect(report.options).toEqual({ blockedDomains: ["pinterest .com"] });
+    expect(report.warnings).toEqual([
+      'DEEPSEEK_SEARCH_BLOCKED_DOMAINS entry "pinterest .com" is not a domain — ignored',
+      "DEEPSEEK_FETCH_ALLOWED_DOMAINS contains no domains — ignored",
+      'DEEPSEEK_ENABLE_SEARCH="true" changes nothing — only false/0/no/off turns the switch off',
+    ]);
   });
 });

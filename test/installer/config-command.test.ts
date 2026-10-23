@@ -8,6 +8,7 @@ import { API_KEY_ENV } from "../../src/core/constants";
 import type { Env } from "../../src/core/env";
 import { runInstallerCli } from "../../src/installer/cli";
 import { runConfigCommand } from "../../src/installer/config-command";
+import { createStub } from "../helpers";
 
 function captureIo() {
   const out: string[] = [];
@@ -30,26 +31,6 @@ function xdgFixture(config?: unknown): { env: Env; file: string } {
     );
   }
   return { env: { XDG_CONFIG_HOME: dir }, file: join(dir, "deepseek-web-retrieval", "config.json") };
-}
-
-/** The transport stub shape test/mcp uses: no response queued means the network must not be reached. */
-function createStub() {
-  let captured: { url: string; init: RequestInit } | undefined;
-  let response: { body: unknown; status: number } | undefined;
-  return {
-    get captured() {
-      return captured;
-    },
-    respond(body: unknown, status = 200) {
-      captured = undefined;
-      response = { body, status };
-    },
-    fetchImpl: (async (url, init) => {
-      if (!response) throw new Error("network must not be reached");
-      captured = { url: String(url), init: init ?? {} };
-      return Response.json(response.body, { status: response.status });
-    }) as typeof fetch,
-  };
 }
 
 describe("config command: effective options with provenance", () => {
@@ -132,6 +113,24 @@ describe("config command: effective options with provenance", () => {
     expect(await runConfigCommand(undefined, io, { env })).toBe(1);
     expect(errText()).toContain(`warning: ${file} is not a JSON object — file ignored`);
     expect(outText()).toContain("maxResults = 10 (default)");
+  });
+
+  test("set-but-unusable DEEPSEEK_* variables warn and exit 1 while usable ones still apply", async () => {
+    const { env } = xdgFixture();
+    const { io, outText, errText } = captureIo();
+    const code = await runConfigCommand(undefined, io, {
+      env: {
+        ...env,
+        DEEPSEEK_SEARCH_COUNT: "20",
+        DEEPSEEK_FETCH_TIMEOUT: "10000",
+        DEEPSEEK_SEARCH_LANGUAGE: "fr",
+      },
+    });
+    expect(code).toBe(1);
+    expect(errText()).toContain("warning: unknown DEEPSEEK_* variable DEEPSEEK_FETCH_TIMEOUT — ignored");
+    expect(outText()).toContain("count = 20 (env)");
+    expect(outText()).toContain("language = fr (env)");
+    expect(outText()).toContain("fetchTimeoutMs = 30000 (default)");
   });
 });
 
