@@ -1,5 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { budgetOutput, resultIntegrity } from "../content-budget";
+import { CONTENT_BUDGET_CASES, PI_MCP_OUTPUT_BYTES } from "../fixtures/search-content.mjs";
 import { check, excerpt } from "./assert";
 import {
   FETCH_NEEDLE,
@@ -46,7 +49,7 @@ export async function runPiMockScenario(runner: Runner): Promise<string[]> {
               {
                 id: "mock-chat",
                 name: "Mock Chat",
-                contextWindow: 8192,
+                contextWindow: 128000,
                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
               },
             ],
@@ -179,6 +182,146 @@ export async function runPiMockScenario(runner: Runner): Promise<string[]> {
   );
   log.push("pi-mock: deepseek_web_search with need_content=true carried the page body end to end");
 
+  await runContentBudgets(runner, settingsDir, env, log);
+
   log.push("note: fully keyless — the LLM and retrieval legs never left the container");
   return log;
+}
+
+async function runContentBudgets(
+  runner: Runner,
+  modelSettingsDir: string,
+  env: Readonly<Record<string, string>>,
+  log: string[],
+): Promise<void> {
+  for (const path of ["native", "mcp"] as const) {
+    // Separate fresh homes avoid carrying package/MCP settings or sessions
+    // between adapters, and avoid overwriting bind-mounted config in place.
+    const settingsDir = join(runner.homeDir.host, `budget-${path}`, ".pi", "agent");
+    const pathEnv = { ...env, HOME: join(runner.homeDir.guest, `budget-${path}`) };
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(join(settingsDir, "models.json"), readFileSync(join(modelSettingsDir, "models.json")));
+    writeFileSync(
+      join(settingsDir, "settings.json"),
+      JSON.stringify({ packages: path === "native" ? [runner.repoDir] : [] }),
+    );
+    writeFileSync(
+      join(settingsDir, "mcp.json"),
+      JSON.stringify({
+        mcpServers:
+          path === "native"
+            ? {}
+            : {
+                deepseek: {
+                  command: "node",
+                  args: [join(runner.repoDir, "dist", "cli.js")],
+                  exposure: "direct",
+                  enabled: true,
+                },
+              },
+      }),
+    );
+    if (path === "mcp") {
+      const listed = await runner.run(["pi", "mcp", "list", "--json"], { cwd: runner.projectDir.guest, env: pathEnv });
+      check(listed.exitCode === 0, "budget MCP server did not connect", `${listed.stdout}\n${listed.stderr}`);
+    }
+    for (const scenario of CONTENT_BUDGET_CASES) {
+      const expected = budgetOutput(scenario);
+      const name = `pi-${path}-${scenario.id}`;
+      const result = await runWithMockUpstream(
+        runner,
+        name,
+        [
+          "pi",
+          "--print",
+          "--no-session",
+          "--model",
+          MODEL,
+          `Run deepseek_web_search with need_content for budget:${scenario.id}.`,
+        ],
+        {
+          cwd: runner.projectDir.guest,
+          env: {
+            ...pathEnv,
+            DEEPSEEK_SEARCH_CONTENT_MAX_CHARS: String(expected.options.contentMaxChars),
+            DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS: String(expected.options.maxSummaryChars),
+          },
+          timeoutMs: RUN_TIMEOUT_MS,
+        },
+      );
+      check(result.exitCode === 0, `${name}: Pi session failed`, excerpt(result.stderr || result.stdout));
+      const requests = readMockLog(runner, name);
+      const calls = retrievalCalls(requests, "search");
+      check(calls.length === 1, `${name}: expected exactly one retrieval call`);
+      check(
+        calls[0]?.body?.need_content === true && calls[0]?.body?.count === expected.options.count,
+        `${name}: incorrect need_content or count on the wire`,
+        JSON.stringify(calls[0]?.body),
+      );
+      const final = requests.find((entry) => entry.kind === "chat" && entry.round === "final");
+      check(final?.toolResult !== undefined, `${name}: no tool result reached the model`);
+      const received = final.toolResult;
+      check(final.toolResultBytes === Buffer.byteLength(received, "utf8"), `${name}: incomplete mock byte accounting`);
+      check(
+        !received.includes("\uFFFD") && Buffer.from(received, "utf8").toString("utf8") === received,
+        `${name}: Unicode damaged at a boundary`,
+      );
+      const bytes = Buffer.byteLength(expected.text, "utf8");
+      const truncated = path === "mcp" && bytes > PI_MCP_OUTPUT_BYTES;
+      const integrity = resultIntegrity(received, expected);
+      if (!truncated) {
+        check(received === expected.text, `${name}: output changed below the host limit or on the native path`);
+        check(integrity.complete.length === expected.results.length, `${name}: a result was lost`);
+        check(final.savedOutputSha256 === undefined, `${name}: unexpectedly saved truncated output`);
+      } else {
+        check(
+          received.includes("Warning: truncated output") && /…\d+ chars truncated…/.test(received),
+          `${name}: missing Pi MCP truncation notice`,
+        );
+        check(integrity.complete.length < expected.results.length, `${name}: expected a cut result`);
+        check(
+          final.savedOutputBytes === bytes &&
+            final.savedOutputSha256 === createHash("sha256").update(expected.text).digest("hex"),
+          `${name}: Pi's saved full output is incomplete`,
+        );
+        if (scenario.id === "cjk-default" || scenario.id === "cjk-large") {
+          const count = expected.results.length;
+          check(
+            JSON.stringify(integrity.complete) === JSON.stringify([1, 2, count - 1, count]) &&
+              JSON.stringify(integrity.visibleUrls) === JSON.stringify([1, 2, 3, count - 1, count]),
+            `${name}: unexpected preserved result blocks or URLs`,
+            JSON.stringify(integrity),
+          );
+        }
+        if (scenario.id === "near-above") {
+          check(
+            integrity.complete.length === 9 && integrity.missingUrls.length === 0,
+            `${name}: all URLs should survive, but one result body must be incomplete`,
+            JSON.stringify(integrity),
+          );
+        }
+      }
+      // Machine-readable measurements, including wrapper overhead after the
+      // 20 KiB cut. Structured JSON bytes are separate, not the host text cap.
+      log.push(
+        `content-budget: ${JSON.stringify({
+          path,
+          case: scenario.id,
+          count: expected.results.length,
+          pageExcerptsClipped: expected.results.filter(
+            (item) => item.contentKind === "page" && item.content?.endsWith("…"),
+          ).length,
+          digestExcerptsClipped: expected.results.filter(
+            (item) => item.contentKind === "digest" && item.content?.endsWith("…"),
+          ).length,
+          textBytes: bytes,
+          structuredJsonBytes: Buffer.byteLength(JSON.stringify(expected.structured), "utf8"),
+          modelBytes: final.toolResultBytes,
+          truncated,
+          ...integrity,
+          savedOutputBytes: final.savedOutputBytes ?? null,
+        })}`,
+      );
+    }
+  }
 }

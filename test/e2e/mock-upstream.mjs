@@ -6,8 +6,10 @@
 // tool result into the final answer, so a scenario passes only when the tool
 // result actually reached the model. Every request is appended to a JSONL log
 // the host-side scenario asserts against (path, Authorization, body).
-import { appendFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { appendFileSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { budgetCase, contentBudgetResults } from "../fixtures/search-content.mjs";
 
 const args = process.argv.slice(2);
 const port = Number(option(args, "--port") ?? "8791");
@@ -31,14 +33,32 @@ function log(entry) {
 
 /** The needles a round-two tool result must contain, by planned call. */
 function needleFor(call) {
+  if (call.arguments?.query?.startsWith("budget:")) return "https://mock.example/budget/01";
   if (call.name === "deepseek_fetch" || call.name === "webfetch") return FETCH_TITLE;
   if (call.arguments?.need_content === true) return SEARCH_CONTENT_NEEDLE;
   return SEARCH_URL;
 }
 
 /** Round one: which tool call the script issues, keyed off the user prompt. */
-function plannedCall(lastUserText) {
+function plannedCall(lastUserText, tools = []) {
   const text = lastUserText.toLowerCase();
+  const scenario = budgetCase(/budget:([a-z0-9-]+)/.exec(text)?.[1]);
+  if (scenario) {
+    // Use the host's advertised name: native Pi is unprefixed; MCP is namespaced.
+    const name = tools.map((tool) => tool.function?.name).find((name) => name?.endsWith("deepseek_web_search"));
+    if (!name)
+      throw new Error(
+        `budget mock: search tool was not advertised: ${JSON.stringify(tools.map((tool) => tool.function?.name ?? tool.name))}`,
+      );
+    return {
+      name,
+      arguments: {
+        query: `budget:${scenario.id}`,
+        need_content: true,
+        ...(scenario.count === undefined ? {} : { count: scenario.count }),
+      },
+    };
+  }
   if (text.includes("deepseek_fetch")) {
     return { name: "deepseek_fetch", arguments: { url: "https://example.com" } };
   }
@@ -100,7 +120,7 @@ function handleChat(res, bodyText) {
   }
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const tools = toolMessages(messages);
-  const call = plannedCall(lastUserText(messages));
+  const call = plannedCall(lastUserText(messages), body.tools);
 
   let message;
   let finishReason;
@@ -129,7 +149,23 @@ function handleChat(res, bodyText) {
       : `MOCK-UPSTREAM tool result did not contain "${expected}": ${result.slice(0, 300)}`;
     message = { role: "assistant", content: answer };
     finishReason = "stop";
-    log({ kind: "chat", round: "final", toolResult: result.slice(0, 2000) });
+    if (call?.arguments?.query?.startsWith("budget:")) {
+      // Keep the complete text for boundary assertions; the old 2,000-character
+      // diagnostic excerpt cannot prove that middle or final results arrived.
+      const savedPath = /^\[Full output: (.+) \(read it with offset\/limit\)\]$/m.exec(result)?.[1];
+      const saved = savedPath ? readFileSync(savedPath) : undefined;
+      log({
+        kind: "chat",
+        round: "final",
+        toolResult: result,
+        toolResultBytes: Buffer.byteLength(result),
+        ...(saved
+          ? { savedOutputBytes: saved.length, savedOutputSha256: createHash("sha256").update(saved).digest("hex") }
+          : {}),
+      });
+    } else {
+      log({ kind: "chat", round: "final", toolResult: result.slice(0, 2000) });
+    }
   } else {
     message = { role: "assistant", content: "MOCK-UPSTREAM no planned tool call for this prompt" };
     finishReason = "stop";
@@ -164,6 +200,9 @@ function handleChat(res, bodyText) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let text = "";
+    // HTTP chunks may split a CJK/emoji code point in the larger budget cases.
+    // StringDecoder behind setEncoding preserves it across chunk boundaries.
+    req.setEncoding("utf8");
     req.on("data", (part) => {
       text += part;
     });
@@ -182,6 +221,13 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname.endsWith("/v1/tools/search")) {
       const body = JSON.parse(await readBody(req));
       log({ kind: "search", auth: req.headers.authorization ?? null, body });
+      const scenario = budgetCase(body.query?.replace(/^budget:/, ""));
+      if (scenario) {
+        const results = contentBudgetResults(scenario, body.count);
+        if (body.need_content !== true) for (const result of results) delete result.content;
+        sendJson(res, 200, { results });
+        return;
+      }
       // The page body rides along only when the call asked for it, mirroring
       // the real API: a digest response carries no content field at all.
       const result = {

@@ -9,6 +9,8 @@ import {
   truncate,
 } from "../../src/core/format";
 import type { SearchResult } from "../../src/core/types";
+import { budgetOutput, resultIntegrity } from "../content-budget";
+import { CONTENT_BUDGET_CASES, PI_MCP_OUTPUT_BYTES } from "../fixtures/search-content.mjs";
 
 describe("formatting", () => {
   test("truncates ASCII and Unicode without splitting surrogate pairs", () => {
@@ -195,4 +197,55 @@ describe("toStructuredResult", () => {
       content: "A short summary.",
     });
   });
+});
+
+describe("need_content output budgets (UTF-8, before host limits)", () => {
+  const expectedBytes: Record<string, number> = {
+    "latin-default": 16269,
+    "cjk-default": 46069,
+    "cjk-large": 230389,
+    "mixed-default": 37159,
+    "fallback-default": 25759,
+    "fallback-budget": 13159,
+    "cjk-count-four": 18426,
+    "cjk-budget-500": 16139,
+    "multiline-default": 53519,
+    "long-metadata": 46139,
+  };
+
+  for (const scenario of CONTENT_BUDGET_CASES) {
+    test(scenario.id, () => {
+      const output = budgetOutput(scenario);
+      const count = scenario.count ?? 10;
+      expect(output.options.count).toBe(count);
+      expect(output.options.maxResults).toBe(count);
+      expect(output.results).toHaveLength(count);
+      expect(resultIntegrity(output.text, output).complete).toHaveLength(count);
+      expect(output.text).not.toContain("\uFFFD");
+      expect(Buffer.from(output.text, "utf8").toString("utf8")).toBe(output.text);
+      // Include titles, URLs, quality/date metadata, newlines, indentation,
+      // and the extra ellipsis byte cost; character counts are not byte caps.
+      const bytes = Buffer.byteLength(output.text, "utf8");
+      expect(bytes).toBe(scenario.expectedBytes ?? expectedBytes[scenario.id]);
+      if (scenario.expectedBytes !== undefined) {
+        expect(Math.abs(bytes - PI_MCP_OUTPUT_BYTES)).toBeLessThanOrEqual(1);
+      }
+      for (let i = 0; i < count; i++) {
+        const actual = output.results[i];
+        const raw = output.raw[i];
+        expect(output.structured.results[i]?.content).toBe(actual?.content);
+        const page = typeof raw?.content === "string" && raw.content.trim() !== "";
+        const source = (page ? raw?.content : (raw?.summary ?? raw?.snippet))?.trim() ?? "";
+        const cap = page ? output.options.contentMaxChars : output.options.maxSummaryChars;
+        const clipped = Array.from(source).length > cap;
+        expect(actual?.contentKind).toBe(page ? "page" : "digest");
+        expect(Array.from(actual?.content ?? "")).toHaveLength(
+          Math.min(Array.from(source).length, cap) + Number(clipped),
+        );
+        expect(actual?.content?.endsWith("…")).toBe(clipped);
+        if (page) expect(actual?.content).not.toContain("摘要");
+        else expect(actual?.content).not.toContain("正文");
+      }
+    });
+  }
 });

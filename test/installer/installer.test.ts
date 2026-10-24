@@ -773,7 +773,9 @@ describe("apply rollback", () => {
     expect(previous).toBeDefined();
     const oldConfig = join(input.home, ".codex/config.toml");
     const newConfig = join(input.home, ".codex/migrated.toml");
-    const oldClaim = join(dirname(oldConfig), ".config.toml.deepseek-web-retrieval.codex.owner.json");
+    // Ownership cleanup uses resolved paths; match the existing sidecar's
+    // real path even when the temp root is an alias (/var -> /private/var).
+    const oldClaim = fs.realpathSync(join(dirname(oldConfig), ".config.toml.deepseek-web-retrieval.codex.owner.json"));
     const planned = planForHost(input.host, input);
     // A config-path migration makes the old shared config a whole-file orphan.
     const plan = {

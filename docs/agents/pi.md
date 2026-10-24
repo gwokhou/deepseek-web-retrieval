@@ -269,3 +269,13 @@ if you raise `DEEPSEEK_*_TIMEOUT_MS` beyond it). `pi mcp list` verifies the hand
 config changes load with `/reload` or a new session. `npx deepseek-web-retrieval init
 --host pi --path mcp ...` installs this shape with plan-then-apply semantics; see
 [`examples/pi.mcp.jsonc`](../../examples/pi.mcp.jsonc).
+
+For `need_content` searches, the MCP threshold in Pi 1.3.0 is 20,480 **UTF-8 bytes**,
+not characters. Keyless tests with ten 1,500-character CJK bodies produced 46,069
+bytes after formatting; only four result blocks stayed complete in the direct
+model message, while the saved file retained the full output. The native extension
+preserved all ten. If using MCP, tune result count and `searchContentMaxChars` with
+headroom, and also consider `maxSummaryChars` for missing-body fallbacks. A 500-character
+body budget or count 4 stayed below the threshold for the tested ordinary-metadata
+fixtures, but long titles, many lines, fallback summaries and larger per-call counts
+can still exceed it. See the [measured cases and reproduction commands](../design/search-content-design.md#keyless-output-budget-regression-coverage).
