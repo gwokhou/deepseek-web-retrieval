@@ -23,7 +23,10 @@ export const CODEX_TESTED_VERSION = "0.163.0";
  */
 export function probeCodexVersion(err: (line: string) => void): string | undefined {
   // env passed explicitly: runtime PATH edits (tests) must reach the lookup.
-  const result = spawnSync("codex", ["--version"], { timeout: 5000, encoding: "utf8", env: process.env });
+  // shell: npm's global install on Windows provides only a codex.cmd shim,
+  // which spawnSync cannot launch without a shell; the command and args are
+  // hardcoded, so the shell hop is safe.
+  const result = spawnSync("codex", ["--version"], { timeout: 5000, encoding: "utf8", env: process.env, shell: true });
   const version = result.status === 0 ? parseCodexVersion(result.stdout ?? "") : undefined;
   if (version === undefined) {
     err("note: codex was not found on PATH or printed no version; the version-drift check was skipped");

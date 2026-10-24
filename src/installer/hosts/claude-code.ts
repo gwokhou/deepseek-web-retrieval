@@ -31,7 +31,10 @@ function valueKind(value: unknown): string {
  */
 export function probeClaudeCodeVersion(err: (line: string) => void): string | undefined {
   // env passed explicitly: runtime PATH edits (tests) must reach the lookup.
-  const result = spawnSync("claude", ["--version"], { timeout: 5000, encoding: "utf8", env: process.env });
+  // shell: npm's global install on Windows provides only a claude.cmd shim,
+  // which spawnSync cannot launch without a shell; the command and args are
+  // hardcoded, so the shell hop is safe.
+  const result = spawnSync("claude", ["--version"], { timeout: 5000, encoding: "utf8", env: process.env, shell: true });
   const version = result.status === 0 ? parseClaudeCodeVersion(result.stdout ?? "") : undefined;
   if (version === undefined) {
     err("note: claude was not found on PATH or printed no version; the version-drift check was skipped");
