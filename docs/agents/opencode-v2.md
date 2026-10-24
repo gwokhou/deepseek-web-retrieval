@@ -180,9 +180,10 @@ The model calls `websearch` (provider `deepseek`) or `deepseek_fetch`. When
 `fetchOverrideWebfetch` is enabled, Markdown fetches go through `webfetch` instead.
 
 DeepSeek's optional `ori_question` is not sent on this path, and the model cannot request a
-per-call result count: OpenCode's `websearch` tool input is fixed to `query` (verified
-unchanged at `@opencode/schema` 2.1.4, the drift check above the 2.0.32 lock), so the
-provider has no channel for either. Upstream requests:
+per-call result count or inline page content (`need_content`): OpenCode's `websearch` tool
+input is fixed to `query` (verified unchanged at `@opencode/schema` 2.1.4, the drift check
+above the 2.0.32 lock), so the provider has no channel for either — search stays
+summary-only here while the MCP server and the Pi extension expose both parameters. Upstream requests:
 [anomalyco/opencode#58635](https://github.com/anomalyco/opencode/issues/58635) (session linkage)
 and [#58636](https://github.com/anomalyco/opencode/issues/58636) (per-call `count`); see the
 [research note](../research/ori-question-sourcing.md). The fetch tools are not constrained:

@@ -44,6 +44,10 @@ _Avoid_: adapter option (that means any option an adapter consumes)
 The one ordered set of knob names shared by the file, the options tables, and the summaries (`SHARED_CONFIG_KEYS`/`CONFIG_KEYS`); host-integration keys are not part of it.
 _Avoid_: schema (that is the JSON Schema of a tool input)
 
+**Content envelope**:
+The deployment-level pair (`searchContentMaxChars`, `searchContentTimeoutMs`) bounding how much inline page content a `need_content` call may return — distinct from the per-call boolean that decides whether content flows at all.
+_Avoid_: content mode (there is no mode; the flag is a per-call boolean)
+
 ## Installing
 
 **Plan**:

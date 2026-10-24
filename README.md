@@ -125,14 +125,16 @@ binary files, per-request billing) are documented there.
 | Results per search | 10 | `count` |
 | Fetch output cap | 16,000 characters | `fetchMaxChars` |
 | Search summary cap | 1,200 characters | `maxSummaryChars` |
-| Request timeout, body read included | 30 s | `searchTimeoutMs` / `fetchTimeoutMs` |
+| Inline content cap, per result (when requested) | 1,500 characters | `searchContentMaxChars` |
+| Request timeout, body read included | 30 s (60 s for `need_content` calls) | `searchTimeoutMs` / `fetchTimeoutMs` / `searchContentTimeoutMs` |
 | Transient retries | 2 (range 0–5) | `maxRetries` |
 
 ### Search
 
-- Requests summaries only (`need_content: false`, falling back from `summary` to
-  `snippet`); full page content never enters the results. A summary the cap shortens ends
-  with an ellipsis.
+- Requests summaries by default (`need_content: false`, falling back from `summary` to
+  `snippet`); a summary the cap shortens ends with an ellipsis. When a call sets
+  `need_content: true`, each result instead carries its page body as Markdown, clamped
+  to `searchContentMaxChars` per result — a missing body falls back to the summary.
 - Deduplicates URLs; an empty result set is normal, not an error.
 - Builds `blockedDomains`, `includeDomains`, and `language` into query operators (part of
   DeepSeek's documented search syntax). A combined query over the API's 128-character limit
@@ -150,7 +152,9 @@ binary files, per-request billing) are documented there.
   and truncated to 128 characters; on the Pi extension, a blank input falls back to the
   most recent user message in the session.
 - The same paths also take an optional per-call `count` (1–50), overriding the
-  configured result count for that one call.
+  configured result count for that one call, and an optional per-call `need_content`
+  boolean requesting page bodies in the results (see
+  [search content design](docs/design/search-content-design.md)).
 
 ### Fetch
 

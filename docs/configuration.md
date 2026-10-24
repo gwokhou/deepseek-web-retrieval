@@ -49,7 +49,7 @@ environment, or OpenCode's stored credential).
 | Knob class | Shared file | Examples |
 | --- | --- | --- |
 | API behavior — the user↔DeepSeek relationship | yes — that is the point of the file | `count`, `blockedDomains`, `language`, `maxRetries` |
-| Host-sensitive — interacts with host output caps and deadlines | carries the safe defaults; a host layer is the recommended override point | `searchTimeoutMs`, `fetchTimeoutMs`, `fetchMaxChars`, `maxSummaryChars` |
+| Host-sensitive — interacts with host output caps and deadlines | carries the safe defaults; a host layer is the recommended override point | `searchTimeoutMs`, `fetchTimeoutMs`, `fetchMaxChars`, `maxSummaryChars`, `searchContentMaxChars`, `searchContentTimeoutMs` |
 | Host integration — the host's tool landscape | rejected — warned about and ignored | `searchEnabled`, `setDefaultWebsearch`, `apiKeySource` |
 
 Keep host-independent intent in the shared file; prefer a host layer when a
@@ -76,6 +76,8 @@ drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
 | `language` | `DEEPSEEK_SEARCH_LANGUAGE` | unset |
 | `searchLocalization` | `DEEPSEEK_SEARCH_LOCALIZATION` | unset |
 | `maxSummaryChars` | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | 1200 |
+| `searchContentMaxChars` | `DEEPSEEK_SEARCH_CONTENT_MAX_CHARS` | 1500 |
+| `searchContentTimeoutMs` | `DEEPSEEK_SEARCH_CONTENT_TIMEOUT_MS` | 60000 |
 | `searchTimeoutMs` | `DEEPSEEK_SEARCH_TIMEOUT_MS` | 30000 |
 | `fetchMaxChars` | `DEEPSEEK_FETCH_MAX_CHARS` | 16000 |
 | `fetchAllowedDomains` | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | unset |
@@ -107,6 +109,13 @@ drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
 - **`searchLocalization` must be a valid IPv4 or IPv6 address**; anything else
   is dropped at option resolution. It is deployment-level configuration, never
   a per-call tool parameter.
+- **The content envelope is deployment-level too.** `searchContentMaxChars` and
+  `searchContentTimeoutMs` apply only when a call asks for inline page content
+  (`need_content: true`, a per-call tool parameter on the MCP server and the Pi
+  extension; OpenCode's provider input has no channel for it, so search stays
+  summary-only there). They are never tool parameters — the model cannot see
+  which host caps its output. `searchContentMaxChars: 0` drops page bodies
+  entirely and the summary digest renders.
 - **`baseUrl` routes the retrieval API** (`/v1/tools/search` and
   `/v1/tools/fetch` are composed from it). It is infrastructure routing for
   proxies, gateways, and mock upstreams — not a provider switch, and the package

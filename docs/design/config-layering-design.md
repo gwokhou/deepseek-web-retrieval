@@ -133,7 +133,10 @@ A bad shared value now fails everywhere at once, so effective configuration must
 
 ## What this design does not change
 
-- `need_content` stays hardcoded `false` ([search-inline-content.md](../research/search-inline-content.md)).
+- `need_content` is no longer hardcoded `false` — it became a per-call tool parameter
+  with a deployment-owned envelope
+  ([search-content-design.md](search-content-design.md),
+  [ADR-0003](../adr/0003-need-content-per-call-boolean.md)).
 - `ori_question` remains per-call-only — supplied through the tool input named
   `original_question` (with the Pi session fallback) and sent to the API as `ori_question`;
   it is not configurable.

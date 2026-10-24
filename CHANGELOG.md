@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here, one sentence per item.
 
+## Unreleased
+
+- Add `need_content` as an optional per-call boolean on the MCP and Pi search tools: `true` attaches each result's page body as Markdown (structure-preserving, indented into the result list) in place of its summary, and a missing body falls back to the summary; OpenCode's fixed provider input keeps that path summary-only.
+- Add the `searchContentMaxChars` (1,500 characters) and `searchContentTimeoutMs` (60,000 ms) deployment knobs — the content envelope every `need_content` call runs inside, never tool parameters, recorded in ADR-0003 and the search content design note.
+- Extend the inline-content research note with the vendor reading that no surveyed architecture couples a content flag to another parameter's value range: budgets are static-range, conditional-effect.
+
 ## 0.9.0
 
 - Accept an optional per-call `count` (1–50) on the MCP and Pi search tools and an optional per-call `maxChars` (0–1,000,000) on every adapter's fetch, each overriding the configured value for that one call.

@@ -146,6 +146,17 @@ exist they are per-result character caps (Exa `maxCharacters`) or per-result tok
 (Perplexity `max_tokens_per_page`); Tavily and You.com ship full-content modes with **no**
 per-result size knob at all — the two closest analogues to DeepSeek's `need_content`.
 
+One further architecture reading (added 2026-10-24, same sources): **no surveyed vendor
+narrows another parameter's value range when inline content is requested.** Every budget
+knob in the table is static-range, conditional-effect — Exa's `maxCharacters` and
+Perplexity's `max_tokens_per_page` keep their 1–1,000,000 ranges whether or not
+`contents.text`/extraction is engaged, Tavily's `chunks_per_source` and Anthropic's
+`max_content_tokens` are likewise unconditional, and none shrinks `count`/`numResults`
+or any other parameter's domain when content flows (Jina's fixed 5 is its architecture,
+not a conditional rule). The only conditional behavior anywhere in the table is which
+budget *applies*; a content flag that reshaped other parameters' allowed values appears
+in none of the eight.
+
 Sources: [Tavily /search](https://docs.tavily.com/documentation/api-reference/endpoint/search) ·
 [Tavily /extract](https://docs.tavily.com/documentation/api-reference/endpoint/extract) ·
 [Exa /search](https://exa.ai/docs/reference/search) ·
