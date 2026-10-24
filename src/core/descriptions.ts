@@ -30,7 +30,8 @@ export const SEARCH_TOOL_DESCRIPTION =
   `${SEARCH_RANKED_FILTERED} ` +
   `${SEARCH_EMPTY_IS_NORMAL} ` +
   `${SEARCH_QUERY_OPERATORS} ` +
-  "To read a full page, pass a result URL to the deepseek_fetch tool.";
+  "To read one full page in depth, pass a result URL to the deepseek_fetch tool; to carry each result's " +
+  "page body in this response, set need_content to true.";
 
 export const FETCH_TOOL_DESCRIPTION =
   "Fetch one web page as clean Markdown through DeepSeek's Fetch API. " +
@@ -56,5 +57,6 @@ export const SEARCH_COUNT_PARAMETER =
   "billing is per request, not per result.";
 
 export const SEARCH_NEED_CONTENT_PARAMETER =
-  "Optional; set true to attach each result's page body as Markdown (clamped to a configured per-result budget) " +
-  "instead of its short summary. Slower per call — DeepSeek fetches the result pages — and priced the same per request.";
+  "Optional; set true to attach each result's page body as Markdown — an excerpt clamped to a configured per-result " +
+  "budget, not a full page — in place of its short summary. Slower per call (DeepSeek fetches the result pages) and " +
+  "priced the same per request; for a full page, call deepseek_fetch.";

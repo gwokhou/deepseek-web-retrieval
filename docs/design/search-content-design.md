@@ -126,3 +126,8 @@ generated knob table.
    and a silent runtime narrowing (say, of `count`) would be a decision the model
    cannot see. The budget × count arithmetic is the deployment's to run.
 5. OpenCode stays summary-only until the upstream provider input widens.
+6. The descriptions state facts — mechanics, latency, price, magnitude, the fetch
+   alternative — and no usage policy. When content is worth it is the model's per-call
+   judgment (or a user's rules file per deployment), not the tool author's; if usage
+   data later shows the parameter systematically ignored or overused, that is the point
+   to add minimal steering, decided by evidence.
