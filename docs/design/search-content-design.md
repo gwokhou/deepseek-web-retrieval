@@ -52,9 +52,12 @@ Defaults from the host-cap arithmetic in the research note:
   digest path keeps and the 300 s ceiling Codex allows, because the API must fetch
   every result page server-side before responding and documents no latency statement.
 
-The total a response can carry is budget × count plus metadata. That product is the
-deployment's arithmetic to run when tuning either knob; the core does not narrow any
-parameter's range at runtime (see Decisions).
+The body budget counts Unicode code points, not UTF-8 bytes. A shortened body adds
+an ellipsis **outside** that budget. Final text also includes metadata and three spaces
+per body line for Markdown indentation; missing bodies use `maxSummaryChars` instead.
+Measure `Buffer.byteLength(formattedText, "utf8")` for the actual output envelope,
+not just budget × count. The core does not narrow any parameter's range at runtime
+(see Decisions).
 
 ## Per-adapter composition
 
@@ -103,6 +106,77 @@ Wire assertions on both model-facing adapters (`need_content: true` reaching the
 (`contentTimeoutMs` used only when the call asks for content), `processResults` tests
 for the body-over-digest precedence, the budget clamp and marker, the empty-body
 fallback, and the zero-budget drop, and format tests for the two rendering shapes.
+
+### Keyless output-budget regression coverage
+
+`test/fixtures/search-content.mjs` supplies the same 13 synthetic cases to the
+formatting tests, both adapter suites, and `test/e2e/pi-mock.ts`. Run:
+
+```sh
+bun test test/core/format.test.ts test/pi/extension.test.ts test/mcp/server.test.ts
+bun run test:e2e pi-mock
+```
+
+The second command uses the existing Docker runner and the Pi version pinned in
+`docs/hosts.jsonc` (1.3.0 for this baseline). Both retrieval and the scripted model
+use the local mock and placeholder keys. It runs each fixture through the native
+extension and the direct MCP path, checks `need_content` and the effective count
+on the wire, and measures the complete tool message received by the mock model.
+No real DeepSeek key, upstream crawl, or paid model is involved.
+
+Each `content-budget:` JSON line records formatted text bytes, structured-mirror
+JSON bytes separately, actual model-message bytes, truncation, complete result-block
+indices, and visible/missing URL indices. A complete block includes its heading,
+body/digest and metadata; a visible URL alone does not establish completeness.
+For truncated MCP output the mock also reads Pi's saved full-output file inside the
+same container and compares its byte count and SHA-256 to the complete expected text.
+
+The threshold fixtures render to exactly 20,479, 20,480 and 20,481 bytes, using
+ASCII title padding to vary one byte at a time while keeping ten CJK bodies.
+Pi's MCP threshold is **20 × 1024 = 20,480 bytes**, applied to text before adding
+the truncation warning, marker and saved-file reference. Those additions mean the
+final model message can exceed 20,480 bytes; it is not a hard final-message cap.
+The tests assert exact unmodified text at/below the threshold, a cut above it,
+and preservation on the native path. The 50-result case exercises the supported
+per-call maximum without silently reducing count.
+
+Measured against v0.10.0 with Pi 1.3.0 (all byte counts are UTF-8; complete blocks
+refer to the configured excerpts, not full upstream pages):
+
+| Fixture | Formatted text bytes | Native complete blocks | MCP complete blocks | MCP text truncated |
+| --- | ---: | ---: | ---: | --- |
+| Latin body, default count 10 | 16,269 | 10/10 | 10/10 | no |
+| CJK body, default count 10 | 46,069 | 10/10 | 4/10 | yes |
+| CJK body, per-call count 50 | 230,389 | 50/50 | 4/50 | yes |
+| CJK/ASCII/emoji, 1,501 source code points | 37,159 | 10/10 | 4/10 | yes |
+| Missing/null/empty/blank bodies, body budget 500 | 25,759 | 10/10 | 6/10 | yes |
+| Same fallback fixture, summary budget also 500 | 13,159 | 10/10 | 10/10 | no |
+| CJK, per-call count 4 | 18,426 | 4/4 | 4/4 | no |
+| CJK, body budget 500, count 10 | 16,139 | 10/10 | 10/10 | no |
+| CJK multiline, default count 10 | 53,519 | 10/10 | 2/10 | yes |
+| CJK, body budget 500, long titles | 46,139 | 10/10 | 4/10 | yes |
+| Threshold minus one byte | 20,479 | 10/10 | 10/10 | no |
+| Exact threshold | 20,480 | 10/10 | 10/10 | no |
+| Threshold plus one byte | 20,481 | 10/10 | 9/10 | yes |
+
+For the default CJK fixture, MCP preserves complete blocks 1, 2, 9 and 10, with
+URLs 4–8 missing from the direct model message; the saved full-output file retains
+all ten blocks. At threshold + 1 all ten URLs survive but block 5 is incomplete.
+In this run truncated model messages occupied 20,657–20,665 bytes including Pi's
+notice and file reference; that final size depends on the generated file path.
+No malformed Unicode was observed. These are measured host truncation effects on
+constructed inputs, not evidence of upstream retrieval loss. Reading the saved file
+or reducing a full result through codemode is a separate step, not exercised here.
+
+For deployment tuning, use the native extension when full inline search results
+are needed in Pi. On the direct MCP path, a lower `count` or body budget can reduce
+truncation, but `searchContentMaxChars` alone does not bound fallback digests,
+metadata, or Markdown indentation. Measure representative formatted outputs and
+leave headroom; tune `maxSummaryChars` as well when missing-body fallback is common.
+Per-call `count` overrides the configured count and result cap, so a smaller
+deployment default is not a guaranteed response-wide limit. These tests establish
+boundary behavior, not a production size distribution or a universal safe setting;
+the shipped defaults remain unchanged.
 
 ## Rollout
 

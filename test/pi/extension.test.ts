@@ -8,13 +8,16 @@ import {
   SEARCH_EMPTY_IS_NORMAL,
   SEARCH_ORI_QUESTION_PARAMETER,
 } from "../../src/core/descriptions";
+import { resolvePluginOptions } from "../../src/core/options";
 import deepSeekWebRetrieval, {
   extensionPrecheck,
   fetchTool,
   resolveExtensionOptions,
   searchTool,
 } from "../../src/pi/extension";
-import { captureErrors, pinEnvironment, xdgRoot } from "../helpers";
+import { budgetOutput } from "../content-budget";
+import { CONTENT_BUDGET_CASES } from "../fixtures/search-content.mjs";
+import { captureErrors, createStub, pinEnvironment, xdgRoot } from "../helpers";
 
 interface CapturedTool {
   readonly name: string;
@@ -50,6 +53,41 @@ function fakePi() {
 }
 
 const originalKey = process.env.DEEPSEEK_API_KEY;
+
+describe("native Pi need_content output budgets", () => {
+  for (const scenario of CONTENT_BUDGET_CASES) {
+    test(scenario.id, async () => {
+      process.env.DEEPSEEK_API_KEY = "sk-test";
+      const expected = budgetOutput(scenario);
+      const stub = createStub();
+      stub.respond({ results: expected.raw });
+      const tool = searchTool(
+        resolvePluginOptions({
+          searchContentMaxChars: scenario.contentMaxChars,
+          maxSummaryChars: scenario.summaryMaxChars,
+        }),
+        createRetrievalClient({ fetchImpl: stub.fetchImpl }),
+      );
+      const result = await tool.execute(
+        "budget",
+        { query: "budget", need_content: true, ...(scenario.count === undefined ? {} : { count: scenario.count }) },
+        undefined,
+        undefined,
+        toolContext([]),
+      );
+      expect(result.isError).toBeFalsy();
+      expect(JSON.parse(String(stub.captured?.init.body))).toEqual({
+        query: "budget",
+        need_content: true,
+        count: scenario.count ?? 10,
+      });
+      // Native tools and structured mirrors must preserve every result even
+      // when their text exceeds the separate Pi MCP host's byte threshold.
+      expect(textOf(result)).toBe(expected.text);
+      expect(result.structuredContent).toEqual(expected.structured);
+    });
+  }
+});
 
 afterEach(() => {
   if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY;

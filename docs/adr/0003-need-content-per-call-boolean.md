@@ -36,9 +36,11 @@ cannot see which host caps its output, so it cannot own a budget.
 The model decides per call whether a search carries page bodies — one round-trip
 replaces search-plus-fetch when recall matters, and summaries stay the default when
 they suffice. A page body replaces its result's digest, clamped to
-`searchContentMaxChars` with an ellipsis marker, so a response's content volume is
-bounded by budget × count and can never blow a host cap by an undocumented server-side
-size. The text channel renders bodies as indented Markdown that keeps heading and list
+`searchContentMaxChars` with an ellipsis marker, bounding each page excerpt independently
+of the upstream page size. This character budget is not a response-wide byte cap:
+CJK/emoji encoding, result count, fallback digests, metadata and Markdown indentation
+can still exceed a host's output limit (see the design note's keyless budget tests).
+The text channel renders bodies as indented Markdown that keeps heading and list
 structure; digests stay one-line. `searchContentMaxChars: 0` drops bodies entirely (the
 digest renders) — a deployment kill switch that still pays the slower call, so leaving
 the parameter false is the better tool for the model. A result whose content comes back

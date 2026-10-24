@@ -21,6 +21,9 @@ export type MockRequest = {
   readonly round?: string;
   readonly tool?: string;
   readonly toolResult?: string;
+  readonly toolResultBytes?: number;
+  readonly savedOutputBytes?: number;
+  readonly savedOutputSha256?: string;
 };
 
 /**

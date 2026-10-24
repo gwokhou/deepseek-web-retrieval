@@ -8,7 +8,7 @@ import { API_KEY_ENV } from "../../src/core/constants";
 import type { Env } from "../../src/core/env";
 import { runInstallerCli } from "../../src/installer/cli";
 import { runConfigCommand } from "../../src/installer/config-command";
-import { createStub } from "../helpers";
+import { createStub, pinEnvironment } from "../helpers";
 
 function captureIo() {
   const out: string[] = [];
@@ -137,11 +137,13 @@ describe("config command: effective options with provenance", () => {
 describe("config command: CLI dispatch", () => {
   test("runInstallerCli routes config and help documents it", async () => {
     const xdg = mkdtempSync(join(tmpdir(), "dwr-config-cli-"));
-    const previousXdg = process.env.XDG_CONFIG_HOME;
-    process.env.XDG_CONFIG_HOME = xdg;
+    // CLI dispatch reads process.env, so isolate inherited DEEPSEEK_* values
+    // as well as the config directory, then restore both even on failure.
+    const restore = pinEnvironment(xdg);
     try {
-      const { io, outText } = captureIo();
+      const { io, outText, errText } = captureIo();
       expect(await runInstallerCli(["config"], io)).toBe(0);
+      expect(errText()).toBe("");
       expect(outText()).toContain(`Config file: ${join(xdg, "deepseek-web-retrieval", "config.json")} (missing)`);
 
       const help = captureIo();
@@ -152,8 +154,7 @@ describe("config command: CLI dispatch", () => {
       expect(await runInstallerCli(["config", "--search", ""], blank.io)).toBe(2);
       expect(blank.errText()).toContain("--search requires a query");
     } finally {
-      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
-      else process.env.XDG_CONFIG_HOME = previousXdg;
+      restore();
     }
   });
 });

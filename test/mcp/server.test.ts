@@ -15,6 +15,8 @@ import { resolveEnvOptions } from "../../src/core/env";
 import { resolvePluginOptions } from "../../src/core/options";
 import type { ResolvedOptions } from "../../src/core/types";
 import { createDeepSeekServer, servePrecheck } from "../../src/mcp/server";
+import { budgetOutput } from "../content-budget";
+import { CONTENT_BUDGET_CASES } from "../fixtures/search-content.mjs";
 import { createStub } from "../helpers";
 
 interface Persona {
@@ -59,6 +61,46 @@ const SEARCH_RESULTS = {
     { url: "https://d.example/unknown", title: "Unknown authority", summary: "Dropped.", rerank_score: 2.0 },
   ],
 };
+
+describe("MCP need_content output budgets before Pi host conversion", () => {
+  for (const scenario of CONTENT_BUDGET_CASES) {
+    test(scenario.id, async () => {
+      const expected = budgetOutput(scenario);
+      const stub = createStub();
+      stub.respond({ results: expected.raw });
+      const persona = await connectPersona(
+        stub.fetchImpl,
+        "2025-11-25",
+        { DEEPSEEK_API_KEY: "sk-test" },
+        resolvePluginOptions({
+          searchContentMaxChars: scenario.contentMaxChars,
+          maxSummaryChars: scenario.summaryMaxChars,
+        }),
+        { name: "pi", version: "1.3.0" },
+      );
+      try {
+        const result = await persona.client.callTool({
+          name: "deepseek_web_search",
+          arguments: {
+            query: "budget",
+            need_content: true,
+            ...(scenario.count === undefined ? {} : { count: scenario.count }),
+          },
+        });
+        expect(result.isError).toBeFalsy();
+        expect(JSON.parse(String(stub.captured?.init.body))).toEqual({
+          query: "budget",
+          need_content: true,
+          count: scenario.count ?? 10,
+        });
+        expect(result.content).toEqual([{ type: "text", text: expected.text }]);
+        expect(result.structuredContent).toEqual(expected.structured);
+      } finally {
+        await persona.close();
+      }
+    });
+  }
+});
 
 describe("MCP server over the legacy protocol eras", () => {
   for (const version of ["2025-11-25", "2025-06-18", "2024-11-05"]) {
