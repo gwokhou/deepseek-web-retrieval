@@ -9,7 +9,9 @@ import { runClaudeCodeScenario } from "./claude-code";
 import { runCodexScenario } from "./codex";
 import { runInstallerScenario } from "./installer";
 import { runOpencodeScenario } from "./opencode";
+import { runOpencodeMockScenario } from "./opencode-mock";
 import { runPiBilledScenario, runPiExtensionScenario, runPiScenario } from "./pi";
+import { runPiMockScenario } from "./pi-mock";
 import { runPkgScenario } from "./pkg";
 import { runPreferredScenario } from "./preferred";
 import { runReinitScenario } from "./reinit";
@@ -37,9 +39,19 @@ const SCENARIOS: readonly Scenario[] = [
     run: (runner) => runPiExtensionScenario(runner),
   },
   {
+    name: "pi-mock",
+    requiresApiKey: false,
+    run: (runner) => runPiMockScenario(runner),
+  },
+  {
     name: "pi-billed",
     requiresApiKey: true,
     run: (runner) => runPiBilledScenario(runner),
+  },
+  {
+    name: "opencode-mock",
+    requiresApiKey: false,
+    run: (runner) => runOpencodeMockScenario(runner),
   },
   {
     name: "opencode",

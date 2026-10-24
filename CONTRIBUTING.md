@@ -95,11 +95,22 @@ version appears in the registry and rerun the failed jobs to finish the release.
 ### Validation commands
 
 `bun run check:release` runs the full check, the installed-package Node smoke
-test, and all seven keyless Docker scenarios (`pi`, `pi-extension`, `installer`,
-`reinit`, `upgrade`, `pkg`, and `capability-off`).
+test, and all nine keyless Docker scenarios (`pi`, `pi-extension`, `pi-mock`,
+`opencode-mock`, `installer`, `reinit`, `upgrade`, `pkg`, and `capability-off`).
 `prepublishOnly` requires this gate; Docker and npm registry access are required.
-CI runs those keyless scenarios and tests the packaged CLI on Node 20, 22, 24,
-and 26. Billed scenarios remain explicit local runs with a real key.
+
+The two e2e suites have split responsibilities. **Keyless** (`bun run
+test:e2e:keyless`) is CI's regression net: it runs in GitHub Actions on every
+push and PR, and proves everything that does not need the real DeepSeek
+service — installer lifecycle, packaging, host handshakes, and (through the
+in-container mock upstream) real session loops that invoke both retrieval
+tools, so a tool-execution regression fails CI without a key. **Billed** (`bun
+run test:e2e:billed`, or the full `bun run test:e2e`) runs locally with a real
+`DEEPSEEK_API_KEY` and is the only suite that verifies the live DeepSeek API
+contract: real LLM behavior, real search results, real page content. Run it
+before a release and whenever a host pin in `docs/hosts.jsonc` changes. CI runs
+the keyless scenarios and tests the packaged CLI on Node 20, 22, 24,
+and 26; billed scenarios remain explicit local runs with a real key.
 
 `bun run test:package` installs a freshly packed tarball in a temporary directory
 and tests init, re-init, uninstall, and an MCP stdio handshake with the selected
@@ -138,6 +149,20 @@ image contains no secrets; the key is passed at `docker run` time.
   Pi config and asserts a real `pi mcp list` handshake.
 - `bun run test:e2e pi-extension` — keyless; checks that Pi rejects a both-off
   settings namespace and loads the extension when the namespace is removed.
+- `bun run test:e2e pi-mock` — keyless; invocation-level without a key. The
+  same extension-path session shape as `pi-billed`, but every upstream is the
+  in-container mock (`test/e2e/mock-upstream.mjs`): the LLM is a custom
+  `models.json` provider against the mock's OpenAI-compatible endpoint, and
+  the retrieval follows `DEEPSEEK_BASE_URL`. The mock's two-round script issues
+  the tool call and turns the tool result into the final answer, so the
+  scenario passes only when `deepseek_fetch`/`deepseek_web_search` really ran
+  and their results reached the model; its request log also proves the
+  placeholder bearer and the requested query/url reached the retrieval API shape.
+- `bun run test:e2e opencode-mock` — keyless; the OpenCode session loop without
+  a key. Same shape as the billed `opencode` scenario (plugin from this
+  checkout, `deepseek_fetch` tool, built-in `websearch` backed by the plugin's
+  provider) with the mock upstream for both legs; the placeholder bearer on the
+  retrieval calls also proves the plugin's environment-variable key fallback.
 - `bun run test:e2e pi-billed` — requires `DEEPSEEK_API_KEY`. Runs headless
   `pi --print` prompts through the native extension, with Pi's DeepSeek provider
   (`deepseek/deepseek-flash`) as the LLM from the same key, and verifies model
@@ -180,7 +205,10 @@ image contains no secrets; the key is passed at `docker run` time.
   switches and the exposure trap through `pi mcp list --json`:
   `DEEPSEEK_ENABLE_FETCH=false` leaves exactly the search tool, both flags
   false refuses to start (failed state with the refusal message), and a
-  registration without `exposure` reports `codemode`.
+  registration without `exposure` reports `codemode`. OpenCode's runtime
+  toggles (`searchEnabled`/`fetchEnabled` plugin options) have no keyless
+  runtime probe here — OpenCode's tool-inventory HTTP API is experimental — so
+  they are covered by unit tests at the registration level instead.
 - `bun run test:e2e preferred` — requires `DEEPSEEK_API_KEY`. Installs Pi at
   project scope with preferred tiers via the installer, then prompts in natural
   language without naming any tool — only the AGENTS.md rules block can steer
@@ -214,8 +242,8 @@ image contains no secrets; the key is passed at `docker run` time.
   Anthropic-compatible endpoint (`ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`
   from the same key). Real billed requests (LLM + retrieval).
 - `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
-  Multiple names select a subset (`bun run test:e2e pi pi-extension installer reinit upgrade pkg
-  capability-off` runs every keyless scenario); the harness packs the npm
+  Multiple names select a subset (`bun run test:e2e:keyless` runs every keyless
+  scenario); the harness packs the npm
   tarball before running, so the installer and pkg scenarios always exercise
   the current checkout's packaging.
 

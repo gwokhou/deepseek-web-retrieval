@@ -5,6 +5,7 @@ All notable changes to this project are documented here, one sentence per item.
 ## Unreleased
 
 - Add the `baseUrl` knob (`DEEPSEEK_BASE_URL` environment variable or shared-file key) so every retrieval request can be routed through a proxy, enterprise gateway, or mock upstream; only an http(s) URL is accepted and anything else drops back to `https://api.deepseek.com`.
+- Add keyless `pi-mock` and `opencode-mock` Docker e2e scenarios that run real host session loops (pi via a custom `models.json` provider, OpenCode via a custom provider) against an in-container mock upstream, invoking both retrieval tools and asserting the tool results reached the model — closing CI's tool-execution blind spot without a billed key — and document the keyless (CI) versus billed (local, real API) e2e responsibilities with a `test:e2e:billed` script.
 
 ## 0.8.0
 
