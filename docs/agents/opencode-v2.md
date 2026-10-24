@@ -22,7 +22,7 @@ For configuration layers, the full knob mapping, and defaults, see the
 
 - OpenCode v2 with `@opencode/plugin` in the `^2.0.32` peer range; the tested version
   is recorded in [`docs/hosts.jsonc`](../hosts.jsonc)
-- Node.js 20+ and npm when using the installer CLI
+- Node.js 20 or newer and npm when using the installer CLI
 - A DeepSeek account with access to `/v1/tools/search` and `/v1/tools/fetch`
 - A funded DeepSeek account; Search and Fetch are billed per successful request
 - A DeepSeek credential stored in OpenCode, or `DEEPSEEK_API_KEY`
@@ -41,11 +41,14 @@ npx deepseek-web-retrieval init --host opencode --scope <project|global> \
 
 It prints the full plan — every file, old value → new value — and writes nothing until
 you pass `--apply`. Add `--pin` to register the exact version of the CLI you are running
-instead of the always-latest package name. It snapshots the current `websearch.provider` before the forced tier
-replaces it, merges `permissions` without touching yours, preserves comments in
-`opencode.jsonc`, and `uninstall` restores recorded values that have not since been edited.
-Search has no `preferred` tier on OpenCode (the provider is host-level config, never a
-model choice); the CLI rejects it.
+instead of the always-latest package name. It snapshots the current `websearch.provider`
+before the forced tier replaces it, merges `permissions` without touching yours,
+preserves comments in `opencode.jsonc`, and `uninstall` restores recorded values that
+have not since been edited.
+
+> [!NOTE]
+> Search has no `preferred` tier on OpenCode: the provider is host-level config, never
+> a model choice, so the CLI rejects it.
 
 ### OpenCode CLI install
 
@@ -177,8 +180,9 @@ The model calls `websearch` (provider `deepseek`) or `deepseek_fetch`. When
 `fetchOverrideWebfetch` is enabled, Markdown fetches go through `webfetch` instead.
 
 DeepSeek's optional `ori_question` is not sent on this path, and the model cannot request a
-per-call result count: OpenCode's `websearch` tool input is fixed to `query` (verified unchanged
-at 2.1.4), so the provider has no channel for either. Upstream requests:
+per-call result count: OpenCode's `websearch` tool input is fixed to `query` (verified
+unchanged at `@opencode/schema` 2.1.4, the drift check above the 2.0.32 lock), so the
+provider has no channel for either. Upstream requests:
 [anomalyco/opencode#58635](https://github.com/anomalyco/opencode/issues/58635) (session linkage)
 and [#58636](https://github.com/anomalyco/opencode/issues/58636) (per-call `count`); see the
 [research note](../research/ori-question-sourcing.md). The fetch tools are not constrained:
@@ -186,7 +190,8 @@ they accept an optional per-call `maxChars` (0–1,000,000) that overrides the c
 `fetchMaxChars` for one call, so the model can widen the budget after seeing a
 `[content truncated]` marker. The effective-query header and query degradation notes have no
 channel on this path either — OpenCode's result shape is closed — but degradation still runs,
-and failures that cannot degrade surface as errors.
+and a query that exceeds the length limit and cannot be degraded further surfaces as an
+error.
 
 ## Configuration
 
@@ -210,14 +215,14 @@ environment or file channel.
 
 | Option | Environment | Default | Description |
 | --- | --- | --- | --- |
-| `searchEnabled` | `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the DeepSeek search provider at all. Only an explicit `false` disables it. |
+| `searchEnabled` | `DEEPSEEK_ENABLE_SEARCH` | `true` | Register the DeepSeek search provider at all. In `options`, only an explicit `false` disables it; the environment twin also accepts `0`/`no`/`off`. |
 | `count` | `DEEPSEEK_SEARCH_COUNT` | `10` | Results requested from DeepSeek, 1–50. Billing is per request, not per result. |
 | `maxResults` | `DEEPSEEK_SEARCH_MAX_RESULTS` | `10` | Results returned to the model after filtering, 0–50; defaults to `count` when unset. `0` returns no results. |
 | `minRerank` | `DEEPSEEK_SEARCH_MIN_RERANK` | `0` | Drop results below this relevance score. DeepSeek scores are 0–3. A result without a finite score passes while the threshold is `0` and is dropped once it is positive. |
 | `minAuthority` | `DEEPSEEK_SEARCH_MIN_AUTHORITY` | `0` | Drop known authorities below this tier. Authority is 0–4. |
-| `allowUnknownAuthority` | `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. Only an explicit `false` disables it. |
-| `blockedDomains` | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | `[]` | Add `-site:` operators to the search query. |
-| `includeDomains` | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | `[]` | Restrict results with `site:` operators. |
+| `allowUnknownAuthority` | `DEEPSEEK_SEARCH_ALLOW_UNKNOWN_AUTHORITY` | `true` | Keep results whose authority is missing or unknown. In `options`, only an explicit `false` disables it; the environment twin also accepts `0`/`no`/`off`. |
+| `blockedDomains` | `DEEPSEEK_SEARCH_BLOCKED_DOMAINS` | unset | Add `-site:` operators to the search query. |
+| `includeDomains` | `DEEPSEEK_SEARCH_INCLUDE_DOMAINS` | unset | Restrict results with `site:` operators. |
 | `language` | `DEEPSEEK_SEARCH_LANGUAGE` | unset | Add a `lang:` operator, for example `zh,en`. |
 | `searchLocalization` | `DEEPSEEK_SEARCH_LOCALIZATION` | unset | Valid IPv4 or IPv6 address sent as DeepSeek's `localization` to prefer geo-localized results; invalid values are ignored. Deployment-level only, never a per-call parameter. |
 | `maxSummaryChars` | `DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS` | `1200` | Per-result summary cap, 0–1,000,000. |
@@ -233,8 +238,8 @@ environment or file channel.
 | `fetchTimeoutMs` | `DEEPSEEK_FETCH_TIMEOUT_MS` | `30000` | Fetch timeout, 1,000–120,000 ms. |
 | `fetchOverrideWebfetch` | — | `false` | Replace the built-in `webfetch`. |
 | `fetchRegisterTool` | — | `true` | Register the separate `deepseek_fetch` tool. |
-| `fetchAllowedDomains` | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | `[]` | If non-empty, only these hosts and subdomains may be fetched. |
-| `fetchBlockedDomains` | `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | `[]` | Always block these hosts and subdomains. Blocked wins over allowed. |
+| `fetchAllowedDomains` | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | unset | If non-empty, only these hosts and subdomains may be fetched. |
+| `fetchBlockedDomains` | `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | unset | Always block these hosts and subdomains. Blocked wins over allowed. |
 | `fetchBlockPrivateHosts` | `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. |
 
 ### Credentials and retries

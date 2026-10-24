@@ -38,20 +38,23 @@ The quickest option is the installer CLI:
 
 ```bash
 npx deepseek-web-retrieval init --host claude-code --scope project \
-  --search <tier> --fetch <tier>
+  --search <optional|preferred|forced|off> --fetch <optional|preferred|forced|off>
 ```
 
 It prints the full plan — every file, old value → new value, and notes about existing MCP
 servers — and writes nothing until you pass `--apply`. Add `--pin` to register the exact
 version of the CLI you are running instead of the always-latest package name. `uninstall`
 removes recorded additions and restores snapshotted values that have not since been edited.
+
 `--scope project` registers the server in `./.mcp.json` (shareable via VCS) and writes tier
 artifacts to `./.claude/settings.json` and `./CLAUDE.md`; `--scope global` uses
 `~/.claude.json`, `~/.claude/settings.json`, and `~/.claude/CLAUDE.md` instead — the two
 scopes use disjoint files, so both can coexist. An `off` capability is written as the
 tool's full id in the `permissions.deny` array — Claude Code's own mechanism, which removes
 the tool from the model's context while the server keeps running — merging with any entries
-you put there yourself. When `claude` is on PATH, `init` also probes `claude --version` and
+you put there yourself.
+
+When `claude` is on PATH, `init` also probes `claude --version` and
 adds a plan note when the installed release differs from the tested lock (see
 [hosts.jsonc](../hosts.jsonc)) — version-anchored behavior such as the deny rules may have
 drifted between the two.
@@ -176,7 +179,8 @@ operators change the query actually sent, the result text opens with
 `Searched for: <effective query>` (plus any degradation applied to fit the API's
 128-character limit), so the model can attribute results to the configuration in effect.
 
-Tool output is capped at 25k tokens by default (`MAX_MCP_OUTPUT_TOKENS`), and successful
+Tool output is capped at 25k tokens by default (`MAX_MCP_OUTPUT_TOKENS`, a Claude Code
+environment setting), and successful
 text results longer than 50,000 characters are saved to a file and referenced — not
 dropped silently.
 
@@ -255,7 +259,7 @@ one vocabulary pair, one pipeline. `—` marks host-integration entries the file
 | Claude Code | locked in [`docs/hosts.jsonc`](../hosts.jsonc) |
 | MCP revision | `2026-07-28` negotiated; server accepts `2024-11-05`–`2026-07-28` |
 | MCP SDK | `@modelcontextprotocol/server` 2.3.1 |
-| Runtime | Node.js 20+ (stdio) |
+| Runtime | Node.js 20 or newer (stdio) |
 | DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
 
 Tested with Claude Code at the `docs/hosts.jsonc` lock on Linux over stdio: the keyless

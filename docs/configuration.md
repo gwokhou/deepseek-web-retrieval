@@ -13,7 +13,7 @@ guides: [Codex](agents/codex.md), [Claude Code](agents/claude-code.md),
 
 Every knob resolves through one chain, low → high, identically on every host:
 
-```
+```text
 built-in defaults  <  shared config file  <  DEEPSEEK_* environment  <  host-native config
 ```
 
@@ -26,7 +26,7 @@ variable arrives, not a fifth layer).
 ## The shared config file
 
 `$XDG_CONFIG_HOME/deepseek-web-retrieval/config.json` when `XDG_CONFIG_HOME` is
-set (this wins on every platform, Windows included); otherwise
+set to a non-empty value (this wins on every platform, Windows included); otherwise
 `~/.config/deepseek-web-retrieval/config.json` on Linux and macOS and
 `%APPDATA%\deepseek-web-retrieval\config.json` on Windows. camelCase keys:
 
@@ -58,8 +58,8 @@ host-sensitive knob would cross its host's cap or deadline.
 ## The knob vocabulary
 
 One knob, two names: the camelCase key for the shared file and OpenCode's
-options, the `DEEPSEEK_*` variable for the environment. The table generates
-from the same config vocabulary the adapters resolve through, so it cannot
+options, the `DEEPSEEK_*` variable for the environment. The table is
+generated from the same config vocabulary the adapters resolve through, so it cannot
 drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
 
 <!-- generated: knob-table — edit src/core/config-summary.ts or env.ts, then run `bun run docs:matrix` -->
@@ -97,8 +97,9 @@ drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
   `fetchBlockPrivateHosts`, `searchEnabled`, and `fetchEnabled` are on by
   default; the environment can only turn them off (`false`, `0`, `no`, or
   `off`). The last two have no file key — they are host-integration keys — so
-  they exist only as `DEEPSEEK_ENABLE_SEARCH` and `DEEPSEEK_ENABLE_FETCH`. A
-  value like `=true` changes nothing.
+  they exist only as `DEEPSEEK_ENABLE_SEARCH` and `DEEPSEEK_ENABLE_FETCH`.
+  Setting any of them to `true` explicitly changes nothing: the default is
+  already on.
 - **Invalid environment values are dropped** at startup and the default
   applies. `npx deepseek-web-retrieval config` reports every dropped or
   unknown `DEEPSEEK_*` variable as a warning and exits 1, alongside file
@@ -108,8 +109,8 @@ drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
   a per-call tool parameter.
 - **`baseUrl` routes the retrieval API** (`/v1/tools/search` and
   `/v1/tools/fetch` are composed from it). It is infrastructure routing for
-  proxies, gateways, and mock upstreams — not a provider switch, so nothing
-  falls back to another search service. Only an http(s) URL survives
+  proxies, gateways, and mock upstreams — not a provider switch, and the package
+  never falls back to another search service. Only an http(s) URL survives
   resolution (trailing slashes are stripped); anything else drops back to
   `https://api.deepseek.com`.
 - **Domains** in the environment are comma-separated; entries that are not

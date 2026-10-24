@@ -4,8 +4,9 @@
 
 Search the web and fetch pages as Markdown through
 [DeepSeek's APIs](https://api-docs.deepseek.com/guides/search), using a **native OpenCode
-plugin**, a **native Pi extension**, or **MCP for Codex and Claude Code**. All four share
-the same retrieval core, with results formatted for each host.
+plugin**, a **native [Pi](https://pi.dev/) extension** (Pi, the open-source coding agent),
+or **MCP for Codex and Claude Code**. All four share the same retrieval core, with results
+formatted for each host.
 
 This is an unofficial community project, not affiliated with DeepSeek or the supported
 host projects.
@@ -16,8 +17,9 @@ Jump to: [Features](#features) · [Quickstart](#quickstart) · [Usage](#usage) �
 
 ## Features
 
-- **One package, four hosts** — a native OpenCode v2 plugin, a native Pi extension,
-  and a stdio MCP server for Codex and Claude Code, all sharing one retrieval core
+- **One package, four hosts** — a native plugin for OpenCode v2 (the 2.x series), a
+  native Pi extension, and a stdio MCP server for Codex and Claude Code, all sharing one
+  retrieval core
 - **Routing control per tool** — search and fetch are set independently to optional,
   preferred, forced, or off; the tier table in Usage explains each
 - **Review before anything is written** — `init` prints the full plan and writes only
@@ -59,8 +61,9 @@ Choose your host:
 | Claude Code | MCP server over stdio in `.mcp.json` or `~/.claude.json` | [Claude Code guide](docs/agents/claude-code.md) |
 
 Set `DEEPSEEK_API_KEY` in the environment that launches your host; OpenCode can also
-use its stored DeepSeek key. Run `init` for your host to preview a configuration — the
-command shape is the quickstart's; each host guide shows its recommended tiers.
+use its stored DeepSeek key. Run `init` for your host to preview a configuration — take
+the quickstart command and swap `--host` and `--scope` for your host's values; each host
+guide shows its recommended tiers.
 
 `--search` and `--fetch` each pick a tier — how strongly the host steers toward the
 DeepSeek tool, chosen independently per capability:
@@ -87,7 +90,8 @@ Files:
     upsert marked rules block
 
 Notes:
-  - Codex stdio children do not inherit the parent environment, so the entry forwards DEEPSEEK_API_KEY and every DEEPSEEK_* option variable explicitly via env_vars; shell-set knobs reach the server without hand-editing config.toml (the shared config file works without any forwarding).
+  - Codex stdio children do not inherit the parent environment, so the entry forwards DEEPSEEK_API_KEY and every DEEPSEEK_* option variable explicitly via env_vars; shell-set knobs reach the server without hand-editing config.toml.
+  - The shared config file needs no forwarding at all: the server reads it itself.
   - Rules block upserted in ~/.codex/AGENTS.md; Codex reads ~/.codex/AGENTS.md plus every AGENTS.md from the project root to the cwd.
   - Shared config ownership is recorded in ~/.codex/.config.toml.deepseek-web-retrieval.codex.owner.json; uninstall releases it. Keep this local metadata with the config.
 
@@ -116,7 +120,7 @@ What this adapter layer adds on top of the
 own capabilities (Markdown-only output, no JavaScript rendering, no private networks or
 binary files, per-request billing) are documented there.
 
-| Default | Value | Knob |
+| Setting | Default | Knob |
 | --- | --- | --- |
 | Results per search | 10 | `count` |
 | Fetch output cap | 16,000 characters | `fetchMaxChars` |
@@ -144,8 +148,9 @@ binary files, per-request billing) are documented there.
   the Pi extension), the tool accepts an optional `original_question`: the user's
   question in their own words. It is forwarded as DeepSeek's `ori_question`, trimmed
   and truncated to 128 characters; on the Pi extension, a blank input falls back to the
-  most recent user message in the session. Those paths also take an optional per-call
-  `count` (1–50) overriding the configured result count for that call.
+  most recent user message in the session.
+- The same paths also take an optional per-call `count` (1–50), overriding the
+  configured result count for that one call.
 
 ### Fetch
 
@@ -228,8 +233,8 @@ bun run check
 ```
 
 Use `bun run lint:fix` to apply Biome's safe lint fixes and formatting. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for development checks, e2e scenarios, and
-[automated tag releases](CONTRIBUTING.md#automated-releases).
+[CONTRIBUTING.md](CONTRIBUTING.md) for development checks and e2e scenarios, and
+[automated tag releases](CONTRIBUTING.md#automated-releases-maintainers).
 
 The test suite mocks the DeepSeek API and the OpenCode and Pi host APIs; real API calls
 require a funded DeepSeek account. Shared retrieval logic lives in `src/core/`; adapters

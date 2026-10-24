@@ -159,7 +159,8 @@ the current official docs** (checked 2026-10-21), nor in the November 2025 snaps
 page on the Internet Archive; the published truncation mechanism is the token-based
 `max_content_tokens` parameter above, with no published default.
 
-SDK layer (official repos, default branch):
+SDK layer (official repos, default branch at the 2026-10-21 check — moving heads, unlike
+the pinned firecrawl 4.50.0 above; re-pin to a tag before citing these constants later):
 
 | SDK | Default timeout | Default max retries | Source |
 | --- | --- | --- | --- |
@@ -180,7 +181,8 @@ From the official guide
 
 No relevance/authority score or filter is exposed on any web-search surface.
 
-SDK layer (official repos, default branch):
+SDK layer (official repos, default branch at the 2026-10-21 check — same moving-head
+caveat as the Anthropic SDK table above):
 
 | SDK | Default timeout | Default max retries | Source |
 | --- | --- | --- | --- |

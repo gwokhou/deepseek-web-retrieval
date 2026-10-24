@@ -7,7 +7,8 @@ use it depends on that agent's extension points.
 CLI/terminal agents only; IDE and editor extension surfaces are out of scope. Versions are
 the latest stable CLI release checked at that baseline unless noted otherwise. `No` means no
 documented native provider or override was found in the checked version; several hosts still
-ship built-in web tools. MCP tools can add equivalent tools, but do not replace built-ins.
+ship built-in web tools. MCP (Model Context Protocol) tools can add equivalent tools, but
+do not replace built-ins.
 
 ## Mechanisms
 
@@ -20,8 +21,12 @@ ship built-in web tools. MCP tools can add equivalent tools, but do not replace 
 | MCP server | Yes | Yes | Host MCP client | Shipped (`src/mcp/`; Pi, Codex, and Claude Code guides) |
 | CLI/HTTP wrapper | Yes | Yes | Host can call external tools | Not shipped |
 
-MCP is a protocol, not an agent. It is one possible transport for hosts that support MCP
-tools. `Custom tool plugin` means adding tools; it does not replace a host's built-in tools.
+Why the mechanism distinction matters: some agents expose a native websearch provider,
+some only let you add tools, and some only support MCP. A "yes" for one mechanism does
+not mean the others are supported — the adapter code and docs need to match the
+mechanism the host actually provides. MCP is a protocol, not an agent: one possible
+transport for hosts that support MCP tools, never a host itself. `Custom tool plugin`
+means adding tools; it does not replace a host's built-ins.
 
 ## Host support
 
@@ -96,12 +101,13 @@ For an installation managed by `init`:
    needed for uninstall. A global install can still claim shared configuration from a
    particular project, so keep the original working directory for upgrades.
 3. Refresh the package in the host and start or reload a session as described in its
-   guide. For Pi's extension path, use `pi update --extensions`. To pin the host's
-   package to the exact version being run, pass `--pin` to init (it writes
-   `deepseek-web-retrieval@X.Y.Z` into the registration); upgrading a pinned install
-   means re-running init with the newer CLI, since updating the CLI alone does not
-   move an independently pinned host package. `--package` still overrides the ref
-   entirely.
+   guide (for Pi's extension path, `pi update --extensions`).
+
+Two init flags change what gets registered. `--pin` pins the host's package to the exact
+version being run (`deepseek-web-retrieval@X.Y.Z` in the registration); upgrading a
+pinned install therefore means re-running init with the newer CLI, since updating the
+CLI alone does not move an independently pinned host package. `--package` overrides the
+ref entirely.
 
 When upgrading from 0.4.0, Pi's default changes from MCP to the native extension.
 Pass `--path mcp` explicitly to retain MCP, or `--path extension` to migrate; the plan
@@ -109,11 +115,14 @@ shows the old path's removals and retains the original uninstall snapshots. Open
 native plugin and Codex's MCP path remain the same. Standalone MCP installs no longer
 require OpenCode or Pi SDKs; native adapters use the SDKs provided by their hosts.
 
-Keep install records and ownership sidecars: deleting them loses recovery information
+Keep install records and ownership sidecars (the `.owner.json` claim files the installer
+writes beside shared config files): deleting them loses recovery information
 and can cause a later init to refuse an existing registration. If an operation was
 interrupted, follow the [recovery guidance](design/installer-design.md#persistence-and-concurrent-operations)
 before retrying. For manual installations, update the package reference or checkout and
 follow the host guide rather than adopting the config through init.
+
+### Breaking changes for library consumers
 
 Code importing the core's removed `formatFetchContent` helper must migrate to
 `formatFetchedContent`, which returns both `content` and `truncated`.
@@ -177,12 +186,6 @@ Record the answers in the per-host reference in
 the README Usage section only after the adapter ships. To request evaluation for another
 host, [open an issue](https://github.com/gwokhou/deepseek-web-retrieval/issues) with links
 to its plugin, tool, or MCP documentation.
-
-## Why the distinction matters
-
-Some agents expose a native websearch provider, some only let you add tools, and some only
-support MCP. A "yes" for one mechanism does not mean the others are supported. The adapter
-code and docs need to match the mechanism the host actually provides.
 
 ## Adding an adapter
 

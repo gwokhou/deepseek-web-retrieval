@@ -17,10 +17,10 @@ The tools appear in Codex as `mcp__deepseek__deepseek_web_search` and
 [Control tiers](#control-tiers) for routing it away.
 
 The server recognizes Codex's MCP client identity (`codex-mcp-client`, declared in the
-initialize handshake) and returns text-only tool results: Codex replaces the content
-blocks with the serialized `structuredContent` JSON when it is present, so for Codex the
-structured mirror is omitted and the model reads clean Markdown. Other clients receive
-both the text and `structuredContent`.
+initialize handshake) and returns text-only tool results for it. Codex replaces the
+content blocks with the serialized `structuredContent` JSON when it is present, so for
+Codex the structured mirror is omitted and the model reads clean Markdown. Other
+clients receive both the text and `structuredContent`.
 
 For shared search/fetch limits, retries, and privacy behavior, see
 [General behavior](../../README.md#general-behavior).
@@ -42,7 +42,7 @@ The quickest option is the installer CLI:
 
 ```bash
 npx deepseek-web-retrieval init --host codex --scope global \
-  --search <tier> --fetch <tier>
+  --search <optional|preferred|forced|off> --fetch <optional|preferred|forced|off>
 ```
 
 It prints the full plan — every file, old value → new value, and notes about existing
@@ -117,7 +117,7 @@ built-in fetch tool, so the tiers differ per capability:
 
 | Capability | Optional | Preferred | Forced |
 | --- | --- | --- | --- |
-| Search | Tools registered; the built-in `web_search` stays available | Plus an AGENTS.md rules block steering the model to `mcp__deepseek__deepseek_web_search` | Exclusion: `web_search = "disabled"` at the top level of config.toml |
+| Search | Tools registered; the built-in `web_search` stays available | Plus an AGENTS.md rules block steering the model to `mcp__deepseek__deepseek_web_search` | Exclusion: `web_search = "disabled"` at the top level of `config.toml` |
 | Fetch | Tools registered | Plus the rules block | De-facto: no built-in fetch tool exists |
 
 The installer maps each tier to these artifacts. `AGENTS.md` rules land in
@@ -231,7 +231,7 @@ one vocabulary pair, one pipeline. `—` marks host-integration entries the file
 | Codex | locked in [`docs/hosts.jsonc`](../hosts.jsonc) |
 | MCP revision | `2025-06-18` negotiated (`mcp_2026_07_28` behind a flag); server accepts `2024-11-05`–`2026-07-28` |
 | MCP SDK | `@modelcontextprotocol/server` 2.3.1 |
-| Runtime | Node.js 20+ (stdio) |
+| Runtime | Node.js 20 or newer (stdio) |
 | DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
 
 Tested with Codex 0.163.0 on Linux over stdio.

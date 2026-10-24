@@ -113,30 +113,31 @@ scopes; keys locked to a single scope are enumerated in the
   `web_search = "disabled"` in `~/.codex/config.toml`. Trap: the `[tools] web_search =
   <bool>` form parses but discards the value at 0.163.0 — a silent no-op
   ([config source at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/config/src/config_toml.rs)).
-- **MCP registration** — `~/.codex/config.toml` `[mcp_servers.<name>]`: stdio
-  `command`/`args`/`env`/`env_vars`; `startup_timeout_sec` (30 s) and `tool_timeout_sec`
-  (300 s) defaults — the `DEFAULT_STARTUP_TIMEOUT`/`DEFAULT_TOOL_TIMEOUT` constants
-  ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs));
-  `enabled_tools`/`disabled_tools` (verbatim raw tool-name match, filtered before
-  registration so the model never sees a disabled tool; an empty `enabled_tools` allow-list
-  exposes nothing), per-tool approval modes, and output limits: MCP tool output can be
-  capped per tool via `output_token_limit` ("Token budget for one MCP tool's output,
-  before the standard 20% serialization allowance"; the default cap is not published
-  there)
-  ([mcp_types.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/config/src/mcp_types.rs)).
-  stdio children do not inherit the parent environment (only `HOME`, `PATH`, and explicit
-  `env`), so `DEEPSEEK_API_KEY` must be passed explicitly. When a tool result has
-  `structuredContent`, Codex replaces the content blocks with the serialized JSON. No SSE.
-  Codex identifies itself in the initialize handshake as clientInfo name `codex-mcp-client`
-  with title `Codex`
-  ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs)).
-  The official docs moved to learn.chatgpt.com
-  ([MCP](https://learn.chatgpt.com/docs/extend/mcp),
-  [config reference](https://learn.chatgpt.com/docs/config-file/config-reference); the old
-  developers.openai.com URLs 308-redirect there) and now document every key above — but
-  state 10 s/60 s timeout defaults, which describe an older release line; the 30 s/300 s
-  constants above are the facts at the locked 0.163.0 (docs discrepancy re-verified
-  2026-10-21).
+- **MCP registration** — `~/.codex/config.toml` `[mcp_servers.<name>]`:
+  - **Entry keys:** stdio `command`/`args`/`env`/`env_vars`; per-tool approval modes.
+  - **Timeouts:** `startup_timeout_sec` (30 s) and `tool_timeout_sec` (300 s) defaults —
+    the `DEFAULT_STARTUP_TIMEOUT`/`DEFAULT_TOOL_TIMEOUT` constants
+    ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs)).
+  - **Tool filtering:** `enabled_tools`/`disabled_tools` — verbatim raw tool-name match,
+    filtered before registration so the model never sees a disabled tool; an empty
+    `enabled_tools` allow-list exposes nothing.
+  - **Output limits:** MCP tool output can be capped per tool via `output_token_limit`
+    ("Token budget for one MCP tool's output, before the standard 20% serialization
+    allowance"; the default cap is not published there)
+    ([mcp_types.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/config/src/mcp_types.rs)).
+  - **Environment:** stdio children do not inherit the parent environment (only `HOME`,
+    `PATH`, and explicit `env`), so `DEEPSEEK_API_KEY` must be passed explicitly.
+  - **Result shape and identity:** when a tool result has `structuredContent`, Codex
+    replaces the content blocks with the serialized JSON. No SSE. Codex identifies itself
+    in the initialize handshake as clientInfo name `codex-mcp-client` with title `Codex`
+    ([rmcp_client.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/codex-mcp/src/rmcp_client.rs)).
+  - **Docs drift:** the official docs moved to learn.chatgpt.com
+    ([MCP](https://learn.chatgpt.com/docs/extend/mcp),
+    [config reference](https://learn.chatgpt.com/docs/config-file/config-reference); the
+    old developers.openai.com URLs 308-redirect there) and now document every key above —
+    but state 10 s/60 s timeout defaults, which describe an older release line; the
+    30 s/300 s constants above are the facts at the locked 0.163.0 (docs discrepancy
+    re-verified 2026-10-21).
 - **Rules** — `~/.codex/AGENTS.md` (with `AGENTS.override.md` preferred) at user scope;
   every `AGENTS.md` from the project root down to the cwd, concatenated root→cwd.
   Extensible via `project_doc_fallback_filenames` and `developer_instructions`
@@ -184,8 +185,10 @@ scopes; keys locked to a single scope are enumerated in the
   channel: the runtime config surface is the `DEEPSEEK_*` environment (the same pipeline as
   the MCP server), the shared config file
   (`~/.config/deepseek-web-retrieval/config.json`, layered under the environment), plus a
-  `deepseekWebRetrieval` settings namespace the installer writes for
-  the off tier — Pi preserves unknown settings keys on read and on its own rewrites
+  `deepseekWebRetrieval` settings namespace the installer writes for the `off` tier (a
+  capability switched off — the [tier-to-artifact
+  mapping](../design/installer-design.md#tier-to-artifact-mapping) defines it) — Pi
+  preserves unknown settings keys on read and on its own rewrites
   (`pi install`), verified at 1.3.0. Action methods such as `getSettings()` cannot be
   called during extension loading, so the adapter reads the settings files itself.
 - **MCP registration** — `~/.pi/agent/mcp.json` or `.pi/mcp.json`: stdio
@@ -320,11 +323,13 @@ scopes; keys locked to a single scope are enumerated in the
   `toolPolicies`). Codex's docs location and Copilot's `GEMINI.md` dating were re-verified
   2026-10-21 and are settled in their sections above. Protocol-revision evidence for every
   host lives in [mcp-compatibility.md](mcp-compatibility.md).
-- **Claude Code forward-compat anchors (checked at the 2.1.303 lock):** the headless docs
-  pre-announce `--bare` becoming the default for `-p`, and bare mode never reads
-  `.mcp.json` — the billed e2e scenario and the project-scope install story both need
-  re-checking when that lands. `${VAR}` expansion in the `env` block of a user-scope
-  `~/.claude.json` entry is supported but only indirectly documented (the docs spell out
-  `.mcp.json` and `command`/`args`; the e2e's `hasCompletedOnboarding` flag and the
-  redundant `enableAllProjectMcpServers` belt-and-suspenders are undocumented), so a
-  baseline bump should re-verify all three against the then-current docs.
+- **Claude Code forward-compat anchors (checked at the 2.1.303 lock)** — three facts a
+  baseline bump should re-verify against the then-current docs:
+  1. The headless docs pre-announce `--bare` becoming the default for `-p`, and bare mode
+     never reads `.mcp.json` — the billed `claude-code` e2e scenario in this repo's test
+     suite and the project-scope install story both need re-checking when that lands.
+  2. `${VAR}` expansion in the `env` block of a user-scope `~/.claude.json` entry is
+     supported but only indirectly documented (the docs spell out `.mcp.json` and
+     `command`/`args`).
+  3. The same e2e scenario's `hasCompletedOnboarding` flag and the redundant
+     `enableAllProjectMcpServers` belt-and-suspenders are undocumented.

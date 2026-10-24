@@ -17,6 +17,12 @@ source at the repo's locked tag. Secondhand blogs are excluded. Where no primary
 a fact — most importantly the size of `content` — that is stated as such: an undocumented
 size is itself a decision-relevant fact.
 
+**Short answer:** DeepSeek documents **no size bound** for `need_content` content and no
+per-result budget knob; of the eight architectures surveyed below, only Jina ships
+content-bearing search as the default; and the binding host cap is Pi's 20 KB MCP-path
+truncation — the volume math below puts a safe per-result budget in the ~1k–2k char
+range.
+
 ## What `need_content=true` provably returns
 
 From the official Search & Fetch guide, the parameter and its response field, verbatim:
@@ -101,14 +107,35 @@ search response without setting any parameter.
 
 | Vendor | Content inline by default? | Opt-in mechanism | Per-result content budget knob | Separate fetch tool? |
 | --- | --- | --- | --- | --- |
-| **Tavily** | Partial — default response carries per-result `content` of **relevance chunks**: `chunks_per_source` **3** chunks of ~500 chars (~1,500 chars/result) | Full body via `include_raw_content` (default **false**; accepts `markdown`/`text`/`true`) | Chunk count only (`chunks_per_source` 1–3, sizes `content`, **not** `raw_content`); no knob limits `raw_content` size in `/search` | Yes — `/extract` (up to 20 URLs; `extract_depth` basic/advanced; no per-URL cap; ~800-char chunks only when `query` is given) |
+| **Tavily** | Partial — per-result `content` of relevance chunks by default | Full body via `include_raw_content` (default **false**) | Chunk count only (`chunks_per_source` 1–3); no knob limits `raw_content` size in `/search` | Yes — `/extract` (up to 20 URLs) |
 | **Exa** | No — `contents.text` defaults **false** | `contents.text: true` in the **same** `POST /search` body | **`maxCharacters`** (1–1,000,000, no published default) plus `verbosity` `compact`/`standard`/`full` | Yes — `/contents` endpoint by result ID/URL |
 | **You.com** | No — “Omit `extraction` for a plain search that returns snippets only” | `extraction.full_page` (“crawls each result and returns the page content”) | **None for `full_page`** (only `crawl_timeout`); the `highlights` mode has a response-wide `total_max_tokens` budget of **8192** (1,024–8,192) | No dedicated fetch endpoint documented on `/v1/search` |
-| **Perplexity** | No — Search API results are `title`/`url`/`snippet`/`date` only | Token budgets: `max_tokens` ("Maximum total webpage content tokens to return across all search results") and **`max_tokens_per_page`** ("Maximum webpage content tokens to extract from each result page"), on both the Search API and the Agent API `web_search` tool; **no default published** for either ("the default budgets apply"); on the Search API the extracted text surfaces through `snippet` | **`max_tokens_per_page`** (min 1, max 1,000,000, no default) | Yes — Agent API "Fetch URL Content" tool ("Fetch full content from known URLs") |
-| **Anthropic** | Not caller-visible — `web_search` results carry `url`/`title`/`page_age` plus `encrypted_content` (“Encrypted content that you must pass back in multi-turn conversations”); the model reads content in its context, the caller cannot | `response_inclusion` (`"full"` default / `"excluded"`) only controls whether consumed search blocks are echoed in the response — it is not a content-size knob | **None** (dynamic filtering on `web_search_20260209+` has Claude write code to filter results before they reach context, but no caller-set budget) | Yes — `web_fetch` with token-based `max_content_tokens` (no published default) |
-| **Firecrawl** | No — search returns `title`/`description`/`url` (+ `highlights`, default true) | `scrapeOptions` (default `{}`): "Include `scrapeOptions` with `formats: [{"type": "markdown"}] to get complete markdown content for each search result" | **None** for content size (`onlyMainContent` default true trims boilerplate, not length) | Collapsed into search via `scrapeOptions`; standalone `/scrape` endpoint also exists |
-| **Jina** (`s.jina.ai`) | **Yes — the only default-content architecture surveyed**: "Reader searches the web, fetches the top 5 results, visits each URL, and applies `r.jina.ai` to it"; result count is fixed at 5, not a parameter | None needed (content is the product) | **`x-token-budget`** header, no default (parsed only when sent) — a global budget, not per-result | Same product (`r.jina.ai`) serves plain fetch |
+| **Perplexity** | No — Search API results are `title`/`url`/`snippet`/`date` only | Token budgets on both the Search API and the Agent API `web_search` tool (detail below) | **`max_tokens_per_page`** (min 1, max 1,000,000, no default) | Yes — Agent API “Fetch URL Content” tool (“Fetch full content from known URLs”) |
+| **Anthropic** | Not caller-visible — content is model-only (`encrypted_content`) | None — `response_inclusion` is not a content-size knob | **None** (no caller-set budget) | Yes — `web_fetch` with token-based `max_content_tokens` (no published default) |
+| **Firecrawl** | No — search returns `title`/`description`/`url` (+ `highlights`, default true) | `scrapeOptions` (default `{}`): “Include `scrapeOptions` with `formats: [{“type”: “markdown”}]` to get complete markdown content for each search result” | **None** for content size (`onlyMainContent` default true trims boilerplate, not length) | Collapsed into search via `scrapeOptions`; standalone `/scrape` endpoint also exists |
+| **Jina** (`s.jina.ai`) | **Yes — the only default-content architecture surveyed**; result count is fixed at 5, not a parameter | None needed (content is the product) | **`x-token-budget`** header, no default (parsed only when sent) — a global budget, not per-result | Same product (`r.jina.ai`) serves plain fetch |
 | **DeepSeek (subject of this note)** | No — `need_content` defaults **false** | `need_content: true` | **None documented** (see above) | Yes — Fetch API, Markdown, no documented size cap |
+
+Detail for the trimmed rows above:
+
+- **Tavily:** the default per-result `content` carries **relevance chunks** —
+  `chunks_per_source` **3** chunks of ~500 chars (~1,500 chars/result); `include_raw_content`
+  accepts `markdown`/`text`/`true`; the chunk sizes apply to `content`, **not**
+  `raw_content`; `/extract` takes up to 20 URLs with `extract_depth` basic/advanced, no
+  per-URL cap, ~800-char chunks only when `query` is given.
+- **Perplexity:** `max_tokens` (“Maximum total webpage content tokens to return across
+  all search results”) and **`max_tokens_per_page`** (“Maximum webpage content tokens to
+  extract from each result page”), **no default published** for either (“the default
+  budgets apply”); on the Search API the extracted text surfaces through `snippet`.
+- **Anthropic:** `web_search` results carry `url`/`title`/`page_age` plus
+  `encrypted_content` (“Encrypted content that you must pass back in multi-turn
+  conversations”) — the model reads content in its context, the caller cannot.
+  `response_inclusion` (`”full”` default / `”excluded”`) only controls whether consumed
+  search blocks are echoed in the response; dynamic filtering on `web_search_20260209+`
+  has Claude write code to filter results before they reach context, but no caller-set
+  budget exists.
+- **Jina:** “Reader searches the web, fetches the top 5 results, visits each URL, and
+  applies `r.jina.ai` to it.”
 
 The split, stated plainly: of the eight architectures surveyed, exactly one (Jina
 `s.jina.ai`) ships content-bearing search as the default, and it pins the result count at 5.
@@ -173,8 +200,9 @@ With `count=10` (the repo's default, and DeepSeek's) and `need_content: true`:
   [mcp_types.rs at rust-v0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/config/src/mcp_types.rs)).
   [control-matrix.md](control-matrix.md) records Codex's 300 s MCP tool timeout — latency,
   not size, is that host's documented ceiling.
-- **The binding constraint is Pi's 20 KB**, roughly an order of magnitude tighter than
-  Claude Code's 25k-token default: a per-result content budget in the **~1k–2k char**
+- **The binding constraint is Pi's 20 KB**, roughly 5× tighter than Claude Code's
+  25k-token default (≈100k English chars by the conversions above): a per-result
+  content budget in the **~1k–2k char**
   range keeps count=10 under every published cap; reusing the repo's fetch budget (16,000
   chars) *per search result* would reach 160k chars per response — 8× Pi's cap and ~40k
   tokens on Claude Code.
@@ -195,8 +223,9 @@ maintainer decides.
 - **Today's pipeline would silently drop the content.** `DeepSeekSearchResult`
   ([types.ts](../../src/core/types.ts)) has no `content` field, and `processResults`
   ([search.ts](../../src/core/search.ts)) maps `SearchResult.content` from
-  `summary ?? snippet` only — a `need_content` response's page bodies would be received and
-  discarded, unbilled-for-nothing but also unrendered.
+  `summary ?? snippet` only — a `need_content` response's page bodies would be received
+  and discarded: they cost nothing extra (billing is per request), but they are also
+  never rendered.
 - **The only per-result clamp in the search path is `maxSummaryChars` (1,200)** — a
   summary/snippet budget. `fetchMaxChars` (16,000) and `formatFetchedContent`'s
   truncation-marker logic apply exclusively to the fetch tool path. There is **no per-result

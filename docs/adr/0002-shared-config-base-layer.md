@@ -1,6 +1,10 @@
 # Share one config base layer across hosts
 
-The option pipeline was single-sourced, but the channels feeding it were per
+Status: Accepted — shipped in 0.7.0 (see [CHANGELOG](../../CHANGELOG.md)).
+
+The option pipeline was single-sourced — names, defaults, and clamping resolved through
+one chain (`src/core/constants.ts` → `src/core/env.ts` → `src/core/options.ts`) — but the
+channels feeding it were per
 host: `DEEPSEEK_*` shell variables on Pi, only `ctx.options` on OpenCode, and
 on Codex only the names the installer's `env_vars` entry forwards — just
 `DEEPSEEK_API_KEY`, so every other knob set in the shell silently never

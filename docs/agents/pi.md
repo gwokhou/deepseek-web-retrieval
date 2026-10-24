@@ -8,7 +8,9 @@ start. The same build also ships an MCP server over stdio as the fallback path
 ([below](#the-mcp-fallback-path)); the extension is the recommended one:
 
 - The tools are declared to the model like built-ins (`exposure: "direct"` is Pi's own
-  default for extension tools — the MCP path's codemode trap does not exist here).
+  default for extension tools — the MCP path defaults its tools to
+  `exposure: "codemode"`, which hides them from the model unless the entry opts into
+  `direct`; that trap does not exist here).
 - Results bypass Pi's MCP layer entirely: no 20 KB middle truncation and no 60 s
   per-request timeout; the adapter's own output cap is the only limit.
 - The key is read from the Pi process environment — no `env` forwarding, no `${VAR}`
@@ -19,7 +21,8 @@ When loaded, it adds:
 - A `deepseek_web_search` tool backed by DeepSeek Search
 - A `deepseek_fetch` tool backed by DeepSeek Fetch
 
-Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path. For
+Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path (see
+[Control tiers](#control-tiers)). For
 shared search/fetch limits, retries, and privacy behavior, see
 [General behavior](../../README.md#general-behavior).
 For configuration layers, the full knob mapping, and defaults, see the
@@ -29,7 +32,7 @@ For configuration layers, the full knob mapping, and defaults, see the
 
 - Pi with host SDKs in the `^1.3.0` peer range (`>=1.3.0 <2.0.0`); the tested
   version is recorded in [`docs/hosts.jsonc`](../hosts.jsonc)
-- Node.js 20+ and npm when using the installer CLI or MCP fallback
+- Node.js 20 or newer and npm when using the installer CLI or MCP fallback
 - A DeepSeek account with access to `/v1/tools/search` and `/v1/tools/fetch`
 - A funded DeepSeek account; Search and Fetch are billed per successful request
 - `DEEPSEEK_API_KEY` set in the shell that launches Pi
@@ -55,7 +58,8 @@ source at the next session start (the first launch fetches the package from npm;
 to install the [MCP fallback path](#the-mcp-fallback-path) instead. `uninstall` removes
 recorded additions and restores unchanged configuration values from their snapshots.
 
-For upgrades from 0.4.0, select `--path mcp` explicitly to retain the old path, or use
+For upgrades from a 0.4.x or earlier install (MCP was Pi's default path before 0.5.0),
+select `--path mcp` explicitly to retain the old path, or use
 the extension default to migrate; follow the shared
 [upgrade instructions](../integration.md#upgrading-existing-installs).
 
@@ -85,6 +89,27 @@ pi install /absolute/path/to/deepseek-web-retrieval
 
 The extension entry imports only host-supplied modules (`@earendil-works/pi-coding-agent`,
 `@earendil-works/pi-ai`) and the package's own `src/core/`, so a plain clone works.
+
+## Control tiers
+
+Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path at
+every tier — forced is de-facto rather than exclusion:
+
+| Capability | Optional | Preferred | Forced |
+| --- | --- | --- | --- |
+| Search | Tools registered — already the only web search | Plus an AGENTS.md rules block steering the model to the search tool | De-facto: no built-in competitor; web-capable MCP servers in `mcp.json` are disabled |
+| Fetch | Tools registered — already the only web fetch | Plus the rules block | De-facto: same |
+
+The installer maps each tier to these artifacts. The rules block lands in
+`~/.pi/agent/AGENTS.md` (global) or `./AGENTS.md` (project), naming the path's tool
+ids (`deepseek_web_search` for the extension, `mcp__deepseek__deepseek_web_search` for
+the MCP fallback). Under a forced tier, web-capable MCP servers detected in
+`~/.pi/agent/mcp.json` or `.pi/mcp.json` get `enabled: false` (each prior value
+snapshotted for uninstall); a web-capable `packages` or `extensions` source in
+settings.json cannot be excluded — Pi has no per-package kill switch — so `init`
+refuses the tier instead of promising routing it cannot deliver. The `off` tier is the
+`deepseekWebRetrieval` settings namespace described under
+[Configuration](#configuration).
 
 ## Authentication
 
@@ -122,7 +147,8 @@ opens with `Searched for: <effective query>` (plus any degradation applied to fi
 The runtime config surface is the same `DEEPSEEK_*` environment the MCP server reads
 (identical defaults and clamping), set in the shell that launches Pi, plus the
 `deepseekWebRetrieval` settings namespace for the off switches (written by the installer;
-it outranks the environment and is preserved by Pi's own settings rewrites).
+it outranks the environment and is preserved by Pi's own settings rewrites). Invalid
+`DEEPSEEK_*` values are dropped at startup and the shared default applies.
 
 The shared config file (`~/.config/deepseek-web-retrieval/config.json`, camelCase keys —
 on Windows, `%APPDATA%\deepseek-web-retrieval\config.json`)
@@ -162,7 +188,7 @@ one vocabulary pair, one pipeline. `—` marks host-integration entries the file
 | `DEEPSEEK_FETCH_TIMEOUT_MS` | `fetchTimeoutMs` | `30000` | Fetch timeout, 1,000–120,000 ms. No host-side cap applies on the extension path. |
 | `DEEPSEEK_FETCH_ALLOWED_DOMAINS` | `fetchAllowedDomains` | unset | If set, only these hosts and subdomains may be fetched. |
 | `DEEPSEEK_FETCH_BLOCKED_DOMAINS` | `fetchBlockedDomains` | unset | Always block these hosts and subdomains. Blocked wins over allowed. |
-| `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `fetchBlockPrivateHosts` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. Set `false`/`0` to disable. |
+| `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | `fetchBlockPrivateHosts` | `true` | Reject localhost, private IPs, `.local`, `.internal`, and similar hosts. Set `false`/`0`/`no`/`off` to disable. |
 
 ### Credentials and retries
 
@@ -171,8 +197,6 @@ one vocabulary pair, one pipeline. `—` marks host-integration entries the file
 | `DEEPSEEK_API_KEY` | — | required | DeepSeek API key, read from the Pi process environment. |
 | `DEEPSEEK_MAX_RETRIES` | `maxRetries` | `2` | Retries for 408, 425, 429, and 5xx responses, 0–5. |
 | `DEEPSEEK_RETRY_BASE_DELAY_MS` | `retryBaseDelayMs` | `250` | Base delay for exponential backoff. `Retry-After` is honored up to 10 seconds. |
-
-Invalid values fall back to the shared default.
 
 ## Troubleshooting
 
@@ -197,9 +221,9 @@ Invalid values fall back to the shared default.
 | Runtime | Inside the Pi process (Node, host-provided) |
 | DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
 
-Tested with Pi 1.3.0 on Linux. The extension API is version-locked research surface: the
-`ToolDefinition` shape and the settings `packages` key are verified at the locked version
-(see [the per-host reference](../research/control-matrix.md#pi)).
+Tested with Pi 1.3.0 on Linux. The extension API surface this package relies on — the
+`ToolDefinition` shape and the settings `packages` key — is verified at the locked
+version (see [the per-host reference](../research/control-matrix.md#pi)).
 
 ## Uninstall
 

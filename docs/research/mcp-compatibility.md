@@ -127,7 +127,9 @@ differences:
    spec says clients SHOULD support it whenever possible. Legacy SSE is never required —
    Codex and Pi reject it anyway.
 3. **Build on the official SDK v2 dual-era serving.** One build then serves the full range:
-   the `2024-11-05` floor set by Cline (v2 legacy support spans `2024-10-07`–`2025-11-25`)
+   the `2024-11-05` floor set by Cline (v2 legacy support spans `2024-10-07`–`2025-11-25`;
+   `2024-10-07` is the pre-1.0 draft version string the SDK accepts for legacy
+   compatibility — it predates the spec's initial `2024-11-05` revision)
    up to the `2026-07-28` negotiators (Claude Code 2.1.274+, Devin 3000.11.92, Copilot CLI
    1.0.81+). A v1.x-built server still works today — modern clients fall back to the legacy
    handshake — but it can never offer the stateless era; v2 serves both from one entry

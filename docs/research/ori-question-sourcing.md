@@ -54,7 +54,7 @@ MCP never carries conversation context to a server. The facts, per revision:
   human-reviewed
   ([sampling](https://modelcontextprotocol.io/specification/2025-11-25/client/sampling)). A server
   could only ask a model to *guess* intent — not obtain the user's question.
-- **Elicititation is interactive, not derivation.** `elicitation/create` asks the user a form/choice
+- **Elicitation is interactive, not derivation.** `elicitation/create` asks the user a form/choice
   question and waits ([2025-06-18+](https://modelcontextprotocol.io/specification/2025-06-18/client/elicitation));
   it requires client capability (only Codex in this matrix has it, per
   [mcp-compatibility.md](mcp-compatibility.md)) and an explicit round trip.
@@ -184,21 +184,11 @@ the declared schema; raw JSON Schema forwarded verbatim) and B feasible
 (`ctx.session.context`). Websearch provider path (the search replacement this repo ships): neither
 — the input schema is host-fixed to `query`, and the provider context has no session handle.**
 
-### Cline 0.0.13
-
-Closed source; the platform binary
-([@cline/cli-linux-x64 0.0.13](https://registry.npmjs.org/@cline/cli-linux-x64/0.0.13), ~119 MB)
-yielded the protocol facts already recorded — custom client negotiating `2024-11-05`,
-text-content-only results ([mcp-compatibility.md](mcp-compatibility.md)). No primary source
-documents whether the client validates tool arguments against `inputSchema` or mangles schemas;
-strings cannot prove a runtime behavior either way, so this is **undeterminable at the lock**. The
-2024-11-05 revision itself puts no validation obligation on clients and defines `arguments` as a
-free-form object, so there is no protocol-level obstacle to channel A — merely no evidence for or
-against host behavior. Channel B: none (MCP only, `paths` in hosts.jsonc).
-
 ## Proprietary hosts
 
-No proprietary host documents a context channel; the question is whether anything documents
+Closed-source hosts, from binary analysis (Cline) and official docs/changelogs (the
+rest). No proprietary host documents a context
+channel; the question is whether anything documents
 input-schema handling that would break an optional parameter.
 
 - **Claude Code 2.1.303.** The [MCP docs](https://code.claude.com/docs/en/mcp) say nothing about
@@ -212,6 +202,16 @@ input-schema handling that would break an optional parameter.
   preventing calling MCP tools that have nested references in their input schemas". Together these
   show the server's `inputSchema` is what the model provider sees and that arguments follow it;
   no host-side validation is ever mentioned. **A feasible by this evidence; B none.**
+- **Cline 0.0.13.** Closed source; the platform binary
+  ([@cline/cli-linux-x64 0.0.13](https://registry.npmjs.org/@cline/cli-linux-x64/0.0.13), ~119 MB)
+  yielded the protocol facts already recorded — custom client negotiating `2024-11-05`,
+  text-content-only results ([mcp-compatibility.md](mcp-compatibility.md)). No primary
+  source documents whether the client validates tool arguments against `inputSchema` or
+  mangles schemas; strings cannot prove a runtime behavior either way, so this is
+  **undeterminable at the lock**. The 2024-11-05 revision itself puts no validation
+  obligation on clients and defines `arguments` as a free-form object, so there is no
+  protocol-level obstacle to channel A — merely no evidence for or against host behavior.
+  Channel B: none (MCP only, `paths` in hosts.jsonc).
 - **Cursor 2026.10.08.** The [MCP docs](https://cursor.com/docs/mcp) describe tools only as
   "Functions for the AI model to execute" and say nothing about input schemas, validation, or
   context — and the protocol revision itself is unpinnable from primary sources
@@ -293,7 +293,7 @@ negotiated revision in the matrix.
   [2025-11-25 tasks (experimental)](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/tasks)
 - [2026-07-28 overview (`_meta`, statelessness)](https://modelcontextprotocol.io/specification/2026-07-28/basic/index)
 
-### Open-source hosts
+### Open-source host sources
 
 - Codex: [rust-v0.163.0 tag](https://github.com/openai/codex/tree/rust-v0.163.0) —
   [mcp_tool_call.rs (argument parsing, no validation)](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/core/src/mcp_tool_call.rs),
@@ -324,15 +324,15 @@ negotiated revision in the matrix.
   (Tool.Context, WebSearch.ProviderInput),
   [@opencode/client](https://registry.npmjs.org/@opencode/client/2.0.32)
   (session.context → SessionMessageInfo[], SessionMessageUser.text)
-- Cline: [@cline/cli-linux-x64 0.0.13](https://registry.npmjs.org/@cline/cli-linux-x64/0.0.13)
-  (manifest only; behavior undeterminable) and prior binary analysis recorded in
-  [mcp-compatibility.md](mcp-compatibility.md)
 
-### Proprietary hosts
+### Proprietary host sources
 
 - Claude Code: [changelog](https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md)
   (entries 2.0.50, 2.1.30, 2.1.246, 2.1.300 — all ≤ the 2.1.303 lock),
   [MCP docs](https://code.claude.com/docs/en/mcp)
+- Cline: [@cline/cli-linux-x64 0.0.13](https://registry.npmjs.org/@cline/cli-linux-x64/0.0.13)
+  (manifest only; behavior undeterminable) and prior binary analysis recorded in
+  [mcp-compatibility.md](mcp-compatibility.md)
 - Cursor: [MCP docs](https://cursor.com/docs/mcp) (silent on the question)
 - Devin: [MCP overview](https://docs.devin.ai/cli/extensibility/mcp/overview),
   [changelog](https://docs.devin.ai/cli/changelog) (silent on the question)

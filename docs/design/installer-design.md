@@ -43,8 +43,9 @@ already exists, and the installer uses three phases:
 1. **Detect.** Read the host config, the rules files, and the registered MCP servers.
    Report the conflict surface: existing rules steering toward another web tool; other
    web-capable MCP servers already on the field; array-valued keys the plan must merge
-   into rather than replace (`disabledTools`, `permissions.deny`, permissions
-   `exclude`, `disabled_tools`); and higher layers (Claude Code managed policy — its
+   into rather than replace (Cline's `disabledTools`, Claude Code's `permissions.deny`,
+   permissions `exclude` arrays, Codex's and Devin's `disabled_tools`); and higher
+   layers (Claude Code managed policy — its
    existence is checked by the claude-code module; Devin enterprise team settings) that
    would outrank what the installer writes.
 2. **Merge or snapshot.** Array keys merge with existing entries, recording exactly
@@ -69,22 +70,24 @@ already exists, and the installer uses three phases:
   conditions; it does not resolve them.
 - **Forced is conditional**: the exclusion kill switches remove the built-in
   competitor, not third-party web MCP servers — those must be excluded too (the
-  per-host keys cover them), or routing is not actually forced. Concretely: Pi's
-  per-server `enabled` key lets the plan disable detected web-capable competitors
-  (each prior value snapshotted for uninstall); Claude Code excludes them the same way
-  via server-level `mcp__<server>` deny rules appended to `permissions.deny`; Codex has
-  no per-server kill switch,
-  so a detected web-capable competitor makes the plan refuse the tier instead of
-  promising non-exclusive routing; OpenCode's forced is replacement, which no
-  third-party server overrides. Detection classifies a server web-capable from its
-  name plus its command/args/url — a heuristic the plan notes never hide. Forced also
-  overrides
-  explicit user choices (OpenCode's `websearch.provider`), and its deny rules affect
-  workflows beyond this project (a Claude Code deny cannot be carved out by allow
-  rules), so the plan must state the blast radius before the user approves it.
+  per-host keys cover them), or routing is not actually forced.
+  - Per-host exclusion of detected web-capable MCP servers: Pi's per-server
+    `enabled` key lets the plan disable them (each prior value snapshotted for
+    uninstall); Claude Code excludes them the same way via server-level
+    `mcp__<server>` deny rules appended to `permissions.deny`; Codex has no
+    per-server kill switch, so a detected web-capable competitor makes the plan
+    refuse the tier instead of promising non-exclusive routing; OpenCode's forced
+    is replacement, which no third-party server overrides.
+  - Detection classifies a server web-capable from its name plus its
+    command/args/url — a heuristic the plan always discloses.
+  - Blast radius: forced also overrides explicit user choices (OpenCode's
+    `websearch.provider`), and its deny rules affect workflows beyond this
+    project (a Claude Code deny cannot be carved out by allow rules), so the plan
+    must state the blast radius before the user approves it.
 - **Forced is not universally available**: where hosts.jsonc records `forced: "none"`
   (Cursor's search today), the wizard does not offer the tier — the tier-level analogue
-  of the scope rule: honor or report, never offer what cannot be delivered. Some kill
+  of the scope rule below (honor or report, never silently downgrade: never offer what
+  cannot be delivered). Some kill
   switches are session-scoped (Copilot fetch's `--deny-tool`/`--excluded-tools` flags);
   an installer cannot persist them, so the plan reports that the exclusion evaporates on
   restart and offers what persistence exists.
@@ -158,9 +161,33 @@ the artifacts below name the path where they differ.
 | Optional | Host config registering the integration: Pi's extension path appends an `npm:<package>` source to `packages` in settings.json; the MCP paths register the server (Pi's MCP entry needs `"exposure": "direct"`; the extension path needs nothing — extension tools are `direct` by Pi's own default) |
 | Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](../research/control-matrix.md#per-host-reference)); the rules name the path's tool ids (`deepseek_web_search` for the extension, `mcp__deepseek__deepseek_web_search` for MCP) |
 | Forced (replacement) | OpenCode plugin options (`setDefaultWebsearch` / `fetchOverrideWebfetch`) |
-| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found — Pi sets their `enabled` key to `false`; Claude Code appends server-level `mcp__<server>` deny rules to `permissions.deny` (merging with the user's own entries); Codex, lacking a per-server kill switch, refuses the tier instead; Pi's extension path additionally refuses when a web-capable `packages`/`extensions` source is listed in settings.json (no per-package kill switch exists) |
+| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus exclusion of any other web-capable MCP servers the detect phase found — host by host below |
 | Forced (de-facto) | Nothing beyond the Optional artifacts — no competitor exists |
-| Off | Codex writes the capability's raw tool name into the server entry's `disabled_tools` (host-native: the tool leaves the model's context; the user's own entries in that array are kept); Claude Code appends the capability's full tool id (`mcp__deepseek__*`) to `permissions.deny`, the same host-native removal; the other MCP entry writes the capability's false-only server-side switch instead (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); Pi's extension path writes the same switches into the `deepseekWebRetrieval` settings namespace the extension reads at load; both capabilities off refuses to install |
+| Off | A host-native removal of the capability's tool — host by host below |
+
+Forced (exclusion), host by host:
+
+- **Pi** sets each detected web-capable server's `enabled` key to `false`.
+- **Claude Code** appends server-level `mcp__<server>` deny rules to
+  `permissions.deny`, merging with the user's own entries.
+- **Codex**, lacking a per-server kill switch, refuses the tier instead.
+- **Pi's extension path** additionally refuses when a web-capable
+  `packages`/`extensions` source is listed in settings.json (no per-package kill
+  switch exists).
+
+Off, host by host:
+
+- **Codex** writes the capability's raw tool name into the server entry's
+  `disabled_tools` (host-native: the tool leaves the model's context; the user's
+  own entries in that array are kept).
+- **Claude Code** appends the capability's full tool id (`mcp__deepseek__*`) to
+  `permissions.deny` — the same host-native removal.
+- **The remaining MCP entry** (Pi's fallback) writes the capability's false-only
+  server-side switch instead (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`).
+- **Pi's extension path** writes the same switches into the
+  `deepseekWebRetrieval` settings namespace the extension reads at load.
+
+Both capabilities off refuses to install.
 
 OpenCode additionally appends `permissions` allow entries for exactly the tools it
 registers (`websearch`, `deepseek_fetch`, and `webfetch` when fetch is forced), merged
@@ -256,8 +283,13 @@ edits append arrays. Preview generation is read-only and does not reserve locks.
 
 Operation locks are directories ending in `.deepseek-web-retrieval.lock`, with
 owner PID and start time inside. Ordinary success or failure releases them. A
-killed process may leave a lock: after confirming no installer is running, inspect
-config, install record, and persistent ownership claims, restore any inconsistent
-state, then remove the reported lock directory and generate a new plan. Locks are
+killed process may leave a lock; to recover from one:
+
+1. Confirm no installer is currently running.
+2. Inspect the config, install record, and persistent ownership claims.
+3. Restore any inconsistent state.
+4. Remove the reported lock directory and generate a new plan.
+
+Locks are
 never stolen based only on age or PID. Persistent `.owner.json` claims remain a
 separate safeguard against two installations owning one shared config.

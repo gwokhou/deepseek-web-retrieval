@@ -9,8 +9,9 @@ bun install
 bun run check
 ```
 
-The project uses Bun for development; native adapters use the SDKs supplied by
-OpenCode and Pi at runtime, so do not bundle host SDKs into the adapters.
+Install [Bun](https://bun.sh) first. The project uses Bun for development; native adapters
+use the SDKs supplied by OpenCode and Pi at runtime, so do not bundle host SDKs into the
+adapters.
 
 `bun run check` runs Biome, TypeScript, the generated-docs check, the build, and
 the test suite. Biome checks formatting, recommended lint rules, and import
@@ -33,66 +34,7 @@ same tests in an environment that supports child-process stdio. Handshake errors
 include the server's captured stderr. These tests use placeholder credentials and
 local validation, so they do not make billed API calls.
 
-## Release and end-to-end tests
-
-### Automated releases
-
-Push a stable `vX.Y.Z` tag to run `.github/workflows/release.yml`; the tagged
-commit must be on `main`, `package.json` must contain `X.Y.Z`, and `CHANGELOG.md`
-must contain one nonempty `## X.Y.Z` section. Prerelease tags are not supported.
-The workflow builds and smoke-tests a tarball, runs the existing CI matrix and keyless Docker
-regressions, publishes that exact tarball to npm with OIDC and provenance, verifies
-its registry integrity, then creates a GitHub Release from that changelog section.
-Only the final publish job receives npm OIDC and GitHub release permissions.
-
-The repository's [npm trusted publisher](https://www.npmjs.com/package/deepseek-web-retrieval/access)
-was validated by the real [v0.5.1 release](https://github.com/gwokhou/deepseek-web-retrieval/releases/tag/v0.5.1).
-Routine releases reuse it without npm login.
-If the binding needs to be recreated, use these exact values:
-
-| Field | Value |
-| --- | --- |
-| Provider | GitHub Actions |
-| Organization or user | `gwokhou` |
-| Repository | `deepseek-web-retrieval` |
-| Workflow filename | `release.yml` |
-| Environment name | Leave empty |
-| Allowed actions | Enable direct `npm publish` |
-
-No `NPM_TOKEN`, npm login, or API key is required in Actions. The workflow uses
-GitHub-hosted runners, Node 24 and npm 11.21.0. Per the current
-[npm policy](https://docs.npmjs.com/trusted-publishers/), a new trusted-publisher
-configuration expires unless its first successful publish happens within two
-days, so create it shortly before the next release; recreate it if it expires.
-A successful first publish validates the binding. Saving the form or running a
-dry run does not validate OIDC publishing.
-
-Before tagging, update `package.json` and move the intended `Unreleased` entries into
-one `## X.Y.Z` changelog section, keeping each item to one sentence. Commit the release
-changes on `main`, run `bun run check`, and push `main`. Derive the tag from the updated
-package version so the command stays valid for each release:
-
-```bash
-RELEASE_VERSION=$(node -p "require('./package.json').version")
-git tag -a "v$RELEASE_VERSION" -m "Release $RELEASE_VERSION"
-git push origin "refs/tags/v$RELEASE_VERSION"
-```
-
-Watch the [Release workflow](https://github.com/gwokhou/deepseek-web-retrieval/actions/workflows/release.yml)
-and confirm the npm `latest` version and GitHub Release after all jobs succeed.
-
-Use **Actions → Release → Run workflow** on `main` for a rehearsal: it builds
-and uploads the candidate and runs all checks, without publishing to npm or
-creating a GitHub Release. For an interrupted tag release, rerun its failed jobs;
-an already-published npm version is accepted only if its integrity matches the
-candidate, and an existing stable GitHub Release is left intact. A conflicting
-npm version fails instead of being overwritten; a new older version cannot move
-`latest` backwards. Do not move or recreate a published tag to retry a release.
-After npm accepts an upload, the workflow waits up to five minutes for the
-version to become available; if npm processing takes longer, wait until the
-version appears in the registry and rerun the failed jobs to finish the release.
-
-### Validation commands
+## End-to-end tests
 
 `bun run check:release` runs the full check, the installed-package Node smoke
 test, and all nine keyless Docker scenarios (`pi`, `pi-extension`, `pi-mock`,
@@ -101,10 +43,10 @@ test, and all nine keyless Docker scenarios (`pi`, `pi-extension`, `pi-mock`,
 
 The two e2e suites have split responsibilities. **Keyless** (`bun run
 test:e2e:keyless`) is CI's regression net: it runs in GitHub Actions on every
-push and PR, and proves everything that does not need the real DeepSeek
-service — installer lifecycle, packaging, host handshakes, and (through the
-in-container mock upstream) real session loops that invoke both retrieval
-tools, so a tool-execution regression fails CI without a key. **Billed** (`bun
+push and PR. Through the in-container mock upstream it proves everything that
+does not need the real DeepSeek service — installer lifecycle, packaging, host
+handshakes, and real session loops that invoke both retrieval tools — so a
+tool-execution regression fails CI without a key. **Billed** (`bun
 run test:e2e:billed`, or the full `bun run test:e2e`) runs locally with a real
 `DEEPSEEK_API_KEY` and is the only suite that verifies the live DeepSeek API
 contract: real LLM behavior, real search results, real page content. Run it
@@ -169,26 +111,33 @@ image contains no secrets; the key is passed at `docker run` time.
   calls to `deepseek_fetch` and `deepseek_web_search`. Real billed
   requests (LLM + retrieval).
 - `bun run test:e2e installer` — keyless. Runs the installer CLI itself inside
-  the container: `init --apply` for Pi (global, verified by a real handshake),
-  Codex (global, forced search — the `web_search = "disabled"` kill switch —
-  verified by `codex mcp list` and the written config), Claude Code (global,
-  forced search + preferred fetch — the `permissions.deny` kill switch, the
-  `~/.claude.json` registration verified by a real `claude mcp list` health
-  check (global scope connects; an unapproved project `.mcp.json` server only
-  lists as pending), and the CLAUDE.md rules block), and OpenCode (project,
-  forced search + preferred fetch, verified at the file level), then `uninstall`
-  and asserts everything it applied is gone.
+  the container, then `uninstall` and asserts everything it applied is gone.
+  Per host:
+  - Pi (global): `init --apply`, verified by a real handshake.
+  - Codex (global, forced search): the `web_search = "disabled"` kill switch,
+    verified by `codex mcp list` and the written config.
+  - Claude Code (global, forced search + preferred fetch): the `permissions.deny`
+    kill switch, the `~/.claude.json` registration, and the CLAUDE.md rules
+    block. The registration is verified by a real `claude mcp list` health
+    check — a global scope connects, while an unapproved project `.mcp.json`
+    server only lists as pending.
+  - OpenCode (project, forced search + preferred fetch): verified at the file
+    level.
 - `bun run test:e2e reinit` — keyless. The installer's lifecycle beyond the first
-  install: a Codex tier downgrade reverts the orphaned kill switch inside the
-  still-claimed config (snapshot restored, registration kept, the plan's reverts
-  section visible), a Pi preferred → optional downgrade deletes the orphaned,
-  installer-created rules file whole, a second Codex scope claiming the same
-  config file is refused with uninstall guidance, Claude Code's scopes map to
-  disjoint files and install side by side (project downgrade included),
-  `list` reports the recorded
-  installs, and `XDG_CONFIG_HOME` routes the global config home (with uninstall
-  finding the record there). Also covers the Codex project scope and OpenCode
-  global scope path mappings.
+  install:
+  - A Codex tier downgrade reverts the orphaned kill switch inside the
+    still-claimed config (snapshot restored, registration kept, the plan's
+    reverts section visible).
+  - A Pi preferred → optional downgrade deletes the orphaned, installer-created
+    rules file whole.
+  - A second Codex scope claiming the same config file is refused with
+    uninstall guidance.
+  - Claude Code's scopes map to disjoint files and install side by side
+    (project downgrade included).
+  - `list` reports the recorded installs, and `XDG_CONFIG_HOME` routes the
+    global config home (with uninstall finding the record there).
+  - Also covers the Codex project scope and OpenCode global scope path
+    mappings.
 - `bun run test:e2e upgrade` — keyless; installs the published npm 0.4.0 CLI,
   creates all three host installs over existing user configuration, upgrades to
   the packed candidate, migrates Pi from MCP to its default extension, repeats
@@ -241,9 +190,8 @@ image contains no secrets; the key is passed at `docker run` time.
   as tool calls. Claude Code is pointed at DeepSeek as the LLM over its
   Anthropic-compatible endpoint (`ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`
   from the same key). Real billed requests (LLM + retrieval).
-- `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
-  Multiple names select a subset (`bun run test:e2e:keyless` runs every keyless
-  scenario); the harness packs the npm
+- `bun run test:e2e` — all scenarios. Multiple names select a subset (`bun run
+  test:e2e:keyless` runs every keyless scenario); the harness packs the npm
   tarball before running, so the installer and pkg scenarios always exercise
   the current checkout's packaging.
 
@@ -278,8 +226,10 @@ error, not a skip.
 - Bumping `baseline` or a host `version` in `docs/hosts.jsonc` obliges a
   re-verification pass for that host: re-verify its per-host reference section
   and `control` keys in `docs/research/control-matrix.md`, and re-check the
-  drift list there; Cline's 3.x CLI still needs a separate compatibility pass,
-  while the Codex docs move and Copilot's `GEMINI.md` dating are recorded as resolved.
+  drift list there. Two of that list's legacy drift items are recorded as
+  resolved (the Codex docs move, Copilot's `GEMINI.md` dating); one remains
+  open — Cline's 3.x CLI still needs a separate compatibility pass before that
+  host can be adopted.
   Version mentions inside prose and `key` strings are provenance anchors, not lock
   restatements — they move with the re-verification, not with the bump. Update
   a research note's own baseline date only when its facts were actually
@@ -307,6 +257,68 @@ Use the bug report template and include:
 - Whether `DEEPSEEK_API_KEY` is set
 
 Do not paste a real API key. Redact it as `sk-***`.
+
+## Automated releases (maintainers)
+
+Push a stable `vX.Y.Z` tag to run `.github/workflows/release.yml`; the tagged
+commit must be on `main`, `package.json` must contain `X.Y.Z`, and `CHANGELOG.md`
+must contain one nonempty `## X.Y.Z` section. Prerelease tags are not supported.
+The workflow builds and smoke-tests a tarball, then runs the existing CI matrix
+and keyless Docker regressions. It publishes that exact tarball to npm with OIDC
+and provenance, verifies its registry integrity, and finally creates a GitHub
+Release from that changelog section. Only the final publish job receives npm OIDC
+and GitHub release permissions.
+
+The repository's [npm trusted publisher](https://www.npmjs.com/package/deepseek-web-retrieval/access)
+was validated by the real [v0.5.1 release](https://github.com/gwokhou/deepseek-web-retrieval/releases/tag/v0.5.1).
+Routine releases reuse it without npm login.
+If the binding needs to be recreated, use these exact values:
+
+| Field | Value |
+| --- | --- |
+| Provider | GitHub Actions |
+| Organization or user | `gwokhou` |
+| Repository | `deepseek-web-retrieval` |
+| Workflow filename | `release.yml` |
+| Environment name | Leave empty |
+| Allowed actions | Enable direct `npm publish` |
+
+No `NPM_TOKEN`, npm login, or API key is required in Actions. The workflow uses
+GitHub-hosted runners, Node 24 and npm 11.21.0. Per the current
+[npm policy](https://docs.npmjs.com/trusted-publishers/), a new trusted-publisher
+configuration expires unless its first successful publish happens within two
+days, so create it shortly before the next release; recreate it if it expires.
+A successful first publish validates the binding. Saving the form or running a
+dry run does not validate OIDC publishing.
+
+Before tagging, update `package.json` and move the intended `Unreleased` entries into
+one `## X.Y.Z` changelog section, keeping each item to one sentence. Commit the release
+changes on `main`, run `bun run check`, and push `main`. Derive the tag from the updated
+package version so the command stays valid for each release:
+
+```bash
+RELEASE_VERSION=$(node -p "require('./package.json').version")
+git tag -a "v$RELEASE_VERSION" -m "Release $RELEASE_VERSION"
+git push origin "refs/tags/v$RELEASE_VERSION"
+```
+
+Watch the [Release workflow](https://github.com/gwokhou/deepseek-web-retrieval/actions/workflows/release.yml)
+and confirm the npm `latest` version and GitHub Release after all jobs succeed.
+
+Use **Actions → Release → Run workflow** on `main` for a rehearsal: it builds
+and uploads the candidate and runs all checks, without publishing to npm or
+creating a GitHub Release.
+
+An interrupted tag release can be resumed by rerunning its failed jobs. An
+already-published npm version is accepted only if its integrity matches the
+candidate, and an existing stable GitHub Release is left intact. A conflicting
+npm version fails instead of being overwritten, and a new older version cannot
+move `latest` backwards. Do not move or recreate a published tag to retry a
+release.
+
+After npm accepts an upload, the workflow waits up to five minutes for the
+version to become available. If npm processing takes longer, wait until the
+version appears in the registry and rerun the failed jobs to finish the release.
 
 ## Security
 

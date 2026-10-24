@@ -46,7 +46,7 @@ shared base strengthens rather than weakens them (one policy instead of three dr
 
 Precedence, low → high, identical semantics in every adapter:
 
-```
+```text
 built-in defaults  <  shared config file  <  DEEPSEEK_* environment  <  host-native config
 ```
 
@@ -134,8 +134,9 @@ A bad shared value now fails everywhere at once, so effective configuration must
 ## What this design does not change
 
 - `need_content` stays hardcoded `false` ([search-inline-content.md](../research/search-inline-content.md)).
-- `ori_question` remains per-call-only (`original_question` input / Pi session fallback); it
-  is not configurable.
+- `ori_question` remains per-call-only — supplied through the tool input named
+  `original_question` (with the Pi session fallback) and sent to the API as `ori_question`;
+  it is not configurable.
 - Auth surfaces, capability tiers, and the installer's plan/confirm flow.
 
 ## Testing
@@ -154,7 +155,8 @@ existing layers changes. Documentation updates ship with the code: README gains 
 "Configuration" section with the precedence table and the two-vocabulary table; the host
 guides' option tables gain a shared-file column; the control-matrix note's Pi sentence
 ("There is no per-extension options channel: the runtime config surface is the
-`DEEPSEEK_*` environment") is updated to name the file as part of that surface.
+`DEEPSEEK_*` environment") is updated to name the file as part of that surface. All of
+these updates are shipped and in place.
 
 **Amendment, 2026-10-23** — two changes approved after this design was confirmed alter
 the effective behavior of *untouched* configurations, superseding the "no existing

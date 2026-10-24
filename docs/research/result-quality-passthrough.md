@@ -5,8 +5,8 @@ This note answers one question: through which channel can DeepSeek's per-result 
 (string|null) — reach the **model** (not the human UI) on each host at its locked version? The
 repo filters on the first two in `src/core/search.ts` (thresholds default to off); at the
 research baseline it dropped all three before returning — the adapters now pass them through
-as a text marker plus a structured mirror (item 1 below is implemented as
-`formatQualityMarker`).
+as a text marker plus a structured mirror (the text marker of *What this means for this
+repo*, item 1, is implemented as `formatQualityMarker`).
 Related: [ori-question-sourcing.md](ori-question-sourcing.md) (input side),
 [search-inline-content.md](search-inline-content.md) (content volume).
 
@@ -47,7 +47,8 @@ The server-side validator (`@modelcontextprotocol/server` 2.3.1,
   `Output validation error: Tool <name> has an output schema but no structured content was
   provided` (JSON-RPC `InvalidParams`). Text-only results are not allowed for schema'd tools.
 - `structuredContent` is then validated against the schema; a mismatch is rejected the same way.
-- The v2 codec's SEP-2106 §4.3 auto-append (`appendTextFallbackForNonObject`) adds a
+- The v2 codec's SEP-2106 §4.3 auto-append (so named in the installed SDK's own source;
+  implemented as `appendTextFallbackForNonObject`) adds a
   `JSON.stringify(structuredContent)` TextContent block **only when `structuredContent` is a
   non-object** (primitive/array/null) and no text block exists. Object-shaped
   `structuredContent` gets **no** automatic text mirror — the server must mirror it itself to
@@ -108,7 +109,8 @@ From the official repo at tag `v2.0.32` (github.com/anomalyco/opencode, where `@
 - Every tool result then passes through `ToolOutput.truncate`:
   **`MAX_LINES = 2000`, `MAX_BYTES = 50 KiB`** (full output retained to a `tool-output/`
   file for 7 days) — [`packages/core/src/tool-output.ts`](https://github.com/anomalyco/opencode/blob/v2.0.32/packages/core/src/tool-output.ts).
-  These caps were not previously recorded in [control-matrix.md](control-matrix.md).
+  These caps are also recorded in [control-matrix.md](control-matrix.md#opencode)'s
+  OpenCode section.
 
 ## What this means for this repo
 
@@ -128,9 +130,9 @@ From the official repo at tag `v2.0.32` (github.com/anomalyco/opencode, where `@
    The Pi adapter's extension `outputSchema` is safe as-is — Pi re-declares but does not
    validate it, and its `structuredContent` is event data.
 4. **New cap facts for the design margin:** OpenCode plugin results truncate at 2000 lines /
-   50 KiB (new), Pi extension tools bypass the MCP 20 KB truncation (already known), Claude
-   Code 25k tokens, Codex per-tool `output_token_limit` (default unpublished). None of these
-   bind at search-result volumes; they matter if [inline content](search-inline-content.md) is
+   50 KiB, Pi extension tools bypass the MCP 20 KB truncation, Claude Code caps output at
+   25k tokens, and Codex applies its per-tool `output_token_limit` (default unpublished).
+   None of these bind at search-result volumes; they matter if [inline content](search-inline-content.md) is
    ever enabled.
 
 ## Sources

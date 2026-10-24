@@ -64,7 +64,7 @@ _Avoid_: backup
 
 **Revert**:
 Undoing artifacts of a superseded init during apply (shown in the plan, applied, then gone from the record).
-_Avoid_: rollback (that is uninstall's whole ability), undo
+_Avoid_: rollback (reserved for uninstall's full restore), undo
 
 **Whole-file orphan**:
 A file the previous init touched that the new plan no longer claims; reverts entirely.
