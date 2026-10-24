@@ -82,7 +82,7 @@ host facts; each row below was verified against that lock on the research baseli
 | Cline | `2024-11-05` | stdio, Streamable HTTP, SSE | Custom client (no official SDK); `protocolVersion "2024-11-05"` extracted from the platform binary; source repo not public |
 | Codex | `2025-06-18`; `mcp_2026_07_28` feature flag opts into `2026-07-28` | stdio, Streamable HTTP (no SSE) | Git tag `rust-v0.163.0`: rmcp 3.5.1 pinned; initialize sends `V_2025_06_18` |
 | Pi | `2025-11-25` | stdio, Streamable HTTP (SSE rejected) | Git tag: own `@earendil-works/pi-mcp` client, `LATEST_PROTOCOL_VERSION "2025-11-25"` |
-| Claude Code | `2026-07-28` by default (`MCP_PROTOCOL_NEGOTIATION=legacy` opt-out) | stdio, Streamable HTTP, SSE, ws | Changelog 2.1.296+: "negotiate MCP protocol version 2026-07-28 by default"; docs: TS SDK 2.0 runtime |
+| Claude Code | `2026-07-28` by default (`MCP_PROTOCOL_NEGOTIATION=legacy` opt-out) | stdio, Streamable HTTP, SSE, ws | Docs: the v2 runtime (TS SDK 2.0) defaults from 2.1.274+ without flag fetching and "asks stdio servers for that revision by default"; changelog 2.1.299 extended the default to cloud session and Remote Control connectors |
 | Cursor | Unpinnable from primary sources (docs show ≥ `2025-06-18` features) | stdio, Streamable HTTP, SSE | Docs feature set only; no revision stated in docs or changelog |
 | Devin | `2026-07-28` | stdio, Streamable HTTP (SSE fallback), SSE | Changelog for the locked release itself: "Support for MCP protocol revision 2026-07-28" |
 | GitHub Copilot | `2026-07-28` | stdio (`type: "local"`), Streamable HTTP, SSE | Changelog 1.0.81: "Ship MCP 2026-07-28 support to CLI, SDK, IDE, and in-memory clients" |
@@ -128,7 +128,7 @@ differences:
    Codex and Pi reject it anyway.
 3. **Build on the official SDK v2 dual-era serving.** One build then serves the full range:
    the `2024-11-05` floor set by Cline (v2 legacy support spans `2024-10-07`–`2025-11-25`)
-   up to the `2026-07-28` negotiators (Claude Code 2.1.296+, Devin 3000.11.92, Copilot CLI
+   up to the `2026-07-28` negotiators (Claude Code 2.1.274+, Devin 3000.11.92, Copilot CLI
    1.0.81+). A v1.x-built server still works today — modern clients fall back to the legacy
    handshake — but it can never offer the stateless era; v2 serves both from one entry
    point.
