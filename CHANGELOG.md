@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here, one sentence per item.
 
-## Unreleased
+## 0.9.0
 
 - Accept an optional per-call `count` (1–50) on the MCP and Pi search tools and an optional per-call `maxChars` (0–1,000,000) on every adapter's fetch, each overriding the configured value for that one call.
 - Open the search result text with `Searched for: <effective query>` whenever domain or language operators — or fitting the query-length limit — changed what was actually searched, so the model can attribute what it sees.
