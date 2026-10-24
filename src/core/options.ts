@@ -9,6 +9,8 @@ import {
   DEFAULT_MIN_AUTHORITY,
   DEFAULT_MIN_RERANK,
   DEFAULT_RETRY_BASE_DELAY_MS,
+  DEFAULT_SEARCH_CONTENT_MAX_CHARS,
+  DEFAULT_SEARCH_CONTENT_TIMEOUT_MS,
   DEFAULT_SEARCH_COUNT,
   DEFAULT_TIMEOUT_MS,
   MAX_RETRIES,
@@ -67,6 +69,13 @@ export function resolveSearchOptions(input?: PluginOptions): SearchOptions {
     language: optionalText(input?.language),
     localization: localizationValue(input?.searchLocalization),
     maxSummaryChars: clampInt(input?.maxSummaryChars, DEFAULT_MAX_SUMMARY_CHARS, 0, 1_000_000),
+    contentMaxChars: clampInt(input?.searchContentMaxChars, DEFAULT_SEARCH_CONTENT_MAX_CHARS, 0, 1_000_000),
+    contentTimeoutMs: clampInt(
+      input?.searchContentTimeoutMs,
+      DEFAULT_SEARCH_CONTENT_TIMEOUT_MS,
+      MIN_TIMEOUT_MS,
+      MAX_TIMEOUT_MS,
+    ),
     timeoutMs: clampInt(input?.searchTimeoutMs, DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS),
     enabled: input?.searchEnabled !== false,
   };

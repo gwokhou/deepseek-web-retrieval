@@ -22,6 +22,8 @@ describe("resolve options", () => {
         language: undefined,
         localization: undefined,
         maxSummaryChars: 1200,
+        contentMaxChars: 1500,
+        contentTimeoutMs: 60000,
         timeoutMs: 30000,
         enabled: true,
       },
@@ -72,6 +74,15 @@ describe("resolve options", () => {
     expect(options.maxSummaryChars).toBe(0);
     expect(options.timeoutMs).toBe(1000);
     expect(options.allowUnknownAuthority).toBe(true);
+  });
+
+  test("clamps the content budget and timeout like the other numeric knobs", () => {
+    expect(resolveSearchOptions({ searchContentMaxChars: -1 }).contentMaxChars).toBe(0);
+    expect(resolveSearchOptions({ searchContentMaxChars: 2_000_000 }).contentMaxChars).toBe(1_000_000);
+    expect(resolveSearchOptions({ searchContentMaxChars: "big" }).contentMaxChars).toBe(1500);
+    expect(resolveSearchOptions({ searchContentTimeoutMs: 5 }).contentTimeoutMs).toBe(1000);
+    expect(resolveSearchOptions({ searchContentTimeoutMs: 999_999 }).contentTimeoutMs).toBe(120000);
+    expect(resolveSearchOptions({ searchContentTimeoutMs: "slow" }).contentTimeoutMs).toBe(60000);
   });
 
   test("keeps unknown-authority results unless disabled explicitly", () => {

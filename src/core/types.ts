@@ -20,6 +20,14 @@ export interface SearchOptions {
    */
   readonly localization?: string;
   readonly maxSummaryChars: number;
+  /**
+   * Deployment-level only — never a per-call tool parameter. The budget a
+   * need_content page body is clamped to per result; the per-call boolean is
+   * `SearchRequest.needContent`.
+   */
+  readonly contentMaxChars: number;
+  /** Deployment-level only; the timeout a need_content call uses instead of `timeoutMs`. */
+  readonly contentTimeoutMs: number;
   readonly timeoutMs: number;
   readonly enabled: boolean;
 }
@@ -63,6 +71,8 @@ export interface DeepSeekSearchResult {
   readonly url?: string | null;
   readonly snippet?: string | null;
   readonly summary?: string | null;
+  /** The need_content page body; an empty string when need_content is false or the content is unavailable. */
+  readonly content?: string | null;
   readonly date?: string | null;
 }
 
@@ -71,6 +81,8 @@ export interface SearchResult {
   readonly url: string;
   readonly title?: string;
   readonly content?: string;
+  /** Which wire field `content` came from: a need_content page body or the summary/snippet digest. */
+  readonly contentKind?: "page" | "digest";
   readonly published?: number;
   readonly rerankScore?: number;
   /** Faithful to the wire: -1 means unknown authority. */

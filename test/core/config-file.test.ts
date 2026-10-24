@@ -183,6 +183,8 @@ describe("readFileOptions", () => {
       searchLocalization: "203.0.113.7",
       maxSummaryChars: 800,
       searchTimeoutMs: 15000,
+      searchContentMaxChars: 2000,
+      searchContentTimeoutMs: 90000,
       fetchMaxChars: 4000,
       fetchAllowedDomains: ["a.org"],
       fetchBlockedDomains: ["b.org"],

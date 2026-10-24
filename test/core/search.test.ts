@@ -99,6 +99,7 @@ describe("processResults", () => {
         url: "https://example.com/a",
         title: "Example",
         content: "A useful summary.",
+        contentKind: "digest",
         published: Date.parse("2026-06-01T00:00:00+00:00"),
         rerankScore: 2.4,
         authority: 3,
@@ -159,7 +160,7 @@ describe("processResults", () => {
     ];
     expect(processResults(raw, options)).toEqual([
       // The snippet was cut at 5 characters; the ellipsis marks the cut.
-      { url: "https://a/", content: "abcde…", rerankScore: 2, authority: 3 },
+      { url: "https://a/", content: "abcde…", contentKind: "digest", rerankScore: 2, authority: 3 },
       { url: "https://b/", rerankScore: 2, authority: 3 },
     ]);
   });
@@ -168,7 +169,53 @@ describe("processResults", () => {
     const options = resolveSearchOptions({ maxSummaryChars: 5 });
     const raw: DeepSeekSearchResult[] = [{ url: "https://a", summary: "abcde", rerank_score: 2, authority: 3 }];
     expect(processResults(raw, options)).toEqual([
-      { url: "https://a/", content: "abcde", rerankScore: 2, authority: 3 },
+      { url: "https://a/", content: "abcde", contentKind: "digest", rerankScore: 2, authority: 3 },
+    ]);
+  });
+
+  test("a need_content page body outranks the summary digest", () => {
+    const raw: DeepSeekSearchResult[] = [
+      { url: "https://a", summary: "digest text", content: "page body", rerank_score: 2, authority: 3 },
+    ];
+    expect(processResults(raw, resolveSearchOptions())).toEqual([
+      { url: "https://a/", content: "page body", contentKind: "page", rerankScore: 2, authority: 3 },
+    ]);
+  });
+
+  test("page bodies are clamped to the content budget, not the summary budget", () => {
+    const options = resolveSearchOptions({ searchContentMaxChars: 5, maxSummaryChars: 100 });
+    const body = "0123456789";
+    const raw: DeepSeekSearchResult[] = [
+      { url: "https://a", summary: "short digest", content: body, rerank_score: 2, authority: 3 },
+    ];
+    expect(processResults(raw, options)).toEqual([
+      { url: "https://a/", content: "01234…", contentKind: "page", rerankScore: 2, authority: 3 },
+    ]);
+    // A body the cap did not shorten carries no ellipsis.
+    expect(processResults([{ ...raw[0], content: "01234" }], options)[0]?.content).toBe("01234");
+  });
+
+  test("a missing or empty body falls back to the digest", () => {
+    const options = resolveSearchOptions();
+    // need_content: false responses carry an empty string; whitespace-only is
+    // equally absent, and the API may omit per-result content even when asked.
+    for (const content of ["", "   ", null, undefined]) {
+      const raw: DeepSeekSearchResult[] = [
+        { url: "https://a", summary: "digest text", snippet: "snippet text", content, rerank_score: 2, authority: 3 },
+      ];
+      expect(processResults(raw, options)).toEqual([
+        { url: "https://a/", content: "digest text", contentKind: "digest", rerankScore: 2, authority: 3 },
+      ]);
+    }
+  });
+
+  test("a zero content budget drops the body and renders the digest", () => {
+    const options = resolveSearchOptions({ searchContentMaxChars: 0 });
+    const raw: DeepSeekSearchResult[] = [
+      { url: "https://a", summary: "digest text", content: "page body", rerank_score: 2, authority: 3 },
+    ];
+    expect(processResults(raw, options)).toEqual([
+      { url: "https://a/", content: "digest text", contentKind: "digest", rerankScore: 2, authority: 3 },
     ]);
   });
 

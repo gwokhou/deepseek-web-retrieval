@@ -13,6 +13,7 @@ import {
   FETCH_TOOL_DESCRIPTION,
   FETCH_URL_PARAMETER,
   SEARCH_COUNT_PARAMETER,
+  SEARCH_NEED_CONTENT_PARAMETER,
   SEARCH_ORI_QUESTION_PARAMETER,
   SEARCH_QUERY_PARAMETER,
   SEARCH_TOOL_DESCRIPTION,
@@ -33,6 +34,7 @@ const SEARCH_PARAMETERS = Type.Object({
     }),
   ),
   count: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_SEARCH_COUNT, description: SEARCH_COUNT_PARAMETER })),
+  need_content: Type.Optional(Type.Boolean({ description: SEARCH_NEED_CONTENT_PARAMETER })),
 });
 
 const SEARCH_OUTPUT = Type.Object({
@@ -109,6 +111,7 @@ export function searchTool(config: ResolvedOptions, client: RetrievalClient = re
         const outcome = await client.searchWeb(params.query, withPerCallCount(config.search, params.count), {
           ...requestContext(config, requireApiKey(), signal ?? NEVER_ABORTS),
           oriQuestion: explicit ?? sessionOriQuestion(ctx),
+          needContent: params.need_content === true,
         });
         return {
           content: [{ type: "text", text: formatSearchResults(outcome.results, outcome) }],

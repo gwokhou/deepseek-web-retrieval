@@ -11,6 +11,7 @@ import {
   FETCH_TOOL_DESCRIPTION,
   FETCH_URL_PARAMETER,
   SEARCH_COUNT_PARAMETER,
+  SEARCH_NEED_CONTENT_PARAMETER,
   SEARCH_ORI_QUESTION_PARAMETER,
   SEARCH_QUERY_PARAMETER,
   SEARCH_TOOL_DESCRIPTION,
@@ -27,6 +28,7 @@ const SEARCH_INPUT = z.object({
   query: z.string().min(1).describe(SEARCH_QUERY_PARAMETER),
   original_question: z.string().optional().describe(SEARCH_ORI_QUESTION_PARAMETER),
   count: z.number().int().min(1).max(MAX_SEARCH_COUNT).optional().describe(SEARCH_COUNT_PARAMETER),
+  need_content: z.boolean().optional().describe(SEARCH_NEED_CONTENT_PARAMETER),
 });
 
 const FETCH_INPUT = z.object({
@@ -54,12 +56,13 @@ export function createDeepSeekServer(
         inputSchema: SEARCH_INPUT,
         annotations: { readOnlyHint: true },
       },
-      async ({ query, original_question, count }, ctx) => {
+      async ({ query, original_question, count, need_content }, ctx) => {
         try {
           const request = requestContext(config, requireApiKey(env), ctx.mcpReq.signal);
           const outcome = await client.searchWeb(query, withPerCallCount(config.search, count), {
             ...request,
             oriQuestion: original_question,
+            needContent: need_content === true,
           });
           return callResult(server, ctx, formatSearchResults(outcome.results, outcome), {
             results: outcome.results.map(toStructuredResult),

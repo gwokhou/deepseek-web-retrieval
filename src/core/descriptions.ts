@@ -54,3 +54,7 @@ export const FETCH_MAX_CHARS_PARAMETER =
 export const SEARCH_COUNT_PARAMETER =
   "Optional number of results for this call, 1-50. Overrides the configured count and result cap for this call; " +
   "billing is per request, not per result.";
+
+export const SEARCH_NEED_CONTENT_PARAMETER =
+  "Optional; set true to attach each result's page body as Markdown (clamped to a configured per-result budget) " +
+  "instead of its short summary. Slower per call — DeepSeek fetches the result pages — and priced the same per request.";

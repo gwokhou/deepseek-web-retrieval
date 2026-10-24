@@ -27,6 +27,19 @@ export const DEFAULT_MAX_RESULTS = 10;
 export const DEFAULT_MIN_RERANK = 0;
 export const DEFAULT_MIN_AUTHORITY = 0;
 export const DEFAULT_MAX_SUMMARY_CHARS = 1200;
+/**
+ * The per-result budget a need_content page body is clamped to. 1,500 keeps a
+ * default count=10 response (bodies plus metadata ≈ 16 KB) under the tightest
+ * host output cap, Pi's 20 KB MCP-path truncation — see
+ * docs/research/search-inline-content.md.
+ */
+export const DEFAULT_SEARCH_CONTENT_MAX_CHARS = 1500;
+/**
+ * The timeout need_content calls use in place of searchTimeoutMs: DeepSeek
+ * fetches every result page server-side before responding, which the 30 s
+ * search default does not budget for.
+ */
+export const DEFAULT_SEARCH_CONTENT_TIMEOUT_MS = 60000;
 
 export const DEFAULT_FETCH_MAX_CHARS = 16000;
 /** The ceiling for a per-call fetch budget, matching the configured knob's range. */

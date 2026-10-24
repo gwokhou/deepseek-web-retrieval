@@ -45,8 +45,8 @@ describe("DeepSeek client", () => {
     const outcome = await searchWeb("bun", resolveSearchOptions({ count: 20 }), request(fetchImpl));
 
     expect(outcome.results).toEqual([
-      { url: "https://a/", title: "A", content: "summary", rerankScore: 2.5, authority: 3 },
-      { url: "https://b/", title: "B", content: "low", rerankScore: 1, authority: 4 },
+      { url: "https://a/", title: "A", content: "summary", contentKind: "digest", rerankScore: 2.5, authority: 3 },
+      { url: "https://b/", title: "B", content: "low", contentKind: "digest", rerankScore: 1, authority: 4 },
     ]);
     expect(outcome.inputQuery).toBe("bun");
     expect(outcome.effectiveQuery).toBe("bun");
@@ -59,6 +59,58 @@ describe("DeepSeek client", () => {
       need_content: false,
     });
     expect((captured.init.headers as Record<string, string>).Authorization).toBe("Bearer sk-test");
+  });
+
+  test("a need_content call posts the flag and maps page bodies into results", async () => {
+    const capturedBodies: unknown[] = [];
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
+      capturedBodies.push(JSON.parse(String(init.body)));
+      return new Response(
+        JSON.stringify({
+          results: [
+            {
+              url: "https://a",
+              title: "A",
+              summary: "digest",
+              content: "# Heading\n\nbody",
+              rerank_score: 2.5,
+              authority: 3,
+            },
+            { url: "https://b", title: "B", summary: "digest only", content: "", rerank_score: 2, authority: 3 },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const outcome = await searchWeb("bun", resolveSearchOptions(), { ...request(fetchImpl), needContent: true });
+
+    expect(capturedBodies).toEqual([{ query: "bun", count: 10, need_content: true }]);
+    // The body replaces the digest; a result whose content came back empty
+    // falls back to its summary.
+    expect(outcome.results).toEqual([
+      {
+        url: "https://a/",
+        title: "A",
+        content: "# Heading\n\nbody",
+        contentKind: "page",
+        rerankScore: 2.5,
+        authority: 3,
+      },
+      { url: "https://b/", title: "B", content: "digest only", contentKind: "digest", rerankScore: 2, authority: 3 },
+    ]);
+  });
+
+  test("a need_content call runs on the content timeout, not the search timeout", async () => {
+    const fetchImpl = ((_input: string | URL | Request, init: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      })) as typeof fetch;
+
+    const options = { ...resolveSearchOptions(), contentTimeoutMs: 5 };
+    await expect(searchWeb("bun", options, { ...request(fetchImpl), needContent: true })).rejects.toThrow(
+      "timed out after 5 ms",
+    );
   });
 
   test("search sends ori_question when the option is set, trimmed, and clamped to 128 code points", async () => {

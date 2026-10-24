@@ -330,6 +330,24 @@ describe("pi extension tools", () => {
     expect(text).toContain("[content truncated]");
   });
 
+  test("the need_content per-call parameter reaches the wire", async () => {
+    process.env.DEEPSEEK_API_KEY = "sk-test";
+    const bodies: unknown[] = [];
+    const fetchImpl = capturingSearchFetch(bodies);
+
+    const config = resolveExtensionOptions({});
+    const result = await searchTool(config, createRetrievalClient({ fetchImpl })).execute(
+      "call_content",
+      { query: "bun", need_content: true },
+      undefined,
+      undefined,
+      {} as never,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect((bodies[0] as { need_content: boolean }).need_content).toBe(true);
+  });
+
   test("headers the effective query when a language filter applies", async () => {
     process.env.DEEPSEEK_API_KEY = "sk-test";
     const bodies: unknown[] = [];

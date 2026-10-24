@@ -92,6 +92,12 @@ export interface SearchRequest extends RequestOptions {
    * ori_question to sharpen intent; adapters fill it from tool input.
    */
   readonly oriQuestion?: string;
+  /**
+   * Per-call only. The tool input's need_content flag: true asks for each
+   * result's page body, sent as the API's need_content and timed against
+   * contentTimeoutMs instead of timeoutMs.
+   */
+  readonly needContent?: boolean;
 }
 
 /**
@@ -130,14 +136,15 @@ export async function searchWeb(query: string, options: SearchOptions, request: 
   const composed = composeSearchQuery(trimmed, options);
   const builtQuery = composed.query;
 
-  const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs);
+  const needContent = request.needContent === true;
+  const timeout = effectiveTimeout(needContent ? options.contentTimeoutMs : options.timeoutMs, request.timeoutMs);
   const oriQuestion = oriQuestionValue(request.oriQuestion);
   const payload = await postJson<SearchResponse>(
     apiUrl(request.baseUrl, SEARCH_ENDPOINT_PATH),
     {
       query: builtQuery,
       count: options.count,
-      need_content: false,
+      need_content: needContent,
       ...(oriQuestion === undefined ? {} : { ori_question: oriQuestion }),
       ...(options.localization === undefined ? {} : { localization: options.localization }),
     },

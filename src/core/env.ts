@@ -14,6 +14,8 @@ const NUMBER_ENV = {
   minAuthority: "DEEPSEEK_SEARCH_MIN_AUTHORITY",
   maxSummaryChars: "DEEPSEEK_SEARCH_MAX_SUMMARY_CHARS",
   searchTimeoutMs: "DEEPSEEK_SEARCH_TIMEOUT_MS",
+  searchContentMaxChars: "DEEPSEEK_SEARCH_CONTENT_MAX_CHARS",
+  searchContentTimeoutMs: "DEEPSEEK_SEARCH_CONTENT_TIMEOUT_MS",
   fetchMaxChars: "DEEPSEEK_FETCH_MAX_CHARS",
   fetchTimeoutMs: "DEEPSEEK_FETCH_TIMEOUT_MS",
   maxRetries: "DEEPSEEK_MAX_RETRIES",
@@ -97,6 +99,8 @@ export function envOptionsReport(env: Env = process.env): EnvOptionsReport {
   putText(options, "searchLocalization", env);
   putNumber(options, "maxSummaryChars", env, warnings);
   putNumber(options, "searchTimeoutMs", env, warnings);
+  putNumber(options, "searchContentMaxChars", env, warnings);
+  putNumber(options, "searchContentTimeoutMs", env, warnings);
 
   putNumber(options, "fetchMaxChars", env, warnings);
   putDomains(options, "fetchAllowedDomains", env, warnings);

@@ -117,6 +117,19 @@ describe("formatSearchResults", () => {
     expect(text).toContain("line one line two");
   });
 
+  test("keeps page-body line structure indented into the list item", () => {
+    const text = formatSearchResults([
+      result({ content: "# Heading\n\nparagraph one\n- bullet", contentKind: "page" }),
+    ]);
+    expect(text).toBe(
+      "1. [Example page](https://example.com/page)\n" +
+        "   # Heading\n" +
+        "   \n" +
+        "   paragraph one\n" +
+        "   - bullet",
+    );
+  });
+
   test("appends the quality marker to the heading line", () => {
     const text = formatSearchResults([result({ rerankScore: 2.1, authority: 3, siteName: "GitHub" })]);
     expect(text).toBe(

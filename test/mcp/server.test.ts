@@ -481,6 +481,22 @@ describe("per-tool enable switches", () => {
     }
   });
 
+  test("the need_content parameter reaches the wire", async () => {
+    const stub = createStub();
+    stub.respond(SEARCH_RESULTS);
+    const persona = await connectPersona(stub.fetchImpl);
+    try {
+      const search = await persona.client.callTool({
+        name: "deepseek_web_search",
+        arguments: { query: "deepseek mcp", need_content: true },
+      });
+      expect(search.isError).toBeFalsy();
+      expect(JSON.parse(String(stub.captured?.init.body)).need_content).toBe(true);
+    } finally {
+      await persona.close();
+    }
+  });
+
   test("search headers the effective query when a language filter applies", async () => {
     const stub = createStub();
     stub.respond(SEARCH_RESULTS);

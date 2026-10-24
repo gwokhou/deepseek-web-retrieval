@@ -118,7 +118,16 @@ export function formatSearchResults(results: readonly SearchResult[], context?: 
       const marker = formatQualityMarker(result);
       const lines = [`${index + 1}. [${escapeBrackets(title)}](${result.url})${marker ? ` ${marker}` : ""}`];
       if (result.content) {
-        lines.push(`   ${result.content.replaceAll("\n", " ")}`);
+        // Page bodies keep their Markdown line structure, indented into the
+        // list item; digests compact to one line, as summaries always did.
+        lines.push(
+          result.contentKind === "page"
+            ? result.content
+                .split("\n")
+                .map((line) => `   ${line}`)
+                .join("\n")
+            : `   ${result.content.replaceAll("\n", " ")}`,
+        );
       }
       if (result.published !== undefined) {
         lines.push(`   Published: ${formatPublished(result.published)}`);

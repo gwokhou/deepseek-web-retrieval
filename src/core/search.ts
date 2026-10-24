@@ -142,12 +142,20 @@ export function processResults(raw: readonly DeepSeekSearchResult[], options: Se
     }
 
     seen.add(url);
-    const rawContent = optionalText(item.summary) ?? optionalText(item.snippet) ?? "";
-    const cutContent = truncate(rawContent, options.maxSummaryChars);
+    // A need_content page body outranks the digest — the summary is only ever
+    // a proxy for the body it compresses. A zero budget drops the body so the
+    // digest renders instead.
+    const body = optionalText(item.content);
+    const digest = optionalText(item.summary) ?? optionalText(item.snippet) ?? "";
+    const fromPage = body !== undefined && options.contentMaxChars > 0;
+    const rawContent: string = fromPage && body !== undefined ? body : digest;
+    const contentBudget = fromPage ? options.contentMaxChars : options.maxSummaryChars;
+    const cutContent = truncate(rawContent, contentBudget);
     // The ellipsis marks a summary the cap actually shortened; official
     // summaries are typically 600-800 characters, so the 1,200 default
     // rarely triggers it.
-    const content = cutContent && charCount(rawContent) > options.maxSummaryChars ? `${cutContent}…` : cutContent;
+    const content = cutContent && charCount(rawContent) > contentBudget ? `${cutContent}…` : cutContent;
+    const contentKind = fromPage ? "page" : "digest";
     const published = parsePublished(item.date);
     const title = optionalText(item.title);
     const rerankScore = typeof rerank === "number" && Number.isFinite(rerank) ? rerank : undefined;
@@ -156,7 +164,7 @@ export function processResults(raw: readonly DeepSeekSearchResult[], options: Se
     results.push({
       url,
       ...(title ? { title } : {}),
-      ...(content ? { content } : {}),
+      ...(content ? { content, contentKind } : {}),
       ...(published !== undefined ? { published } : {}),
       ...(rerankScore !== undefined ? { rerankScore } : {}),
       ...(authorityScore !== undefined ? { authority: authorityScore } : {}),
