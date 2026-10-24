@@ -11,6 +11,8 @@ export const PLACEHOLDER_KEY = "sk-e2e-placeholder";
 /** The needles the mock serves and the scenarios assert end to end. */
 export const FETCH_NEEDLE = "Example Domain";
 export const SEARCH_NEEDLE = "https://mock.example/e2e-search";
+/** Served only in a result's content field, so only a need_content call surfaces it. */
+export const SEARCH_CONTENT_NEEDLE = "need_content e2e body needle";
 
 export type MockRequest = {
   readonly kind: "search" | "fetch" | "chat";

@@ -8,6 +8,7 @@ All notable changes to this project are documented here, one sentence per item.
 - Add the `searchContentMaxChars` (1,500 characters) and `searchContentTimeoutMs` (60,000 ms) deployment knobs — the content envelope every `need_content` call runs inside, never tool parameters, recorded in ADR-0003 and the search content design note.
 - State the `need_content` facts — excerpt length, latency, price, and the fetch alternative — in the tool and parameter descriptions, with both full-page routes named side by side, and no usage policy: when content is worth it stays the model's per-call judgment.
 - Extend the inline-content research note with the vendor reading that no surveyed architecture couples a content flag to another parameter's value range: budgets are static-range, conditional-effect.
+- Add a keyless `pi-mock` e2e leg that drives a real Pi session search with `need_content: true` against the mock upstream and asserts the flag reached the wire and the page body reached the model, with the digest legs now also asserting `need_content: false` by default.
 
 ## 0.9.0
 

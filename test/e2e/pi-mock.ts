@@ -8,6 +8,7 @@ import {
   readMockLog,
   retrievalCalls,
   runWithMockUpstream,
+  SEARCH_CONTENT_NEEDLE,
   SEARCH_NEEDLE,
   toolResultReachedModel,
 } from "./mock";
@@ -130,8 +131,53 @@ export async function runPiMockScenario(runner: Runner): Promise<string[]> {
     "the search request did not carry a query",
     JSON.stringify(searchCalls[0]?.body),
   );
+  check(
+    searchCalls[0]?.body?.need_content === false,
+    "a digest search should leave need_content false on the wire",
+    JSON.stringify(searchCalls[0]?.body),
+  );
   check(toolResultReachedModel(searchLog, SEARCH_NEEDLE), "the search tool result never reached the model");
   log.push("pi-mock: deepseek_web_search ran against the mock upstream and its result reached the model");
+
+  const contentResult = await runWithMockUpstream(
+    runner,
+    "pi-search-content",
+    [
+      "pi",
+      "--print",
+      "--model",
+      MODEL,
+      'Use the deepseek_web_search tool with need_content set to true to search the web for "example domain" and reply with only the distinctive phrase from the page body.',
+    ],
+    { cwd, env, timeoutMs: RUN_TIMEOUT_MS },
+  );
+  check(
+    contentResult.exitCode === 0,
+    "`pi --print` (need_content search) failed",
+    excerpt(contentResult.stderr || contentResult.stdout),
+  );
+  check(
+    contentResult.stdout.includes(SEARCH_CONTENT_NEEDLE),
+    "the need_content search did not surface the page-body phrase",
+    excerpt(contentResult.stdout),
+  );
+  const contentLog = readMockLog(runner, "pi-search-content");
+  const contentCalls = retrievalCalls(contentLog, "search");
+  check(
+    contentCalls.length > 0,
+    "the mock search endpoint was never called for the need_content leg",
+    excerpt(contentResult.stderr),
+  );
+  check(
+    contentCalls[0]?.body?.need_content === true,
+    "the need_content search request did not set the flag on the wire",
+    JSON.stringify(contentCalls[0]?.body),
+  );
+  check(
+    toolResultReachedModel(contentLog, SEARCH_CONTENT_NEEDLE),
+    "the need_content page body never reached the model",
+  );
+  log.push("pi-mock: deepseek_web_search with need_content=true carried the page body end to end");
 
   log.push("note: fully keyless — the LLM and retrieval legs never left the container");
   return log;

@@ -17,6 +17,7 @@ export const FETCH_TITLE = "Example Domain";
 export const FETCH_CONTENT =
   "# Example Domain\n\nThis domain is for use in illustrative examples in documents. (mock-upstream e2e)";
 export const SEARCH_URL = "https://mock.example/e2e-search";
+export const SEARCH_CONTENT_NEEDLE = "need_content e2e body needle";
 
 function option(list, name) {
   const index = list.indexOf(name);
@@ -28,9 +29,10 @@ function log(entry) {
   appendFileSync(logFile, `${JSON.stringify(entry)}\n`);
 }
 
-/** The needles a round-two tool result must contain, by tool kind. */
-function needleFor(toolName) {
-  if (toolName === "deepseek_fetch" || toolName === "webfetch") return FETCH_TITLE;
+/** The needles a round-two tool result must contain, by planned call. */
+function needleFor(call) {
+  if (call.name === "deepseek_fetch" || call.name === "webfetch") return FETCH_TITLE;
+  if (call.arguments?.need_content === true) return SEARCH_CONTENT_NEEDLE;
   return SEARCH_URL;
 }
 
@@ -39,6 +41,9 @@ function plannedCall(lastUserText) {
   const text = lastUserText.toLowerCase();
   if (text.includes("deepseek_fetch")) {
     return { name: "deepseek_fetch", arguments: { url: "https://example.com" } };
+  }
+  if (text.includes("deepseek_web_search") && text.includes("need_content")) {
+    return { name: "deepseek_web_search", arguments: { query: "example domain", need_content: true } };
   }
   if (text.includes("deepseek_web_search")) {
     return { name: "deepseek_web_search", arguments: { query: "example domain" } };
@@ -118,7 +123,7 @@ function handleChat(res, bodyText) {
     // Round two: the tool result must carry the needle, and the final answer
     // quotes it — so the scenario's assertion fails loudly when it does not.
     const result = messageText(tools[tools.length - 1]);
-    const expected = call !== undefined ? needleFor(call.name) : SEARCH_URL;
+    const expected = call !== undefined ? needleFor(call) : SEARCH_URL;
     const answer = result.includes(expected)
       ? expected
       : `MOCK-UPSTREAM tool result did not contain "${expected}": ${result.slice(0, 300)}`;
@@ -177,18 +182,20 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname.endsWith("/v1/tools/search")) {
       const body = JSON.parse(await readBody(req));
       log({ kind: "search", auth: req.headers.authorization ?? null, body });
-      sendJson(res, 200, {
-        results: [
-          {
-            url: SEARCH_URL,
-            title: "Mock Search Result",
-            snippet: "mock search needle for the keyless e2e session",
-            rerank_score: 2.5,
-            authority: 4,
-            site_name: "Mock",
-          },
-        ],
-      });
+      // The page body rides along only when the call asked for it, mirroring
+      // the real API: a digest response carries no content field at all.
+      const result = {
+        url: SEARCH_URL,
+        title: "Mock Search Result",
+        snippet: "mock search needle for the keyless e2e session",
+        rerank_score: 2.5,
+        authority: 4,
+        site_name: "Mock",
+      };
+      if (body.need_content === true) {
+        result.content = `# Mock Page\n\n${SEARCH_CONTENT_NEEDLE}\n\n- a structural point`;
+      }
+      sendJson(res, 200, { results: [result] });
       return;
     }
     if (req.method === "POST" && url.pathname.endsWith("/v1/tools/fetch")) {
