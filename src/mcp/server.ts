@@ -2,8 +2,9 @@ import type { CallToolResult, ServerContext } from "@modelcontextprotocol/server
 import { McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 import pkg from "../../package.json";
+import { requireApiKey } from "../core/auth";
 import type { RetrievalClient } from "../core/client";
-import { retrievalClient } from "../core/client";
+import { requestContext, retrievalClient } from "../core/client";
 import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, MAX_FETCH_CHARS, MAX_SEARCH_COUNT } from "../core/constants";
 import {
   FETCH_MAX_CHARS_PARAMETER,
@@ -16,9 +17,8 @@ import {
 } from "../core/descriptions";
 import type { Env } from "../core/env";
 import { formatSearchResults, toStructuredResult } from "../core/format";
-import { withPerCallCount } from "../core/options";
+import { bothDisabledPrecheck, withPerCallCount } from "../core/options";
 import type { ResolvedOptions } from "../core/types";
-import { requireApiKey } from "./auth";
 import { omitStructuredContent } from "./client";
 
 export const MCP_SERVER_NAME = "deepseek-web-retrieval";
@@ -56,7 +56,7 @@ export function createDeepSeekServer(
       },
       async ({ query, original_question, count }, ctx) => {
         try {
-          const request = requestContext(config, env, ctx.mcpReq.signal);
+          const request = requestContext(config, requireApiKey(env), ctx.mcpReq.signal);
           const outcome = await client.searchWeb(query, withPerCallCount(config.search, count), {
             ...request,
             oriQuestion: original_question,
@@ -82,8 +82,8 @@ export function createDeepSeekServer(
       },
       async ({ url, maxChars }, ctx) => {
         try {
-          const request = requestContext(config, env, ctx.mcpReq.signal);
-          const page = await client.fetchDocument(url, config.fetch, { ...request, maxChars });
+          const request = requestContext(config, requireApiKey(env), ctx.mcpReq.signal, { maxChars });
+          const page = await client.fetchDocument(url, config.fetch, request);
           return callResult(server, ctx, page.content, {
             url: page.url,
             title: page.title,
@@ -98,10 +98,6 @@ export function createDeepSeekServer(
   }
 
   return server;
-}
-
-function requestContext(config: ResolvedOptions, env: Env, signal: AbortSignal) {
-  return { signal, auth: { apiKey: requireApiKey(env) }, retry: config.retry, baseUrl: config.baseUrl };
 }
 
 /**
@@ -123,11 +119,7 @@ function callResult(
 
 /** Returns the both-disabled message, or undefined when a tool stays enabled. */
 export function servePrecheck(config: ResolvedOptions): string | undefined {
-  if (config.search.enabled || config.fetch.enabled) return undefined;
-  return (
-    `Both tools are disabled (${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false); ` +
-    "at least one must stay enabled."
-  );
+  return bothDisabledPrecheck(config, `${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false`);
 }
 
 function toErrorResult(error: unknown): CallToolResult {

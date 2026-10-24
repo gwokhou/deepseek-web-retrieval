@@ -11,9 +11,9 @@ import {
   listRecords,
   readingLegacyGlobalRecords,
   readRecord,
-  statePathFor,
+  recordPathFor,
   writeRecord,
-} from "../../src/installer/state";
+} from "../../src/installer/record";
 import type { InstallerInput, InstallRecord } from "../../src/installer/types";
 import { uninstall } from "../../src/installer/uninstall";
 
@@ -67,7 +67,7 @@ test("another process holding an operation lock excludes apply and uninstall, th
   const release = join(root, "release");
   const code = `import { withOperationLock } from ${JSON.stringify(join(import.meta.dir, "../../src/installer/operation-lock.ts"))};
     import { writeFileSync, existsSync } from "node:fs";
-    withOperationLock([${JSON.stringify(statePathFor(input))}], () => {
+    withOperationLock([${JSON.stringify(recordPathFor(input))}], () => {
       writeFileSync(${JSON.stringify(ready)}, "ready");
       const deadline = Date.now() + 10000;
       while (!existsSync(${JSON.stringify(release)}) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
@@ -86,7 +86,7 @@ test("another process holding an operation lock excludes apply and uninstall, th
     expect(await child.exited).toBe(0);
     expect(applyPlan(plan, input).lines.length).toBeGreaterThan(0);
     uninstall(input);
-    expect(fs.existsSync(statePathFor(input))).toBe(false);
+    expect(fs.existsSync(recordPathFor(input))).toBe(false);
     expect(fs.existsSync(join(root, ".deepseek-web-retrieval"))).toBe(false);
   } finally {
     child.kill();
@@ -132,8 +132,8 @@ test("install records remain private and keep their prior snapshot when replacem
     applyPlan(planForHost(input.host, input), input);
     const record = readRecord(input);
     if (!record) throw new Error("Expected install record");
-    const before = fs.readFileSync(statePathFor(input), "utf8");
-    expect(fs.statSync(statePathFor(input)).mode & 0o777).toBe(0o600);
+    const before = fs.readFileSync(recordPathFor(input), "utf8");
+    expect(fs.statSync(recordPathFor(input)).mode & 0o777).toBe(0o600);
     const rename = spyOn(fs, "renameSync").mockImplementation(() => {
       throw new Error("record rename failed");
     });
@@ -141,7 +141,7 @@ test("install records remain private and keep their prior snapshot when replacem
       expect(() => writeRecord(input, { ...record, createdAt: new Date().toISOString() })).toThrow(
         "record rename failed",
       );
-      expect(fs.readFileSync(statePathFor(input), "utf8")).toBe(before);
+      expect(fs.readFileSync(recordPathFor(input), "utf8")).toBe(before);
       expect(fs.readdirSync(join(root, ".deepseek-web-retrieval"))).toEqual(["install.pi.json"]);
     } finally {
       rename.mockRestore();
@@ -223,7 +223,7 @@ describe("win32 legacy global records", () => {
     const { legacy, current } = preAppdataInstall();
     try {
       writeRecord(legacy, recordFor(legacy, "2026-01-01T00:00:00.000Z"));
-      expect(fs.existsSync(statePathFor(current))).toBe(false);
+      expect(fs.existsSync(recordPathFor(current))).toBe(false);
       expect(readRecord(current)?.createdAt).toBe("2026-01-01T00:00:00.000Z");
       expect(readRecord({ ...current, platform: undefined })).toBeUndefined();
     } finally {
@@ -257,8 +257,8 @@ describe("win32 legacy global records", () => {
       writeRecord(legacy, recordFor(legacy, "2026-01-01T00:00:00.000Z"));
       expect(readRecord(current)).toBeDefined();
       deleteRecord(current);
-      expect(fs.existsSync(statePathFor(legacy))).toBe(false);
-      expect(fs.existsSync(statePathFor(current))).toBe(false);
+      expect(fs.existsSync(recordPathFor(legacy))).toBe(false);
+      expect(fs.existsSync(recordPathFor(current))).toBe(false);
     } finally {
       fs.rmSync(legacy.home, { recursive: true, force: true });
       fs.rmSync(current.cwd, { recursive: true, force: true });

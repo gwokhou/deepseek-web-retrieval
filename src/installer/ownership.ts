@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { isPlainObject } from "../core/object";
+import { recordPathFor, recordReadPath } from "./record";
 import { pruneEmptyDir } from "./revert";
-import { recordReadPath, statePathFor } from "./state";
 import type { InstallerInput, RecordedFile, Scope } from "./types";
 
 type ClaimedFile = Pick<RecordedFile, "file" | "format" | "shared">;
@@ -70,7 +70,7 @@ export function canonicalPath(file: string): string {
 }
 
 function ownerOf(input: InstallerInput): FileOwner {
-  return { recordPath: canonicalPath(statePathFor(input)), scope: input.scope, cwd: canonicalPath(input.cwd) };
+  return { recordPath: canonicalPath(recordPathFor(input)), scope: input.scope, cwd: canonicalPath(input.cwd) };
 }
 
 /**

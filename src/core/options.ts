@@ -38,6 +38,18 @@ export function resolvePluginOptions(input?: PluginOptions): ResolvedOptions {
   };
 }
 
+/**
+ * The both-disabled refusal both server surfaces share: undefined when a tool
+ * stays enabled, otherwise one message naming why both are off.
+ */
+export function bothDisabledPrecheck(
+  config: Pick<ResolvedOptions, "search" | "fetch">,
+  reason: string,
+): string | undefined {
+  if (config.search.enabled || config.fetch.enabled) return undefined;
+  return `Both tools are disabled (${reason}); at least one must stay enabled.`;
+}
+
 export function resolveSearchOptions(input?: PluginOptions): SearchOptions {
   const count = clampInt(input?.count, DEFAULT_SEARCH_COUNT, 1, 50);
   return {

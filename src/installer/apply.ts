@@ -5,8 +5,8 @@ import { codecFor, writeConfig } from "./formats";
 import { deepEqual, valueAt } from "./formats/value";
 import { withOperationLock } from "./operation-lock";
 import { acquireFileOwnership, assertFileOwnership, releaseFileOwnership } from "./ownership";
+import { deleteRecord, readRecord, recordPathFor, writeRecord } from "./record";
 import { pruneEmptyDir, revertRecordedFile } from "./revert";
-import { deleteRecord, readRecord, statePathFor, writeRecord } from "./state";
 import type { ConfigOp, FileEdit, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "./types";
 
 /** What a successful apply reports; every failure mode throws instead. */
@@ -37,7 +37,7 @@ interface PreparedEdit {
  * rendered (the plan and the record must describe one plan-time snapshot —
  * ADR-0001), prepares every edit in memory (a malformed existing config fails
  * before any file is written), writes the files, reverts artifacts orphaned by
- * a tier change, verifies the result, then records surgical-undo state. Write
+ * a tier change, verifies the result, then records the install record. Write
  * and verification failures restore touched files and the previous record.
  * Incomplete recovery is reported explicitly and keeps new ownership claims
  * so another install cannot adopt partially applied configuration.
@@ -46,7 +46,7 @@ export function applyPlan(plan: InstallPlan, input: InstallerInput): ApplyResult
   if (plan.errors.length > 0) {
     throw new Error(`refusing to apply a plan with errors: ${plan.errors.map((error) => error.message).join("; ")}`);
   }
-  return withOperationLock([statePathFor(input)], () =>
+  return withOperationLock([recordPathFor(input)], () =>
     withOperationLock(
       [...plan.edits, ...(plan.reverts ?? [])].map((file) => file.file),
       () => applyLocked(plan, input),
@@ -231,7 +231,7 @@ function rollbackApply(
   try {
     if (previous !== undefined) writeRecord(input, previous);
     else deleteRecord(input);
-    if (previous === undefined ? existsSync(statePathFor(input)) : !deepEqual(readRecord(input), previous)) {
+    if (previous === undefined ? existsSync(recordPathFor(input)) : !deepEqual(readRecord(input), previous)) {
       throw new Error("restored install record differs from its previous state");
     }
   } catch (restoreError) {

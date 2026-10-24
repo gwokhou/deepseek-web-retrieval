@@ -1,12 +1,12 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { z } from "zod/v4";
-import { stateDir } from "./paths";
+import { recordDir } from "./paths";
 import { atomicWrite } from "./persistence";
 import type { FsRoots, InstallerInput, InstallRecord, Scope } from "./types";
 
-export function statePathFor(input: InstallerInput): string {
-  return join(stateDir(input, input.scope), `install.${input.host}.json`);
+export function recordPathFor(input: InstallerInput): string {
+  return join(recordDir(input, input.scope), `install.${input.host}.json`);
 }
 
 /** The platform a read resolves for: injected at the CLI edge, process.platform otherwise. */
@@ -19,19 +19,19 @@ function platformOf(roots: FsRoots): NodeJS.Platform {
  * home moved to %APPDATA% live under `~/.config`. Kept readable so `list` and
  * `uninstall` keep tracking installs made by older releases.
  */
-export function legacyGlobalStateDir(roots: FsRoots): string {
+export function legacyGlobalRecordDir(roots: FsRoots): string {
   return join(roots.home, ".config", "deepseek-web-retrieval");
 }
 
 /**
- * The file a record is read from: the canonical state path, except that a
+ * The file a record is read from: the canonical record path, except that a
  * missing win32 global record falls back to the legacy `~/.config` location
- * (see legacyGlobalStateDir). Writes always target the canonical path.
+ * (see legacyGlobalRecordDir). Writes always target the canonical path.
  */
 export function recordReadPath(input: InstallerInput, platform: NodeJS.Platform = platformOf(input)): string {
-  const canonical = statePathFor(input);
+  const canonical = recordPathFor(input);
   if (platform !== "win32" || input.scope !== "global" || existsSync(canonical)) return canonical;
-  const legacy = join(legacyGlobalStateDir(input), `install.${input.host}.json`);
+  const legacy = join(legacyGlobalRecordDir(input), `install.${input.host}.json`);
   return existsSync(legacy) ? legacy : canonical;
 }
 
@@ -74,7 +74,7 @@ export class InstallRecordError extends Error {
   ) {
     super(
       `${kind === "invalid" ? "Invalid install record" : "Cannot read install record"} at ${file} (${detail}). ` +
-        "Restore a valid record from backup or repair its permissions before retrying; configuration was not changed. Do not delete undo state to bypass this check.",
+        "Restore a valid install record from your own copy or repair its permissions before retrying; configuration was not changed. Do not delete the install record to bypass this check.",
     );
     this.name = "InstallRecordError";
   }
@@ -131,7 +131,7 @@ export function claimedByOtherScope(input: InstallerInput, files: readonly strin
  * owner-only permissions regardless of umask.
  */
 export function writeRecord(input: InstallerInput, record: InstallRecord): void {
-  const file = statePathFor(input);
+  const file = recordPathFor(input);
   atomicWrite(file, `${JSON.stringify(record, null, 2)}\n`, 0o600);
 }
 
@@ -189,14 +189,14 @@ function hasRecordFiles(dir: string): boolean {
  */
 export function readingLegacyGlobalRecords(roots: FsRoots): boolean {
   if (platformOf(roots) !== "win32") return false;
-  if (hasRecordFiles(stateDir(roots, "global"))) return false;
-  return hasRecordFiles(legacyGlobalStateDir(roots));
+  if (hasRecordFiles(recordDir(roots, "global"))) return false;
+  return hasRecordFiles(legacyGlobalRecordDir(roots));
 }
 
 /** Lists install records found in both scope locations for the given roots. */
 export function listRecords(roots: FsRoots): InstallRecord[] {
-  const global = readRecordsFromDir(stateDir(roots, "global"), "global");
-  const project = readRecordsFromDir(stateDir(roots, "project"), "project");
-  const legacy = readingLegacyGlobalRecords(roots) ? readRecordsFromDir(legacyGlobalStateDir(roots), "global") : [];
+  const global = readRecordsFromDir(recordDir(roots, "global"), "global");
+  const project = readRecordsFromDir(recordDir(roots, "project"), "project");
+  const legacy = readingLegacyGlobalRecords(roots) ? readRecordsFromDir(legacyGlobalRecordDir(roots), "global") : [];
   return [...global, ...legacy, ...project];
 }

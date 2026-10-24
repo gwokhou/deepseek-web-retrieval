@@ -186,10 +186,10 @@ into any existing `permissions` array rather than replacing it.
   comments and formatting in `opencode.jsonc` and Pi's `mcp.json` survive apply and
   uninstall; TOML edits go through `smol-toml` and drop comments, which the plan reports
   as a note. The hand-written JSONC stripper that predated this lived in `scripts/jsonc.ts`.
-- Install state lives per host and scope (global under
-  `~/.config/deepseek-web-retrieval/`, project under `.deepseek-web-retrieval/`); it
-  records snapshots, appended entries, created files, and created path prefixes — never
-  full file contents, so other servers' secrets stay out of the state file.
+- Install records live per host and scope (global under
+  `~/.config/deepseek-web-retrieval/`, project under `.deepseek-web-retrieval/`); they
+  record snapshots, appended entries, created files, and created path prefixes — never
+  full file contents, so other servers' secrets stay out of the install record.
 - Re-applying over a previous init inherits the original snapshots instead of recording
   the installer's own output as the "previous" value. Pi forced re-inits keep their
   competitor-disable ops even when those servers are already disabled, so orphan

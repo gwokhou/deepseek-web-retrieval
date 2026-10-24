@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { BOTH_CAPABILITIES_OFF, competitorSteeringNote, findCompetitorSteering } from "../detect";
 import { codecFor, type LoadedConfig } from "../formats";
 import type { HostPaths, InstallerInput, PlanError } from "../types";
@@ -33,4 +34,26 @@ export function planHeader(input: InstallerInput, paths: HostPaths, loaded: Load
   const steering = findCompetitorSteering(input.host, paths.rules);
   if (steering.length > 0) notes.push(competitorSteeringNote(paths.rules, steering));
   return { notes, errors, abort: false };
+}
+
+/**
+ * The one subprocess shape the installer runs: `<command> --version`, probed
+ * for the version-drift note. A missing binary or unreadable output skips the
+ * check with a stderr note and never blocks the plan — honor or report.
+ * env is passed explicitly: runtime PATH edits (tests) must reach the lookup.
+ * The shell hop is required because npm's global install on Windows provides
+ * only a .cmd shim, which spawnSync cannot launch without a shell; the command
+ * and args are hardcoded, so it is safe.
+ */
+export function probeHostVersion(
+  command: string,
+  parse: (output: string) => string | undefined,
+  err: (line: string) => void,
+): string | undefined {
+  const result = spawnSync(command, ["--version"], { timeout: 5000, encoding: "utf8", env: process.env, shell: true });
+  const version = result.status === 0 ? parse(result.stdout ?? "") : undefined;
+  if (version === undefined) {
+    err(`note: ${command} was not found on PATH or printed no version; the version-drift check was skipped`);
+  }
+  return version;
 }

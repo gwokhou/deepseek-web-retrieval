@@ -2,7 +2,7 @@ import { Plugin } from "@opencode/plugin";
 import type { Context } from "@opencode/plugin/promise/plugin";
 import type { ToolContext } from "@opencode/plugin/promise/tool";
 import type { RetrievalClient } from "../core/client";
-import { inspectFetchTarget, retrievalClient } from "../core/client";
+import { inspectFetchTarget, requestContext, retrievalClient } from "../core/client";
 import { sharedFileOptions } from "../core/config-file";
 import { configDeviations } from "../core/config-summary";
 import { FETCH_MARKDOWN_ONLY, FETCH_MAX_CHARS_PARAMETER, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions";
@@ -96,24 +96,6 @@ export function resolveRegistration(input?: PluginOptions): Registration {
   };
 }
 
-/** One place builds the per-request context the core expects. */
-function requestContext(
-  config: ResolvedOptions,
-  apiKey: string,
-  signal: AbortSignal,
-  timeoutMs?: number,
-  maxChars?: number,
-) {
-  return {
-    signal,
-    auth: { apiKey },
-    retry: config.retry,
-    baseUrl: config.baseUrl,
-    ...(timeoutMs === undefined ? {} : { timeoutMs }),
-    ...(maxChars === undefined ? {} : { maxChars }),
-  };
-}
-
 async function runFetch(
   ctx: Context,
   config: ResolvedOptions,
@@ -155,7 +137,7 @@ async function runFetch(
   const page = await client.fetchDocument(
     target,
     config.fetch,
-    requestContext(config, apiKey, context.signal, timeoutMs, input.maxChars),
+    requestContext(config, apiKey, context.signal, { timeoutMs, maxChars: input.maxChars }),
   );
   return {
     content: page.content,

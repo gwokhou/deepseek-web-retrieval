@@ -7,8 +7,8 @@ import { ApplyError, applyPlan } from "./apply";
 import { runConfigCommand } from "./config-command";
 import { HOST_PLANNERS, HOST_VERSION_PROBES, planForHost } from "./hosts";
 import { pinPackageRef } from "./ownership";
+import { legacyGlobalRecordDir, listRecords, readingLegacyGlobalRecords } from "./record";
 import { renderPlan } from "./render";
-import { legacyGlobalStateDir, listRecords, readingLegacyGlobalRecords } from "./state";
 import type { HostName, InstallerInput, Scope, Tier } from "./types";
 import { uninstall } from "./uninstall";
 
@@ -161,7 +161,7 @@ export async function runInstallerCli(argv: readonly string[], io: CliIo = {}): 
     }
     if (readingLegacyGlobalRecords({ ...roots, configHome })) {
       out(
-        `Global install records are being read from the legacy ${legacyGlobalStateDir(roots)} ` +
+        `Global install records are being read from the legacy ${legacyGlobalRecordDir(roots)} ` +
           "(written before the Windows config home moved to %APPDATA%).",
       );
     }

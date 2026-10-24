@@ -1,9 +1,9 @@
 import { codecFor } from "./formats";
 import { withOperationLock } from "./operation-lock";
 import { assertFileOwnership, releaseFileOwnership } from "./ownership";
-import { stateDir } from "./paths";
+import { recordDir } from "./paths";
+import { claimedByOtherScope, deleteRecord, readRecord, recordPathFor } from "./record";
 import { pruneEmptyDir, revertRecordedFile } from "./revert";
-import { claimedByOtherScope, deleteRecord, readRecord, statePathFor } from "./state";
 import type { InstallerInput, InstallRecord } from "./types";
 
 /**
@@ -13,7 +13,7 @@ import type { InstallerInput, InstallRecord } from "./types";
  * rules blocks are removed, and files the installer created are deleted.
  */
 export function uninstall(input: InstallerInput): string[] {
-  return withOperationLock([statePathFor(input)], () => {
+  return withOperationLock([recordPathFor(input)], () => {
     const record = readRecord(input);
     if (record === undefined) {
       throw new Error(`No ${input.host} install is recorded for the ${input.scope} scope.`);
@@ -53,7 +53,7 @@ function uninstallLocked(input: InstallerInput, record: InstallRecord): string[]
   // to still exist on disk.
   releaseFileOwnership(input, record.files);
   deleteRecord(input);
-  pruneEmptyDir(stateDir(input, input.scope));
+  pruneEmptyDir(recordDir(input, input.scope));
   lines.push(`removed install record (${input.host}, ${input.scope})`);
   return lines;
 }

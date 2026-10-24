@@ -3,8 +3,8 @@ import { Type } from "@earendil-works/pi-ai";
 import type { AgentToolResult, ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { defineTool } from "@earendil-works/pi-coding-agent";
 import { apiKeyFromEnv } from "../core/auth";
-import type { RequestOptions, RetrievalClient } from "../core/client";
-import { inspectFetchTarget, retrievalClient } from "../core/client";
+import type { RetrievalClient } from "../core/client";
+import { inspectFetchTarget, requestContext, retrievalClient } from "../core/client";
 import { sharedFileOptions } from "../core/config-file";
 import { configDeviations } from "../core/config-summary";
 import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, MAX_FETCH_CHARS, MAX_SEARCH_COUNT } from "../core/constants";
@@ -20,7 +20,7 @@ import {
 import type { Env } from "../core/env";
 import { pluginOptionsFromEnv } from "../core/env";
 import { formatSearchResults, toStructuredResult } from "../core/format";
-import { resolvePluginOptions, withPerCallCount } from "../core/options";
+import { bothDisabledPrecheck, resolvePluginOptions, withPerCallCount } from "../core/options";
 import type { ResolvedOptions } from "../core/types";
 import type { ExtensionSettings } from "./settings";
 import { readExtensionSettings, SETTINGS_NAMESPACE } from "./settings";
@@ -83,10 +83,10 @@ export function resolveExtensionOptions(env: Env = process.env, settings: Extens
 
 /** Returns the both-disabled message, or undefined when a tool stays enabled. */
 export function extensionPrecheck(config: ResolvedOptions): string | undefined {
-  if (config.search.enabled || config.fetch.enabled) return undefined;
-  return (
-    `Both tools are disabled (${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false, or the ` +
-    `${SETTINGS_NAMESPACE} settings namespace disabled them); at least one must stay enabled.`
+  return bothDisabledPrecheck(
+    config,
+    `${ENABLE_SEARCH_ENV} and ${ENABLE_FETCH_ENV} are false, or the ` +
+      `${SETTINGS_NAMESPACE} settings namespace disabled them`,
   );
 }
 
@@ -107,7 +107,7 @@ export function searchTool(config: ResolvedOptions, client: RetrievalClient = re
         // the session fallback get a say.
         const explicit = params.original_question?.trim() ? params.original_question : undefined;
         const outcome = await client.searchWeb(params.query, withPerCallCount(config.search, params.count), {
-          ...requestContext(config, signal),
+          ...requestContext(config, requireApiKey(), signal ?? NEVER_ABORTS),
           oriQuestion: explicit ?? sessionOriQuestion(ctx),
         });
         return {
@@ -136,10 +136,11 @@ export function fetchTool(config: ResolvedOptions, client: RetrievalClient = ret
     async execute(_toolCallId, params, signal): Promise<AgentToolResult> {
       try {
         const target = inspectFetchTarget(params.url, config.fetch);
-        const page = await client.fetchDocument(target, config.fetch, {
-          ...requestContext(config, signal),
-          maxChars: params.maxChars,
-        });
+        const page = await client.fetchDocument(
+          target,
+          config.fetch,
+          requestContext(config, requireApiKey(), signal ?? NEVER_ABORTS, { maxChars: params.maxChars }),
+        );
         return {
           content: [{ type: "text", text: page.content }],
           structuredContent: {
@@ -175,15 +176,6 @@ export default function deepSeekWebRetrieval(pi: ExtensionAPI): void {
   if (deviations) console.error(`deepseek-web-retrieval config: ${deviations}`);
   if (config.search.enabled) pi.registerTool(searchTool(config));
   if (config.fetch.enabled) pi.registerTool(fetchTool(config));
-}
-
-function requestContext(config: ResolvedOptions, signal: AbortSignal | undefined): RequestOptions {
-  return {
-    signal: signal ?? NEVER_ABORTS,
-    auth: { apiKey: requireApiKey() },
-    retry: config.retry,
-    baseUrl: config.baseUrl,
-  };
 }
 
 /**

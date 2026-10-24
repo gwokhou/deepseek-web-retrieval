@@ -4,6 +4,10 @@ All notable changes to this project are documented here, one sentence per item.
 
 ## Unreleased
 
+- Accept an optional per-call `count` (1–50) on the MCP and Pi search tools and an optional per-call `maxChars` (0–1,000,000) on every adapter's fetch, each overriding the configured value for that one call.
+- Open the search result text with `Searched for: <effective query>` whenever domain or language operators — or fitting the query-length limit — changed what was actually searched, so the model can attribute what it sees.
+- Degrade gracefully instead of failing when search operators push a combined query past the API's 128-character limit: the query body truncates first, the language filter drops next, the include list last, and blocked domains never drop.
+- Align user-facing installer wording with the domain glossary: the secrets refusal and record-repair guidance now say "install record" instead of "state file" or "undo state".
 - Add the `baseUrl` knob (`DEEPSEEK_BASE_URL` environment variable or shared-file key) so every retrieval request can be routed through a proxy, enterprise gateway, or mock upstream; only an http(s) URL is accepted and anything else drops back to `https://api.deepseek.com`.
 - Add keyless `pi-mock` and `opencode-mock` Docker e2e scenarios that run real host session loops (pi via a custom `models.json` provider, OpenCode via a custom provider) against an in-container mock upstream, invoking both retrieval tools and asserting the tool results reached the model — closing CI's tool-execution blind spot without a billed key — and document the keyless (CI) versus billed (local, real API) e2e responsibilities with a `test:e2e:billed` script.
 

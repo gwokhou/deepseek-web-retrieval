@@ -18,8 +18,8 @@ export function configHome(roots: FsRoots): string {
   return roots.configHome ?? join(roots.home, ".config");
 }
 
-/** State records live with their scope: global installs under the config home, project installs in the checkout. */
-export function stateDir(roots: FsRoots, scope: Scope): string {
+/** Install records live with their scope: global installs under the config home, project installs in the checkout. */
+export function recordDir(roots: FsRoots, scope: Scope): string {
   return scope === "global"
     ? join(configHome(roots), "deepseek-web-retrieval")
     : join(roots.cwd, ".deepseek-web-retrieval");

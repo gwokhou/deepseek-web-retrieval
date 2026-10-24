@@ -13,8 +13,8 @@ import { buildRulesBlock } from "../formats/rules";
 import { isPlainObject } from "../formats/value";
 import { lineageMatcher } from "../ownership";
 import { join } from "../paths";
+import { appendedByPrevious } from "../record";
 import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent";
-import { appendedByPrevious } from "../state";
 import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan, InstallRecord, PlanError } from "../types";
 import { planHeader } from "./shared";
 
@@ -36,6 +36,15 @@ function piPaths(input: InstallerInput): HostPaths {
 function piSourceRef(packageRef: string): string {
   return packageRef.startsWith("npm:") ? packageRef : `npm:${packageRef}`;
 }
+
+/** Both Pi paths write the same rules note; one wording so the paths cannot drift. */
+const rulesUpsertNote = (rules: string) =>
+  `Rules block upserted in ${rules}; Pi loads AGENTS.md context files from the working directory and its parents.`;
+
+/** Forced tier, both paths: with no built-in web tool to displace, routing is de-facto exclusive. */
+const FORCED_NO_BUILTIN_NOTE =
+  "Forced tier: Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path (de-facto). " +
+  FORCED_COST_NOTE;
 
 export function planPi(input: InstallerInput, previous: InstallRecord | undefined): InstallPlan {
   return input.path === "mcp" ? planPiMcp(input) : planPiExtension(input, previous);
@@ -169,16 +178,11 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
       format: "rules",
       block: buildRulesBlock(input.host, rulesLines(RAW_MCP_TOOL_IDS, input.search, input.fetch)),
     });
-    notes.push(
-      `Rules block upserted in ${paths.rules}; Pi loads AGENTS.md context files from the working directory and its parents.`,
-    );
+    notes.push(rulesUpsertNote(paths.rules));
   }
 
   if (forced) {
-    notes.push(
-      "Forced tier: Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path (de-facto). " +
-        FORCED_COST_NOTE,
-    );
+    notes.push(FORCED_NO_BUILTIN_NOTE);
   }
 
   return { host: "pi", scope: input.scope, tiers, edits, notes, errors };
@@ -313,16 +317,11 @@ function planPiMcp(input: InstallerInput): InstallPlan {
       format: "rules",
       block: buildRulesBlock(input.host, rulesLines(MCP_TOOL_IDS, input.search, input.fetch)),
     });
-    notes.push(
-      `Rules block upserted in ${paths.rules}; Pi loads AGENTS.md context files from the working directory and its parents.`,
-    );
+    notes.push(rulesUpsertNote(paths.rules));
   }
 
   if (input.search === "forced" || input.fetch === "forced") {
-    notes.push(
-      "Forced tier: Pi 1.3.0 ships no built-in web tool, so the registered tools are the only web path (de-facto). " +
-        FORCED_COST_NOTE,
-    );
+    notes.push(FORCED_NO_BUILTIN_NOTE);
   }
 
   return { host: "pi", scope: input.scope, tiers, edits, notes, errors };

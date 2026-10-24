@@ -105,7 +105,7 @@ export interface PlanError {
 }
 
 export interface InstallPlan {
-  /** Plan-time undo state; apply rejects a plan superseded by another operation. */
+  /** The plan-time install record; apply rejects a plan superseded by another operation. */
   readonly previousRecord?: InstallRecord;
   readonly host: HostName;
   readonly scope: Scope;

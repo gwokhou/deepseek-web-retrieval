@@ -7,3 +7,10 @@ export function apiKeyFromEnv(env: Readonly<Record<string, string | undefined>> 
   const key = env[API_KEY_ENV]?.trim();
   return key ? key : undefined;
 }
+
+/** Resolves the API key from the environment or fails with shared guidance. */
+export function requireApiKey(env: Readonly<Record<string, string | undefined>>): string {
+  const apiKey = apiKeyFromEnv(env);
+  if (!apiKey) throw new Error(MISSING_API_KEY_MESSAGE);
+  return apiKey;
+}

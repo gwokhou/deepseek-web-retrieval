@@ -1,9 +1,8 @@
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { apiKeyFromEnv } from "../core/auth";
+import { apiKeyFromEnv, MISSING_API_KEY_MESSAGE } from "../core/auth";
 import { sharedFileOptions } from "../core/config-file";
 import { configDeviations } from "../core/config-summary";
 import { resolveEnvOptions } from "../core/env";
-import { MISSING_API_KEY_MESSAGE } from "./auth";
 import { isJsonReplacingClient } from "./client";
 import { createDeepSeekServer, servePrecheck } from "./server";
 

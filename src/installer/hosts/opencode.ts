@@ -4,8 +4,8 @@ import { buildRulesBlock } from "../formats/rules";
 import { isPlainObject } from "../formats/value";
 import { lineageMatcher } from "../ownership";
 import { configHome, join } from "../paths";
+import { appendedByPrevious } from "../record";
 import { rulesLines } from "../rulesContent";
-import { appendedByPrevious } from "../state";
 import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan, InstallRecord } from "../types";
 import { planHeader } from "./shared";
 

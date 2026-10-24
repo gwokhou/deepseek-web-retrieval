@@ -32,8 +32,8 @@ import { planOpenCode } from "../../src/installer/hosts/opencode";
 import { planPi } from "../../src/installer/hosts/pi";
 import { samePackageName } from "../../src/installer/ownership";
 import * as persistence from "../../src/installer/persistence";
+import { claimedByOtherScope, listRecords, readRecord, recordPathFor, writeRecord } from "../../src/installer/record";
 import { renderPlan } from "../../src/installer/render";
-import { claimedByOtherScope, listRecords, readRecord, statePathFor, writeRecord } from "../../src/installer/state";
 import type { ConfigOp, InstallerInput, JsonEdit, RecordedFile, RulesEdit, TomlEdit } from "../../src/installer/types";
 import { uninstall } from "../../src/installer/uninstall";
 import { TOOL_VERSION } from "../../src/version";
@@ -1069,8 +1069,8 @@ describe("review fixes", () => {
   test("install records are written owner-only", () => {
     const input = makeInput("pi", "global", "optional", "optional", "mcp");
     applyPlan(planForHost("pi", input), input);
-    const { statePathFor } = require("../../src/installer/state") as typeof import("../../src/installer/state");
-    const mode = statSync(statePathFor(input)).mode & 0o777;
+    const { recordPathFor } = require("../../src/installer/record") as typeof import("../../src/installer/record");
+    const mode = statSync(recordPathFor(input)).mode & 0o777;
     expect(mode).toBe(0o600);
   });
 
@@ -2619,21 +2619,21 @@ describe("install record validation", () => {
                 ? { files: [{ ...record.files[0], ops: [{ op: "delete", path: [] }] }] }
                 : {}),
             });
-      writeFileSync(statePathFor(input), invalid);
+      writeFileSync(recordPathFor(input), invalid);
       expect(() => readRecord(input)).toThrow("Invalid install record");
       expect(planForHost(input.host, input).errors[0]?.message).toContain("Invalid install record");
       expect(() => listRecords(input)).toThrow("Invalid install record");
       expect(() => uninstall(input)).toThrow("Invalid install record");
       expect(readFileSync(config, "utf8")).toBe(before);
-      expect(readFileSync(statePathFor(input), "utf8")).toBe(invalid);
+      expect(readFileSync(recordPathFor(input), "utf8")).toBe(invalid);
     });
   }
 
   test("only absent records are treated as missing; a dangling record link is unreadable", () => {
     const input = makeInput("pi", "project", "optional", "optional");
     expect(readRecord(input)).toBeUndefined();
-    mkdirSync(dirname(statePathFor(input)), { recursive: true });
-    symlinkSync("missing-record.json", statePathFor(input));
+    mkdirSync(dirname(recordPathFor(input)), { recursive: true });
+    symlinkSync("missing-record.json", recordPathFor(input));
     expect(() => readRecord(input)).toThrow("Cannot read install record");
     expect(() => listRecords(input)).toThrow("Cannot read install record");
   });
@@ -2657,7 +2657,7 @@ test("a plan made before another init cannot orphan the newer install's appended
 test("unreadable records and CLI list report errors instead of claiming no install exists", async () => {
   const input = makeInput("pi", "project", "optional", "optional");
   applyPlan(planForHost(input.host, input), input);
-  const recordFile = statePathFor(input);
+  const recordFile = recordPathFor(input);
   const read = fs.readFileSync;
   const reads = spyOn(fs, "readFileSync").mockImplementation(((...args: Parameters<typeof fs.readFileSync>) => {
     if (String(args[0]) === recordFile) throw Object.assign(new Error("denied"), { code: "EACCES" });

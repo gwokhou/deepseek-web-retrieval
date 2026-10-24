@@ -16,6 +16,7 @@ import type {
   FetchedPage,
   FetchOptions,
   RequestAuth,
+  ResolvedOptions,
   RetryOptions,
   SearchOptions,
   SearchOutcome,
@@ -91,6 +92,27 @@ export interface SearchRequest extends RequestOptions {
    * ori_question to sharpen intent; adapters fill it from tool input.
    */
   readonly oriQuestion?: string;
+}
+
+/**
+ * The per-request context every adapter assembles from the resolved config:
+ * bound auth, retry policy, and base URL, plus any per-call overrides a
+ * tool input supplied.
+ */
+export function requestContext(
+  config: Pick<ResolvedOptions, "retry" | "baseUrl">,
+  apiKey: string,
+  signal: AbortSignal,
+  perCall?: { readonly timeoutMs?: number; readonly maxChars?: number },
+): RequestOptions {
+  return {
+    signal,
+    auth: { apiKey },
+    retry: config.retry,
+    baseUrl: config.baseUrl,
+    ...(perCall?.timeoutMs === undefined ? {} : { timeoutMs: perCall.timeoutMs }),
+    ...(perCall?.maxChars === undefined ? {} : { maxChars: perCall.maxChars }),
+  };
 }
 
 export async function searchWeb(query: string, options: SearchOptions, request: SearchRequest): Promise<SearchOutcome> {

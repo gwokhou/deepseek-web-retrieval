@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { API_KEY_ENV } from "../../core/constants";
 import { OPTION_ENV_VARS } from "../../core/env";
 import { FORCED_COST_NOTE, othersStayRegisteredNote, replacingExistingEntryNote, splitCompetitors } from "../detect";
@@ -8,7 +7,7 @@ import { isPlainObject } from "../formats/value";
 import { join } from "../paths";
 import { MCP_TOOL_IDS, RAW_MCP_TOOL_IDS, rulesLines } from "../rulesContent";
 import type { ConfigOp, FileEdit, HostPaths, InstallerInput, InstallPlan, InstallRecord } from "../types";
-import { planHeader } from "./shared";
+import { planHeader, probeHostVersion } from "./shared";
 
 /**
  * The Codex release this installer's facts are verified against — the lock in
@@ -16,22 +15,9 @@ import { planHeader } from "./shared";
  */
 export const CODEX_TESTED_VERSION = "0.163.0";
 
-/**
- * The one subprocess the installer runs: `codex --version`, probed for the
- * version-drift note. A missing binary or unreadable output skips the check with
- * a stderr note and never blocks the plan — honor or report.
- */
+/** Probes `codex --version` for the version-drift note (see probeHostVersion). */
 export function probeCodexVersion(err: (line: string) => void): string | undefined {
-  // env passed explicitly: runtime PATH edits (tests) must reach the lookup.
-  // shell: npm's global install on Windows provides only a codex.cmd shim,
-  // which spawnSync cannot launch without a shell; the command and args are
-  // hardcoded, so the shell hop is safe.
-  const result = spawnSync("codex", ["--version"], { timeout: 5000, encoding: "utf8", env: process.env, shell: true });
-  const version = result.status === 0 ? parseCodexVersion(result.stdout ?? "") : undefined;
-  if (version === undefined) {
-    err("note: codex was not found on PATH or printed no version; the version-drift check was skipped");
-  }
-  return version;
+  return probeHostVersion("codex", parseCodexVersion, err);
 }
 
 /** Parses `codex --version` output (`codex-cli 0.163.0`) into the bare version. */

@@ -1,7 +1,7 @@
 import { API_KEY_ENV } from "../../core/constants";
 import { deepEqual, isPlainObject } from "../formats/value";
 import { assertFileOwnership, fileOwnershipNotes } from "../ownership";
-import { claimedByOtherScope, InstallRecordError, readRecord } from "../state";
+import { claimedByOtherScope, InstallRecordError, readRecord } from "../record";
 import type { HostName, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "../types";
 import { planClaudeCode, probeClaudeCodeVersion } from "./claude-code";
 import { planCodex, probeCodexVersion } from "./codex";
@@ -153,7 +153,7 @@ function withSecretGuard(plan: InstallPlan): InstallPlan {
             {
               message:
                 `${edit.file}: the existing value at ${op.path.join(".")} contains a credential-looking key ` +
-                `(${offender}). The installer refuses to snapshot secrets into its state file. Move the key to ` +
+                `(${offender}). The installer refuses to snapshot secrets into its install record. Move the key to ` +
                 `environment indirection ("\${${API_KEY_ENV}}" expansion or env_vars) and re-run.`,
             },
           ],
