@@ -146,7 +146,11 @@ image contains no secrets; the key is passed at `docker run` time.
 - `bun run test:e2e installer` — keyless. Runs the installer CLI itself inside
   the container: `init --apply` for Pi (global, verified by a real handshake),
   Codex (global, forced search — the `web_search = "disabled"` kill switch —
-  verified by `codex mcp list` and the written config), and OpenCode (project,
+  verified by `codex mcp list` and the written config), Claude Code (global,
+  forced search + preferred fetch — the `permissions.deny` kill switch, the
+  `~/.claude.json` registration verified by a real `claude mcp list` health
+  check (global scope connects; an unapproved project `.mcp.json` server only
+  lists as pending), and the CLAUDE.md rules block), and OpenCode (project,
   forced search + preferred fetch, verified at the file level), then `uninstall`
   and asserts everything it applied is gone.
 - `bun run test:e2e reinit` — keyless. The installer's lifecycle beyond the first
@@ -154,7 +158,9 @@ image contains no secrets; the key is passed at `docker run` time.
   still-claimed config (snapshot restored, registration kept, the plan's reverts
   section visible), a Pi preferred → optional downgrade deletes the orphaned,
   installer-created rules file whole, a second Codex scope claiming the same
-  config file is refused with uninstall guidance, `list` reports the recorded
+  config file is refused with uninstall guidance, Claude Code's scopes map to
+  disjoint files and install side by side (project downgrade included),
+  `list` reports the recorded
   installs, and `XDG_CONFIG_HOME` routes the global config home (with uninstall
   finding the record there). Also covers the Codex project scope and OpenCode
   global scope path mappings.
@@ -198,6 +204,15 @@ image contains no secrets; the key is passed at `docker run` time.
   billed requests (LLM + retrieval). The Dockerfile installs `ca-certificates`
   because Codex is a static musl binary whose TLS stack reads the system CA
   store, which the slim Node base does not ship.
+- `bun run test:e2e claude-code` — requires `DEEPSEEK_API_KEY`. Runs headless
+  `claude -p --output-format stream-json` prompts in an isolated HOME whose
+  `.mcp.json` registers the built MCP server (key expanded from the
+  environment via `${DEEPSEEK_API_KEY}`, never written to a file) and whose
+  `.claude/settings.json` denies the built-in `WebSearch`/`WebFetch` tools —
+  the forced-tier kill switch, asserted by requiring the built-ins never appear
+  as tool calls. Claude Code is pointed at DeepSeek as the LLM over its
+  Anthropic-compatible endpoint (`ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`
+  from the same key). Real billed requests (LLM + retrieval).
 - `bun run test:e2e` — all scenarios; a missing `DEEPSEEK_API_KEY` fails fast.
   Multiple names select a subset (`bun run test:e2e pi pi-extension installer reinit upgrade pkg
   capability-off` runs every keyless scenario); the harness packs the npm
@@ -256,7 +271,7 @@ Please include:
 
 Use the bug report template and include:
 
-- Host and version (OpenCode, Pi, Codex, or another MCP client)
+- Host and version (OpenCode, Pi, Codex, Claude Code, or another MCP client)
 - Package version or commit
 - Integration path, install method, scope, and selected capability tiers
 - Relevant redacted JSONC, JSON, or TOML configuration

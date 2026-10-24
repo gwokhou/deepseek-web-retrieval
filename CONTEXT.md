@@ -7,7 +7,7 @@ installer wires it into host configuration with plan-then-apply semantics.
 ## Retrieval
 
 **Host**:
-A coding agent the project serves (OpenCode, Pi, Codex, …); the unit of compatibility facts in `docs/hosts.jsonc`.
+A coding agent the project serves (OpenCode, Pi, Codex, Claude Code, …); the unit of compatibility facts in `docs/hosts.jsonc`.
 _Avoid_: agent (ambiguous with the coding agent itself), client
 
 **Adapter**:

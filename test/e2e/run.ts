@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { findHost, readHosts } from "../../scripts/hosts";
 import { ScenarioError } from "./assert";
 import { runCapabilityOffScenario } from "./capability-off";
+import { runClaudeCodeScenario } from "./claude-code";
 import { runCodexScenario } from "./codex";
 import { runInstallerScenario } from "./installer";
 import { runOpencodeScenario } from "./opencode";
@@ -49,6 +50,11 @@ const SCENARIOS: readonly Scenario[] = [
     name: "codex",
     requiresApiKey: true,
     run: (runner) => runCodexScenario(runner),
+  },
+  {
+    name: "claude-code",
+    requiresApiKey: true,
+    run: (runner) => runClaudeCodeScenario(runner),
   },
   {
     name: "installer",
@@ -120,7 +126,7 @@ async function main(): Promise<number> {
   if (selected.some((scenario) => scenario.requiresApiKey) && !(process.env.DEEPSEEK_API_KEY ?? "").trim()) {
     const keyless = SCENARIOS.filter((scenario) => !scenario.requiresApiKey).map((scenario) => scenario.name);
     console.error(
-      "DEEPSEEK_API_KEY is not set. The billed scenarios (pi-billed, opencode, codex, preferred) make real DeepSeek requests.\n" +
+      "DEEPSEEK_API_KEY is not set. The billed scenarios (pi-billed, opencode, codex, claude-code, preferred) make real DeepSeek requests.\n" +
         `Export the key and re-run, or select only the keyless scenarios: bun run test:e2e ${keyless.join(" ")}`,
     );
     return 1;
@@ -147,6 +153,7 @@ async function main(): Promise<number> {
       OPENCODE_VERSION: findHost(hosts, "opencode").version,
       PI_VERSION: findHost(hosts, "pi").version,
       CODEX_VERSION: findHost(hosts, "codex").version,
+      CLAUDE_CODE_VERSION: findHost(hosts, "claude-code").version,
     });
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

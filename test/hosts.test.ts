@@ -6,6 +6,7 @@ import { FORCED_FLAVORS, findHost, MECHANISMS, readHosts } from "../scripts/host
 import { renderControlTable, renderHostTable } from "../scripts/render-matrix";
 import { parseJsonc } from "../src/core/jsonc";
 import { HOST_PLANNERS } from "../src/installer/hosts";
+import { CLAUDE_CODE_TESTED_VERSION } from "../src/installer/hosts/claude-code";
 import { CODEX_TESTED_VERSION } from "../src/installer/hosts/codex";
 
 const repoRoot = join(import.meta.dir, "..");
@@ -160,6 +161,12 @@ describe("installer prose stays anchored to docs/hosts.jsonc", () => {
     // moved, and init would misreport drift on the freshly verified version.
     const codex = readHosts(repoRoot).hosts.find((host) => host.name === "codex");
     expect(codex?.version).toBe(CODEX_TESTED_VERSION);
+  });
+
+  test("CLAUDE_CODE_TESTED_VERSION equals the claude-code lock in docs/hosts.jsonc", () => {
+    // Same runtime-drift reasoning as CODEX_TESTED_VERSION above.
+    const claudeCode = readHosts(repoRoot).hosts.find((host) => host.name === "claude-code");
+    expect(claudeCode?.version).toBe(CLAUDE_CODE_TESTED_VERSION);
   });
 });
 

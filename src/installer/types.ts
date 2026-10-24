@@ -1,5 +1,5 @@
 /** Hosts the installer supports. */
-export type HostName = "opencode" | "pi" | "codex";
+export type HostName = "opencode" | "pi" | "codex" | "claude-code";
 
 /** Install scope, a first-class user choice. */
 export type Scope = "project" | "global";

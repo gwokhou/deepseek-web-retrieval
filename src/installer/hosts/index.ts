@@ -3,6 +3,7 @@ import { deepEqual, isPlainObject } from "../formats/value";
 import { assertFileOwnership, fileOwnershipNotes } from "../ownership";
 import { claimedByOtherScope, InstallRecordError, readRecord } from "../state";
 import type { HostName, InstallerInput, InstallPlan, InstallRecord, RecordedFile } from "../types";
+import { planClaudeCode, probeClaudeCodeVersion } from "./claude-code";
 import { planCodex, probeCodexVersion } from "./codex";
 import { planOpenCode } from "./opencode";
 import { planPi } from "./pi";
@@ -23,6 +24,7 @@ export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
   opencode: planOpenCode,
   pi: planPi,
   codex: planCodex,
+  "claude-code": planClaudeCode,
 };
 
 /**
@@ -32,6 +34,7 @@ export const HOST_PLANNERS: Readonly<Record<HostName, HostPlanner>> = {
  */
 export const HOST_VERSION_PROBES: Partial<Record<HostName, (err: (line: string) => void) => string | undefined>> = {
   codex: probeCodexVersion,
+  "claude-code": probeClaudeCodeVersion,
 };
 
 export function planForHost(host: HostName, input: InstallerInput): InstallPlan {

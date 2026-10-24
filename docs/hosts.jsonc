@@ -102,11 +102,15 @@
       "nativeSearchProvider": false,
       "nativeFetchOverride": false,
       "paths": ["mcp"],
-      "status": "no-adapter-yet",
+      "status": "supported",
       "control": {
         "search": { "optional": "yes", "preferred": "yes", "forced": "exclusion", "key": "`permissions.deny: [\"WebSearch\"]` removes the tool from context" },
         "fetch": { "optional": "yes", "preferred": "yes", "forced": "exclusion", "key": "`permissions.deny: [\"WebFetch\"]`, or `CLAUDE_CODE_DISABLE_WEB_FETCH=1`" }
       },
+      "adapter": "src/mcp",
+      "installer": "src/installer/hosts/claude-code",
+      "guide": "docs/agents/claude-code.md",
+      "e2eScenario": "claude-code"
     },
     {
       "name": "cursor",

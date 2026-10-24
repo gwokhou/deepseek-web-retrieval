@@ -17,7 +17,7 @@ ship built-in web tools. MCP tools can add equivalent tools, but do not replace 
 | Native tool / fetch override | No | Yes | Host tool API | OpenCode v2 adapter |
 | Custom tool plugin | Yes | Yes | Host plugin API | Cline CLI/SDK; no adapter yet |
 | Extension API | Yes | Yes | Host extension API | Pi adapter (`src/pi/`) |
-| MCP server | Yes | Yes | Host MCP client | Shipped (`src/mcp/`; Pi and Codex guides) |
+| MCP server | Yes | Yes | Host MCP client | Shipped (`src/mcp/`; Pi, Codex, and Claude Code guides) |
 | CLI/HTTP wrapper | Yes | Yes | Host can call external tools | Not shipped |
 
 MCP is a protocol, not an agent. It is one possible transport for hosts that support MCP
@@ -35,7 +35,7 @@ Rows are sorted with open-source hosts first, then by host name alphabetically.
 | Codex | 0.163.0 | Yes (Apache-2.0) | No | No | MCP server | Supported |
 | OpenCode | 2.0.32 | Yes (MIT) | Yes | Yes | native websearch provider or native tool/fetch override | Supported |
 | Pi | 1.3.0 | Yes (MIT) | No | No | extension API or MCP server | Supported |
-| Claude Code | 2.1.303 | No | No | No | MCP server | No adapter yet |
+| Claude Code | 2.1.303 | No | No | No | MCP server | Supported |
 | Cursor | 2026.10.08 | No | No | No | MCP server | No adapter yet |
 | Devin | 3000.11.92 | No | No | No | MCP server | No adapter yet |
 | GitHub Copilot | 1.0.98 | No | No | No | MCP server | No adapter yet |
@@ -48,7 +48,7 @@ Codex are Apache-2.0; OpenCode and Pi are MIT. Claude Code and
 Cursor are proprietary. GitHub Copilot CLI and Devin CLI publish installers and docs, not
 source code, under proprietary terms.
 
-OpenCode, Pi, and Codex have supported setup guides and installer host modules. The
+OpenCode, Pi, Codex, and Claude Code have supported setup guides and installer host modules. The
 MCP server in `src/mcp/` provides a possible stdio path for the remaining hosts, but
 protocol compatibility alone does not establish a tested host setup. For those rows,
 `No adapter yet` means no supported host-specific adapter or setup guide is shipped.
@@ -66,8 +66,10 @@ the details: built-in web tools and their kill switches, MCP registration, and r
 - **OpenCode v2** — Uses OpenCode's native plugin API and
   exposes both a websearch provider and a fetch tool/override. See
   [OpenCode v2](agents/opencode-v2.md).
-- **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. See
-  [Claude Code](research/control-matrix.md#claude-code).
+- **Claude Code** — Ships built-in `WebSearch` and `WebFetch` tools. Supported through
+  the MCP server; see
+  [Claude Code](agents/claude-code.md) and
+  [Claude Code in the per-host reference](research/control-matrix.md#claude-code).
 - **Codex** — Ships a built-in `web_search` tool. Supported through the MCP server; see
   [Codex](agents/codex.md) and [Codex in the per-host reference](research/control-matrix.md#codex).
 - **Cursor** — Uses the same `mcp.json` servers as the editor; ships built-in web search
@@ -119,7 +121,8 @@ Code importing the core's removed `formatFetchContent` helper must migrate to
 ## Available paths and future hosts
 
 - **MCP server** — shipped in `src/mcp/` (the fallback path in the [Pi](agents/pi.md) guide
-  and the path in the [Codex](agents/codex.md) guide); the broadest route for hosts that
+  and the path in the [Codex](agents/codex.md) and
+  [Claude Code](agents/claude-code.md) guides); the broadest route for hosts that
   support MCP tools. Protocol compatibility across these hosts is researched in
   [mcp-compatibility.md](research/mcp-compatibility.md).
 - **Native extension adapters** — the Pi extension adapter ships in `src/pi/`; a host whose

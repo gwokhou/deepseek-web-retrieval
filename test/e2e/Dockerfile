@@ -11,30 +11,35 @@ FROM ${NODE_IMAGE} AS agents
 ARG OPENCODE_VERSION
 ARG PI_VERSION
 ARG CODEX_VERSION
+ARG CLAUDE_CODE_VERSION
 # An empty version would silently resolve to npm "latest", drifting off the
 # pins — fail the build instead.
-RUN test -n "$OPENCODE_VERSION" && test -n "$PI_VERSION" && test -n "$CODEX_VERSION"
+RUN test -n "$OPENCODE_VERSION" && test -n "$PI_VERSION" && test -n "$CODEX_VERSION" && test -n "$CLAUDE_CODE_VERSION"
 # npm 10 intermittently skips platform-specific optional dependencies on
 # --prefix global installs (seen with @openai/codex-linux-x64); npm 12 resolves
 # them reliably but blocks non-allowlisted install scripts by default, so
-# @opencode/cli's required postinstall is explicitly allowed — the packages are
-# version-pinned above, making the allowlist auditable. The checks and retry
-# below stay as the guarantee either way.
+# @opencode/cli's and @anthropic-ai/claude-code's required postinstalls are
+# explicitly allowed — the packages are version-pinned above, making the
+# allowlist auditable. The checks and retry below stay as the guarantee either way.
 RUN npm install --global npm@12.2.0 && npm --version
-RUN (npm install --global --prefix /opt/agents --allow-scripts=@opencode/cli \
+RUN (npm install --global --prefix /opt/agents --allow-scripts=@opencode/cli,@anthropic-ai/claude-code \
         @opencode/cli@${OPENCODE_VERSION} \
         @earendil-works/pi-coding-agent@${PI_VERSION} \
         @openai/codex@${CODEX_VERSION} \
+        @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
       && /opt/agents/bin/opencode --version \
       && /opt/agents/bin/pi --version \
-      && /opt/agents/bin/codex --version) \
-    || (npm install --global --prefix /opt/agents --force --allow-scripts=@opencode/cli \
+      && /opt/agents/bin/codex --version \
+      && /opt/agents/bin/claude --version) \
+    || (npm install --global --prefix /opt/agents --force --allow-scripts=@opencode/cli,@anthropic-ai/claude-code \
         @opencode/cli@${OPENCODE_VERSION} \
         @earendil-works/pi-coding-agent@${PI_VERSION} \
         @openai/codex@${CODEX_VERSION} \
+        @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
       && /opt/agents/bin/opencode --version \
       && /opt/agents/bin/pi --version \
-      && /opt/agents/bin/codex --version)
+      && /opt/agents/bin/codex --version \
+      && /opt/agents/bin/claude --version)
 
 FROM ${NODE_IMAGE}
 COPY --from=agents /opt/agents /opt/agents

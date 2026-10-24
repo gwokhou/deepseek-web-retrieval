@@ -113,15 +113,38 @@ export async function runReinitScenario(runner: Runner): Promise<string[]> {
   check("deepseek" in piServers(), "the downgrade dropped the pi registration");
   log.push("reinit: pi preferred → optional deleted the orphaned rules file and kept the registration");
 
-  // --- list reports both recorded installs.
+  // --- Claude Code project, preferred → optional: the orphaned CLAUDE.md
+  // reverts and is deleted; unlike Codex, the global scope then installs beside
+  // the project one because the two scopes map to disjoint files.
+  await init(["--host", "claude-code", "--scope", "project", "--search", "optional", "--fetch", "preferred"]);
+  const claudeRules = join(runner.projectDir.host, "CLAUDE.md");
+  const claudeMcpFile = join(runner.projectDir.host, ".mcp.json");
+  const claudeServers = () =>
+    (parseJsonc(readFileSync(claudeMcpFile, "utf8")) as { mcpServers: Record<string, unknown> }).mcpServers;
+  check(existsSync(claudeRules), "claude-code preferred init did not create the rules file");
+  check("deepseek" in claudeServers(), "claude-code preferred init did not register the server");
+  await init(["--host", "claude-code", "--scope", "project", "--search", "optional", "--fetch", "optional"]);
+  check(!existsSync(claudeRules), "the downgrade left the orphaned CLAUDE.md behind instead of deleting it");
+  check("deepseek" in claudeServers(), "the downgrade dropped the claude-code registration");
+  await init(["--host", "claude-code", "--scope", "global", "--search", "optional", "--fetch", "optional"]);
+  check(
+    existsSync(join(runner.homeDir.host, ".claude.json")),
+    "claude-code global init did not register the user-scope server",
+  );
+  log.push("reinit: claude-code preferred → optional deleted the orphaned rules file; both scopes coexist");
+
+  // --- list reports every recorded install.
   const listed = await runner.run(["node", cli, "list"], { cwd, env });
   check(listed.exitCode === 0, "list failed", excerpt(listed.stderr));
   check(
-    listed.stdout.includes("codex (global)") && listed.stdout.includes("pi (project)"),
+    listed.stdout.includes("codex (global)") &&
+      listed.stdout.includes("pi (project)") &&
+      listed.stdout.includes("claude-code (project)") &&
+      listed.stdout.includes("claude-code (global)"),
     "list output missing the recorded installs",
     excerpt(listed.stdout),
   );
-  log.push("reinit: list reported both recorded installs");
+  log.push("reinit: list reported every recorded install");
 
   // --- XDG routing: the global config home follows XDG_CONFIG_HOME when it
   // belongs to the real home, and uninstall finds the record there too.
@@ -164,10 +187,16 @@ export async function runReinitScenario(runner: Runner): Promise<string[]> {
   // --- Everything uninstalls cleanly, including the XDG-scope record.
   await uninstall("codex", "global");
   await uninstall("pi", "project");
+  await uninstall("claude-code", "project");
+  await uninstall("claude-code", "global");
   await uninstall("opencode", "global", { XDG_CONFIG_HOME: xdgGuest });
   check(
     !existsSync(join(runner.homeDir.host, "xdg-config", "opencode", "opencode.jsonc")),
     "the XDG-scope uninstall left the config behind",
+  );
+  check(
+    !existsSync(join(runner.homeDir.host, ".claude.json")),
+    "the claude-code global uninstall left ~/.claude.json behind",
   );
   log.push("reinit: every install in the scenario uninstalled cleanly");
 

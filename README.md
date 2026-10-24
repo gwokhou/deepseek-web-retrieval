@@ -1,11 +1,11 @@
 # DeepSeek Web Retrieval
 
-**DeepSeek Search and Fetch for OpenCode, Pi, and Codex.**
+**DeepSeek Search and Fetch for OpenCode, Pi, Codex, and Claude Code.**
 
 Search the web and fetch pages as Markdown through
 [DeepSeek's APIs](https://api-docs.deepseek.com/guides/search), using a **native OpenCode
-plugin**, a **native Pi extension**, or **MCP for Codex**. All three share the same retrieval
-core, with results formatted for each host.
+plugin**, a **native Pi extension**, or **MCP for Codex and Claude Code**. All four share
+the same retrieval core, with results formatted for each host.
 
 This is an unofficial community project, not affiliated with DeepSeek or the supported
 host projects.
@@ -16,16 +16,16 @@ Jump to: [Features](#features) · [Quickstart](#quickstart) · [Usage](#usage) �
 
 ## Features
 
-- **One package, three hosts** — a native OpenCode v2 plugin, a native Pi extension,
-  and a stdio MCP server for Codex, all sharing one retrieval core
+- **One package, four hosts** — a native OpenCode v2 plugin, a native Pi extension,
+  and a stdio MCP server for Codex and Claude Code, all sharing one retrieval core
 - **Routing control per tool** — search and fetch are set independently to optional,
   preferred, forced, or off; the tier table in Usage explains each
 - **Review before anything is written** — `init` prints the full plan and writes only
   with `--apply`; uninstall restores from snapshots while preserving edits you made
   afterwards
 - **Knows the host's web landscape** — detects conflicting web tools and rules,
-  configures Pi's MCP fallback for direct tool exposure, and reports Codex version
-  drift
+  configures Pi's MCP fallback for direct tool exposure, and reports Codex and
+  Claude Code version drift
 - **Your key never enters a config file** — installs reference the environment
   (`${DEEPSEEK_API_KEY}` indirection or `env_vars`), so a project-scope install
   commits clean
@@ -45,7 +45,7 @@ npx deepseek-web-retrieval init --host opencode --scope project --search forced 
 npx deepseek-web-retrieval init --host opencode --scope project --search forced --fetch preferred --apply
 ```
 
-For Pi or Codex, other scopes, or finer routing control, see [Usage](#usage).
+For Pi, Codex, or Claude Code, other scopes, or finer routing control, see [Usage](#usage).
 
 ## Usage
 
@@ -56,6 +56,7 @@ Choose your host:
 | OpenCode v2 | Native plugin: search provider and Fetch tools | [OpenCode guide](docs/agents/opencode-v2.md) |
 | Pi | Native extension: Search and Fetch tools; MCP also available | [Pi guide](docs/agents/pi.md) |
 | Codex | MCP server over stdio, with readable text results | [Codex guide](docs/agents/codex.md) |
+| Claude Code | MCP server over stdio in `.mcp.json` or `~/.claude.json` | [Claude Code guide](docs/agents/claude-code.md) |
 
 Set `DEEPSEEK_API_KEY` in the environment that launches your host; OpenCode can also
 use its stored DeepSeek key. Run `init` for your host to preview a configuration — the
@@ -103,7 +104,7 @@ resolving that release rather than every latest publish. The trade-off is no
 auto-updates: re-run `init --pin` from a newer CLI to move the pin.
 
 Other stdio MCP hosts may use the server, but the supported setup guides and installer
-currently cover the three hosts above. See the [integration model](docs/integration.md)
+currently cover the four hosts above. See the [integration model](docs/integration.md)
 for tested versions and the [control tiers](docs/research/control-matrix.md) for
 routing limits. For an existing installation, follow the
 [upgrade instructions](docs/integration.md#upgrading-existing-installs).
@@ -201,6 +202,7 @@ Which layer to set for a knob, the full file-key ↔ `DEEPSEEK_*` mapping, per-k
 defaults, and special semantics live in the [configuration guide](docs/configuration.md).
 Per-host mechanics — how the environment reaches a stdio server, each host's output caps
 and deadlines — live in the host guides: [Codex](docs/agents/codex.md),
+[Claude Code](docs/agents/claude-code.md),
 [Pi](docs/agents/pi.md), [OpenCode](docs/agents/opencode-v2.md).
 
 To see what actually resolves, run `npx deepseek-web-retrieval config`: every knob

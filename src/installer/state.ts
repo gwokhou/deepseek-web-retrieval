@@ -49,7 +49,7 @@ const operation = z.discriminatedUnion("op", [
 const recordSchema = z.object({
   version: z.literal(1),
   installerVersion: z.string().optional(),
-  host: z.enum(["opencode", "pi", "codex"]),
+  host: z.enum(["opencode", "pi", "codex", "claude-code"]),
   scope: z.enum(["global", "project"]),
   tiers: z.object({ search: tier, fetch: tier }),
   createdAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),

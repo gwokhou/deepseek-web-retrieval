@@ -71,8 +71,9 @@ Reading notes:
 One section per host, in hosts.jsonc order. Each carries what an install needs beyond the
 matrix: the built-in competitors, their kill switches, how the MCP server is registered,
 and which rules files steer preference. The `init` CLI implements these tiers for
-OpenCode, Pi, and Codex (see [installer design](../design/installer-design.md)). Config
-paths imply the available scopes; keys locked to a single scope are enumerated in the
+OpenCode, Pi, Codex, and Claude Code (see
+[installer design](../design/installer-design.md)). Config paths imply the available
+scopes; keys locked to a single scope are enumerated in the
 [installer design](../design/installer-design.md#scope).
 
 ### Cline
@@ -209,15 +210,31 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
 - **Built-in web tools** — `WebSearch` and `WebFetch`. Kill switch: bare deny rules —
   `"permissions": {"deny": ["WebSearch", "WebFetch"]}` — remove the tools from the model's
   context entirely; deny outranks allow at every settings level and cannot be carved out.
-  `--disallowedTools` is the flag form. `CLAUDE_CODE_DISABLE_WEB_FETCH=1` (2.1.285+) kills
-  WebFetch only; there is no env equivalent for WebSearch
+  Permission rules live in the settings file of each level: managed
+  `managed-settings.json` (Linux `/etc/claude-code/`, macOS
+  `/Library/Application Support/ClaudeCode/`, Windows
+  `C:\Program Files\ClaudeCode\` — the legacy `C:\ProgramData\ClaudeCode\` path
+  is not read) →
+  user `~/.claude/settings.json` → project `.claude/settings.json` → local
+  `.claude/settings.local.json`; the installer writes the chosen scope's settings file
+  and reports an existing managed layer. A bare `mcp__<server>` rule denies every tool
+  of one MCP server — the per-server kill switch the installer uses for web-capable
+  competitors under the forced tier. `--disallowedTools` is the flag form.
+  `CLAUDE_CODE_DISABLE_WEB_FETCH=1` (2.1.285+) kills WebFetch only; there is no env
+  equivalent for WebSearch
   ([tools](https://code.claude.com/docs/en/tools),
-  [permissions](https://code.claude.com/docs/en/permissions)).
-- **MCP registration** — `.mcp.json` (`mcpServers` with `command`/`args`/`env`, or
-  `type: "http"` + `url`); `${VAR}` expansion in `command`/`args`/`env`/`url`/`headers`.
-  Tool permission rules use `mcp__<server>__<tool>`. Tool descriptions are capped at 4,096
+  [permissions](https://code.claude.com/docs/en/permissions),
+  [settings](https://code.claude.com/docs/en/settings)).
+- **MCP registration** — three scopes across two files: project `.mcp.json` at the
+  project root (team-shared, first-use approval prompt per project), local scope under
+  the project's entry in `~/.claude.json` (private, the `claude mcp add` default), and
+  user scope at the top-level `mcpServers` key of `~/.claude.json` (`--scope user`).
+  Entries take `mcpServers` with `command`/`args`/`env`, or `type: "http"` + `url`;
+  `${VAR}` expansion in `command`/`args`/`env`/`url`/`headers`. Tool permission rules
+  use `mcp__<server>__<tool>`. Tool descriptions are capped at 4,096
   chars (2.1.296+) and tool output at 25k tokens by default (`MAX_MCP_OUTPUT_TOKENS`),
-  with oversized text saved to a file; 16 MiB message cap on HTTP transports.
+  with oversized text saved to a file; 16 MiB message cap on HTTP transports
+  ([MCP quickstart](https://code.claude.com/docs/en/mcp-quickstart)).
 - **Rules** — `CLAUDE.md` hierarchy (managed → user `~/.claude/CLAUDE.md` → project →
   `CLAUDE.local.md`) with `@import`; `AGENTS.md` is read instead only when no CLAUDE.md
   exists anywhere above the cwd (since 2.1.277)
@@ -303,3 +320,11 @@ paths imply the available scopes; keys locked to a single scope are enumerated i
   `toolPolicies`). Codex's docs location and Copilot's `GEMINI.md` dating were re-verified
   2026-10-21 and are settled in their sections above. Protocol-revision evidence for every
   host lives in [mcp-compatibility.md](mcp-compatibility.md).
+- **Claude Code forward-compat anchors (checked at the 2.1.303 lock):** the headless docs
+  pre-announce `--bare` becoming the default for `-p`, and bare mode never reads
+  `.mcp.json` — the billed e2e scenario and the project-scope install story both need
+  re-checking when that lands. `${VAR}` expansion in the `env` block of a user-scope
+  `~/.claude.json` entry is supported but only indirectly documented (the docs spell out
+  `.mcp.json` and `command`/`args`; the e2e's `hasCompletedOnboarding` flag and the
+  redundant `enableAllProjectMcpServers` belt-and-suspenders are undocumented), so a
+  baseline bump should re-verify all three against the then-current docs.

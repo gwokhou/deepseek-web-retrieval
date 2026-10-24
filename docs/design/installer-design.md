@@ -1,13 +1,13 @@
 # Installer design
 
 Design note for the install-time flow, shipped as the `deepseek-web-retrieval init`,
-`uninstall`, and `list` subcommands for **OpenCode, Pi, and Codex**. It records how the
-[control tiers](../research/control-matrix.md) map to the artifacts the installer emits, so
-the design survives between conversations. Research backing lives in
+`uninstall`, and `list` subcommands for **OpenCode, Pi, Codex, and Claude Code**. It records how the
+[control tiers](../research/control-matrix.md) map to the artifacts the installer emits, so the design
+survives between conversations. Research backing lives in
 [control-matrix.md](../research/control-matrix.md); host facts in [hosts.jsonc](../hosts.jsonc).
 Remaining hosts get host modules here as their guides ship.
 Examples involving other hosts describe design requirements for future modules;
-the current CLI accepts only the three shipped hosts above.
+the current CLI accepts only the four shipped hosts above.
 
 ## Principles
 
@@ -44,9 +44,9 @@ already exists, and the installer uses three phases:
    Report the conflict surface: existing rules steering toward another web tool; other
    web-capable MCP servers already on the field; array-valued keys the plan must merge
    into rather than replace (`disabledTools`, `permissions.deny`, permissions
-   `exclude`, `disabled_tools`); and higher layers (Claude Code managed policy, Devin
-   enterprise team settings) that would outrank what the
-   installer writes.
+   `exclude`, `disabled_tools`); and higher layers (Claude Code managed policy — its
+   existence is checked by the claude-code module; Devin enterprise team settings) that
+   would outrank what the installer writes.
 2. **Merge or snapshot.** Array keys merge with existing entries, recording exactly
    which entries the installer appended; single-value keys (`websearch.provider`, Pi's
    `exposure`) snapshot the prior value before overwriting; files the installer creates
@@ -71,7 +71,9 @@ already exists, and the installer uses three phases:
   competitor, not third-party web MCP servers — those must be excluded too (the
   per-host keys cover them), or routing is not actually forced. Concretely: Pi's
   per-server `enabled` key lets the plan disable detected web-capable competitors
-  (each prior value snapshotted for uninstall); Codex has no per-server kill switch,
+  (each prior value snapshotted for uninstall); Claude Code excludes them the same way
+  via server-level `mcp__<server>` deny rules appended to `permissions.deny`; Codex has
+  no per-server kill switch,
   so a detected web-capable competitor makes the plan refuse the tier instead of
   promising non-exclusive routing; OpenCode's forced is replacement, which no
   third-party server overrides. Detection classifies a server web-capable from its
@@ -156,9 +158,9 @@ the artifacts below name the path where they differ.
 | Optional | Host config registering the integration: Pi's extension path appends an `npm:<package>` source to `packages` in settings.json; the MCP paths register the server (Pi's MCP entry needs `"exposure": "direct"`; the extension path needs nothing — extension tools are `direct` by Pi's own default) |
 | Preferred | The above plus a rules file for the host (file names per host in the [per-host reference](../research/control-matrix.md#per-host-reference)); the rules name the path's tool ids (`deepseek_web_search` for the extension, `mcp__deepseek__deepseek_web_search` for MCP) |
 | Forced (replacement) | OpenCode plugin options (`setDefaultWebsearch` / `fetchOverrideWebfetch`) |
-| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found — Pi sets their `enabled` key to `false`; Codex, lacking a per-server kill switch, refuses the tier instead; Pi's extension path additionally refuses when a web-capable `packages`/`extensions` source is listed in settings.json (no per-package kill switch exists) |
+| Forced (exclusion) | The built-in competitor's kill switch (per-host keys in the per-host reference), plus the exclusion of any other web-capable MCP servers the detect phase found — Pi sets their `enabled` key to `false`; Claude Code appends server-level `mcp__<server>` deny rules to `permissions.deny` (merging with the user's own entries); Codex, lacking a per-server kill switch, refuses the tier instead; Pi's extension path additionally refuses when a web-capable `packages`/`extensions` source is listed in settings.json (no per-package kill switch exists) |
 | Forced (de-facto) | Nothing beyond the Optional artifacts — no competitor exists |
-| Off | Codex writes the capability's raw tool name into the server entry's `disabled_tools` (host-native: the tool leaves the model's context; the user's own entries in that array are kept); the other MCP entry writes the capability's false-only server-side switch instead (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); Pi's extension path writes the same switches into the `deepseekWebRetrieval` settings namespace the extension reads at load; both capabilities off refuses to install |
+| Off | Codex writes the capability's raw tool name into the server entry's `disabled_tools` (host-native: the tool leaves the model's context; the user's own entries in that array are kept); Claude Code appends the capability's full tool id (`mcp__deepseek__*`) to `permissions.deny`, the same host-native removal; the other MCP entry writes the capability's false-only server-side switch instead (`DEEPSEEK_ENABLE_SEARCH` / `DEEPSEEK_ENABLE_FETCH`); Pi's extension path writes the same switches into the `deepseekWebRetrieval` settings namespace the extension reads at load; both capabilities off refuses to install |
 
 OpenCode additionally appends `permissions` allow entries for exactly the tools it
 registers (`websearch`, `deepseek_fetch`, and `webfetch` when fetch is forced), merged
@@ -194,8 +196,9 @@ into any existing `permissions` array rather than replacing it.
   reverts cannot re-enable a still-excluded competitor.
 - Verify is file-level: after apply it re-reads each written file and asserts every op
   holds (set values in place, appended entries present, rules block present). Higher
-  layers would be a plan-time detect concern, and none of the three shipped hosts
-  documents a layer above user config, so there is nothing to check there yet.
+  layers are a plan-time detect concern; Claude Code documents one (managed policy), and
+  the claude-code module reports an existing managed-settings.json instead of failing
+  silently. The other shipped hosts document no layer above user config.
 - Only a bare `--apply` enables writes; assigning a value such as `--apply=false`
   is a usage error and writes nothing.
 - `--pin` is opt-in version pinning: the ref written into host config gets the
@@ -224,7 +227,7 @@ host-side tool filtering.
 
 ## Hosts without an installer story
 
-Claude Code, Cursor, Devin, GitHub Copilot, and Cline still have no
+Cursor, Devin, GitHub Copilot, and Cline still have no
 host module; their artifacts (from the tier-to-artifact mapping) remain hand-edited
 config until a module lands here. OpenCode's `opencode plugin add` remains available but
 cannot pass options or manage snapshots; `init` supersedes it for tiered installs.

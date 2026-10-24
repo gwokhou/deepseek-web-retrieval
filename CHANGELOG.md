@@ -4,6 +4,9 @@ All notable changes to this project are documented here, one sentence per item.
 
 ## Unreleased
 
+- Add Claude Code as a supported host: an MCP-only integration registered in `.mcp.json` (project scope) or `~/.claude.json` (user scope), with a full installer host module (plan/apply/uninstall, both scopes), a `docs/agents/claude-code.md` guide, a version probe with drift note, and managed-policy detection that reports a `managed-settings.json` layer outranking the install.
+- Route Claude Code tiers through its own settings files: forced capabilities deny the built-in `WebSearch`/`WebFetch` via `permissions.deny` in `.claude/settings.json` or `~/.claude/settings.json` (merged with the user's entries), off capabilities deny the full `mcp__deepseek__*` tool ids, and preferred writes a rules block into `CLAUDE.md`; web-capable competitor servers are excluded under forced via server-level `mcp__<server>` deny rules instead of refusing the tier.
+- Add a billed `claude-code` Docker e2e scenario that runs headless `claude -p` prompts with DeepSeek as the LLM over its Anthropic-compatible endpoint (single key for both legs) and asserts the deny-based kill switch keeps the built-in tools out of the session, plus installer/reinit coverage of the new host in the keyless scenarios.
 - Restructure the README around a quickstart and a defaults table, moving the full configuration reference (knob classes, the complete file-key ↔ `DEEPSEEK_*` mapping, special semantics) to a new docs/configuration.md guide.
 - Generate the configuration guide's knob table from the config vocabulary itself (`bun run docs:matrix` regenerates it, `--check` fails CI on drift), so the documented key ↔ variable ↔ default mapping can no longer hand-drift from the code.
 

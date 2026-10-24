@@ -26,6 +26,7 @@ import { applyJsonOps, revertJsonOps } from "../../src/installer/formats/json";
 import { buildRulesBlock, hasBlock, removeBlock, upsertBlock } from "../../src/installer/formats/rules";
 import { hasTomlComment } from "../../src/installer/formats/toml";
 import { planForHost } from "../../src/installer/hosts";
+import { parseClaudeCodeVersion, planClaudeCode } from "../../src/installer/hosts/claude-code";
 import { parseCodexVersion, planCodex } from "../../src/installer/hosts/codex";
 import { planOpenCode } from "../../src/installer/hosts/opencode";
 import { planPi } from "../../src/installer/hosts/pi";
@@ -268,6 +269,160 @@ describe("plans", () => {
     expect(plan.notes.join(" ")).toContain("disabled_tools");
     expect(plan.notes.join(" ")).toContain("deepseek_web_search");
   });
+
+  test("claude-code: registers in .mcp.json with env expansion and adds the CLAUDE.md block for preferred", () => {
+    const input = makeInput("claude-code", "project", "preferred", "optional");
+    writeFileSync(join(input.cwd, ".mcp.json"), JSON.stringify({ mcpServers: { tavily: { command: "npx" } } }));
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors).toEqual([]);
+    const configEdit = plan.edits.find(
+      (edit): edit is JsonEdit => edit.format === "json" && edit.file === join(input.cwd, ".mcp.json"),
+    );
+    expect(configEdit).toBeDefined();
+    const setOp = configEdit?.ops.find((op) => op.op === "set");
+    const value =
+      setOp && "value" in setOp
+        ? (setOp.value as { command: string; args: string[]; env: Record<string, string> })
+        : undefined;
+    expect(value).toEqual({
+      command: "npx",
+      args: ["-y", "deepseek-web-retrieval"],
+      env: { DEEPSEEK_API_KEY: `\${${API_KEY_ENV}}` },
+    });
+    const rules = plan.edits.find((edit) => edit.format === "rules");
+    expect(rules?.file).toBe(join(input.cwd, "CLAUDE.md"));
+    expect(rules && "block" in rules ? rules.block : "").toContain("mcp__deepseek__deepseek_web_search");
+    // Optional fetch stays optional: the block steers only the preferred capability.
+    expect(rules && "block" in rules ? rules.block : "").not.toContain("Use mcp__deepseek__deepseek_fetch");
+    expect(plan.notes.join(" ")).toContain("tavily");
+    expect(plan.notes.join(" ")).toContain("approve the deepseek server");
+  });
+
+  test("claude-code: forced denies built-ins via permissions.deny, excluding web-capable competitors", () => {
+    const input = makeInput("claude-code", "project", "forced", "optional");
+    writeFileSync(join(input.cwd, ".mcp.json"), JSON.stringify({ mcpServers: { tavily: { command: "npx" } } }));
+    mkdirSync(join(input.cwd, ".claude"), { recursive: true });
+    writeFileSync(
+      join(input.cwd, ".claude/settings.json"),
+      JSON.stringify({ permissions: { deny: ["Bash(rm -rf *)"] } }),
+    );
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors).toEqual([]);
+    const settingsEdit = plan.edits.find(
+      (edit): edit is JsonEdit => edit.format === "json" && edit.file === join(input.cwd, ".claude/settings.json"),
+    );
+    const denyOp = settingsEdit?.ops.find((op) => op.op === "append-array");
+    expect(denyOp && "entries" in denyOp ? denyOp.entries : undefined).toEqual(["mcp__tavily", "WebSearch"]);
+    expect(denyOp && "existingCount" in denyOp ? denyOp.existingCount : undefined).toBe(1);
+    expect(plan.notes.join(" ")).toContain("server-level rules (mcp__tavily)");
+    expect(plan.notes.join(" ")).toContain("cannot be carved out");
+    expect(plan.notes.join(" ")).toContain('README\'s "Privacy and cost" section');
+  });
+
+  test("claude-code: off denies the capability's full mcp tool id", () => {
+    const input = makeInput("claude-code", "project", "off", "optional");
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors).toEqual([]);
+    const denyOp = plan.edits
+      .find(
+        (edit): edit is JsonEdit => edit.format === "json" && edit.file === join(input.cwd, ".claude/settings.json"),
+      )
+      ?.ops.find((op) => op.op === "append-array");
+    expect(denyOp && "entries" in denyOp ? denyOp.entries : undefined).toEqual(["mcp__deepseek__deepseek_web_search"]);
+    expect(plan.notes.join(" ")).toContain("delete the entry to re-enable it");
+  });
+
+  test("claude-code: global scope registers in ~/.claude.json and writes user-level artifacts", () => {
+    const input = makeInput("claude-code", "global", "preferred", "preferred");
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors).toEqual([]);
+    expect(plan.edits.find((edit) => edit.format === "json")?.file).toBe(join(input.home, ".claude.json"));
+    expect(plan.edits.find((edit) => edit.format === "rules")?.file).toBe(join(input.home, ".claude", "CLAUDE.md"));
+    expect(plan.notes.join(" ")).toContain("claude mcp add --scope user");
+  });
+
+  test("claude-code: notes version drift between the probed CLI and the tested lock", () => {
+    const input = makeInput("claude-code", "project", "optional", "optional");
+    const drifted = planClaudeCode({ ...input, hostVersion: "2.5.0" }, readRecord(input));
+    expect(drifted.notes.join(" ")).toContain("2.5.0");
+    expect(drifted.notes.join(" ")).toContain("2.1.303");
+    const matching = planClaudeCode({ ...input, hostVersion: "2.1.303" }, readRecord(input));
+    expect(matching.notes.join(" ")).not.toContain("drifted");
+  });
+
+  test("parseClaudeCodeVersion reads the claude --version line", () => {
+    expect(parseClaudeCodeVersion("2.1.303 (Claude Code)\n")).toBe("2.1.303");
+    expect(parseClaudeCodeVersion("claude-code version 2.1.303\n")).toBe("2.1.303");
+    // An update banner must not anchor the drift note on the advertised version.
+    expect(parseClaudeCodeVersion("Update available 2.2.0 (current 2.1.303)\n")).toBe("2.1.303");
+    expect(parseClaudeCodeVersion("unknown\n")).toBeUndefined();
+    expect(parseClaudeCodeVersion("")).toBeUndefined();
+  });
+
+  test("claude-code: reports a managed policy layer that outranks the settings files", () => {
+    const input = { ...makeInput("claude-code", "project", "forced", "optional"), platform: "linux" as const };
+    const real = fs.existsSync;
+    const exists = spyOn(fs, "existsSync").mockImplementation((path) =>
+      String(path) === "/etc/claude-code/managed-settings.json" ? true : real(path),
+    );
+    try {
+      const plan = planClaudeCode(input, readRecord(input));
+      expect(plan.notes.join(" ")).toContain("/etc/claude-code/managed-settings.json");
+      expect(plan.notes.join(" ")).toContain("managed policy layer outranks");
+    } finally {
+      exists.mockRestore();
+    }
+  });
+
+  test("claude-code: warns when creating CLAUDE.md beside an existing AGENTS.md", () => {
+    const input = makeInput("claude-code", "project", "preferred", "optional");
+    writeFileSync(join(input.cwd, "AGENTS.md"), "# Project rules\n");
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors).toEqual([]);
+    expect(plan.notes.join(" ")).toContain("AGENTS.md");
+    expect(plan.notes.join(" ")).toContain("takes precedence");
+  });
+
+  test("claude-code: refuses an unparsable settings.json instead of merging into it", () => {
+    const input = makeInput("claude-code", "project", "forced", "optional");
+    mkdirSync(join(input.cwd, ".claude"), { recursive: true });
+    writeFileSync(join(input.cwd, ".claude/settings.json"), "{ not json");
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors.length).toBe(1);
+    expect(plan.errors[0]?.message).toContain("does not parse as JSON");
+    expect(plan.edits).toEqual([]);
+  });
+
+  test("claude-code: refuses an .mcp.json whose mcpServers is not an object", () => {
+    const input = makeInput("claude-code", "project", "optional", "optional");
+    writeFileSync(join(input.cwd, ".mcp.json"), JSON.stringify({ mcpServers: "nope" }));
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors.length).toBe(1);
+    expect(plan.errors[0]?.message).toContain("mcpServers is a string, not an object");
+    expect(plan.edits).toEqual([]);
+  });
+
+  test("claude-code: refuses settings.json whose permissions key is an array", () => {
+    const input = makeInput("claude-code", "project", "forced", "optional");
+    mkdirSync(join(input.cwd, ".claude"), { recursive: true });
+    writeFileSync(join(input.cwd, ".claude/settings.json"), JSON.stringify({ permissions: [] }));
+    const plan = planClaudeCode(input, readRecord(input));
+    expect(plan.errors.length).toBe(1);
+    expect(plan.errors[0]?.message).toContain("the permissions key is an array, not an object");
+    expect(plan.edits).toEqual([]);
+  });
+
+  test("claude-code: forced refuses cleanly when the other stack's file cannot be read", () => {
+    // A directory named ~/.claude.json makes the read fail with EISDIR even for
+    // root, so the crash path is deterministic on every platform.
+    const input = makeInput("claude-code", "project", "forced", "optional");
+    mkdirSync(join(input.home, ".claude.json"));
+    const plan = planForHost("claude-code", input);
+    expect(plan.errors.length).toBe(1);
+    expect(plan.errors[0]?.message).toContain("cannot be read");
+    expect(plan.errors[0]?.message).toContain(join(input.home, ".claude.json"));
+    expect(plan.edits).toEqual([]);
+  });
 });
 
 describe("apply and uninstall round-trips", () => {
@@ -494,6 +649,119 @@ describe("apply and uninstall round-trips", () => {
     expect(existsSync(rulesFile)).toBe(false);
     uninstall(input);
     expect(existsSync(join(input.home, ".config/opencode/opencode.jsonc"))).toBe(false);
+  });
+
+  test("claude-code project: forced + preferred creates, verifies, and fully removes on uninstall", () => {
+    const input = makeInput("claude-code", "project", "forced", "preferred");
+    writeFileSync(join(input.cwd, ".mcp.json"), JSON.stringify({ mcpServers: { github: { command: "npx" } } }));
+    mkdirSync(join(input.cwd, ".claude"), { recursive: true });
+    writeFileSync(join(input.cwd, ".claude/settings.json"), JSON.stringify({ permissions: { deny: ["Bash(rm *)"] } }));
+    const plan = planForHost("claude-code", input);
+    expect(plan.errors).toEqual([]);
+    const applied = applyPlan(plan, input);
+    expect(applied.lines.length).toBeGreaterThan(0);
+    const mcp = JSON.parse(readFileSync(join(input.cwd, ".mcp.json"), "utf8")) as {
+      mcpServers: Record<string, unknown>;
+    };
+    expect(mcp.mcpServers.github).toBeDefined();
+    expect((mcp.mcpServers.deepseek as { env: Record<string, string> }).env.DEEPSEEK_API_KEY).toBe(
+      `\${${API_KEY_ENV}}`,
+    );
+    const settings = JSON.parse(readFileSync(join(input.cwd, ".claude/settings.json"), "utf8")) as {
+      permissions: { deny: string[] };
+    };
+    expect(settings.permissions.deny).toEqual(["Bash(rm *)", "WebSearch"]);
+    expect(readFileSync(join(input.cwd, "CLAUDE.md"), "utf8")).toContain(
+      "deepseek-web-retrieval:claude-code:rules:begin",
+    );
+
+    uninstall(input);
+    const restoredMcp = JSON.parse(readFileSync(join(input.cwd, ".mcp.json"), "utf8")) as {
+      mcpServers: Record<string, unknown>;
+    };
+    expect(restoredMcp.mcpServers.github).toBeDefined();
+    expect(restoredMcp.mcpServers.deepseek).toBeUndefined();
+    const restoredSettings = JSON.parse(readFileSync(join(input.cwd, ".claude/settings.json"), "utf8")) as {
+      permissions: { deny: string[] };
+    };
+    expect(restoredSettings.permissions.deny).toEqual(["Bash(rm *)"]);
+    expect(existsSync(join(input.cwd, "CLAUDE.md"))).toBe(false);
+    expect(listRecords(input)).toEqual([]);
+  });
+
+  test("claude-code: forced excludes competitors, and a downgrade reverts every deny entry", () => {
+    const input = makeInput("claude-code", "project", "forced", "optional");
+    writeFileSync(join(input.cwd, ".mcp.json"), JSON.stringify({ mcpServers: { tavily: { command: "npx" } } }));
+    applyPlan(planForHost("claude-code", input), input);
+    const settings = () =>
+      (
+        JSON.parse(readFileSync(join(input.cwd, ".claude/settings.json"), "utf8")) as {
+          permissions?: { deny?: string[] };
+        }
+      ).permissions?.deny;
+    expect(settings()).toEqual(["mcp__tavily", "WebSearch"]);
+
+    const downgraded = planForHost("claude-code", { ...input, search: "optional" });
+    expect(downgraded.errors).toEqual([]);
+    expect(
+      downgraded.reverts?.some((revert) => revert.ops.some((op) => op.path.join(".") === "permissions.deny")),
+    ).toBe(true);
+    applyPlan(downgraded, input);
+    // The settings file the installer created reverts to empty and is deleted whole.
+    expect(existsSync(join(input.cwd, ".claude/settings.json"))).toBe(false);
+    expect(JSON.parse(readFileSync(join(input.cwd, ".mcp.json"), "utf8")).mcpServers.tavily).toBeDefined();
+
+    uninstall(input);
+    // The file existed before the install (it carries tavily), so it survives with
+    // exactly the user's original server back.
+    const restored = JSON.parse(readFileSync(join(input.cwd, ".mcp.json"), "utf8")) as {
+      mcpServers: Record<string, unknown>;
+    };
+    expect(restored.mcpServers.tavily).toBeDefined();
+    expect(restored.mcpServers.deepseek).toBeUndefined();
+  });
+
+  test("claude-code: re-init over the installer's own deny entries keeps the claim for uninstall", () => {
+    const input = makeInput("claude-code", "project", "forced", "optional");
+    mkdirSync(join(input.cwd, ".claude"), { recursive: true });
+    writeFileSync(join(input.cwd, ".claude/settings.json"), JSON.stringify({ model: "opus" }));
+    applyPlan(planForHost("claude-code", input), input);
+    // A second identical init must not orphan the first init's WebSearch entry.
+    applyPlan(planForHost("claude-code", input), input);
+    const settings = JSON.parse(readFileSync(join(input.cwd, ".claude/settings.json"), "utf8")) as {
+      model: string;
+      permissions: { deny: string[] };
+    };
+    expect(settings.permissions.deny).toEqual(["WebSearch"]);
+    uninstall(input);
+    const restored = JSON.parse(readFileSync(join(input.cwd, ".claude/settings.json"), "utf8")) as {
+      model?: string;
+      permissions?: { deny?: string[] };
+    };
+    expect(restored.model).toBe("opus");
+    expect(restored.permissions).toBeUndefined();
+  });
+
+  test("claude-code: off tier denies the full tool id, merges user entries, and downgrades cleanly", () => {
+    const input = makeInput("claude-code", "project", "off", "optional");
+    mkdirSync(join(input.cwd, ".claude"), { recursive: true });
+    writeFileSync(join(input.cwd, ".claude/settings.json"), JSON.stringify({ permissions: { deny: ["Bash(rm *)"] } }));
+    const settings = () =>
+      (
+        JSON.parse(readFileSync(join(input.cwd, ".claude/settings.json"), "utf8")) as {
+          permissions: { deny: string[] };
+        }
+      ).permissions.deny;
+    expect(applyPlan(planForHost("claude-code", input), input).lines.length).toBeGreaterThan(0);
+    expect(settings()).toEqual(["Bash(rm *)", "mcp__deepseek__deepseek_web_search"]);
+
+    // Downgrade to optional: the whole settings edit becomes an orphan and reverts,
+    // leaving exactly the user's own entries.
+    applyPlan(planForHost("claude-code", { ...input, search: "optional" }), input);
+    expect(settings()).toEqual(["Bash(rm *)"]);
+
+    uninstall(input);
+    expect(settings()).toEqual(["Bash(rm *)"]);
   });
 });
 
@@ -968,6 +1236,20 @@ describe("scope isolation", () => {
     expect(existsSync(join(piGlobal.home, ".pi/agent/mcp.json"))).toBe(true);
   });
 
+  test("claude-code scope pairs map to disjoint files and install side by side", () => {
+    const global = makeInput("claude-code", "global", "optional", "optional");
+    applyPlan(planForHost("claude-code", global), global);
+    const project = planForHost("claude-code", { ...global, scope: "project" });
+    expect(project.errors).toEqual([]);
+    applyPlan(project, { ...global, scope: "project" });
+    expect(listRecords(global).length).toBe(2);
+    expect(existsSync(join(global.home, ".claude.json"))).toBe(true);
+    expect(existsSync(join(global.cwd, ".mcp.json"))).toBe(true);
+    uninstall({ ...global, scope: "project" });
+    expect(readRecord(global)).toBeDefined();
+    expect(existsSync(join(global.cwd, ".mcp.json"))).toBe(false);
+  });
+
   test("uninstall refuses when a legacy record at the other scope claims the same file", () => {
     const input = makeInput("codex", "global", "optional", "optional");
     const file = join(input.home, ".codex/config.toml");
@@ -1175,6 +1457,68 @@ describe("drift refusal and CLI edges", () => {
         "codex",
         "--scope",
         "global",
+        "--search",
+        "optional",
+        "--fetch",
+        "optional",
+        "--cwd",
+        cwd,
+      ]);
+      expect(code2).toBe(0);
+      expect(errorsOut.join("\n")).toContain("version-drift check was skipped");
+      expect(logs.join("\n")).not.toContain("9.9.9");
+    } finally {
+      console.log = originalLog;
+      console.error = originalError;
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      process.env.PATH = previousPath;
+    }
+  });
+
+  test("runInstallerCli probes claude --version and surfaces drift in the plan", async () => {
+    const home = tempDir("dwr-cli-home-");
+    const cwd = tempDir("dwr-cli-cwd-");
+    const bin = tempDir("dwr-cli-bin-");
+    writeFileSync(join(bin, "claude"), "#!/bin/sh\necho '9.9.9 (Claude Code)'\n");
+    chmodSync(join(bin, "claude"), 0o755);
+    const logs: string[] = [];
+    const errorsOut: string[] = [];
+    const originalLog = console.log;
+    const originalError = console.error;
+    const previousHome = process.env.HOME;
+    const previousPath = process.env.PATH;
+    console.log = (line: string) => logs.push(line);
+    console.error = (line: string) => errorsOut.push(line);
+    process.env.HOME = home;
+    process.env.PATH = bin;
+    try {
+      const code = await runInstallerCli([
+        "init",
+        "--host",
+        "claude-code",
+        "--scope",
+        "project",
+        "--search",
+        "optional",
+        "--fetch",
+        "optional",
+        "--cwd",
+        cwd,
+      ]);
+      expect(code).toBe(0);
+      expect(logs.join("\n")).toContain("9.9.9");
+      expect(logs.join("\n")).toContain("2.1.303");
+
+      // Without a claude binary the probe skips with a stderr note, plan unaffected.
+      logs.length = 0;
+      process.env.PATH = join(bin, "empty");
+      const code2 = await runInstallerCli([
+        "init",
+        "--host",
+        "claude-code",
+        "--scope",
+        "project",
         "--search",
         "optional",
         "--fetch",
@@ -1849,6 +2193,13 @@ describe("pinned package refs (--pin)", () => {
       expect(output.join("\n")).not.toContain('"deepseek-web-retrieval"]');
       const toml = readFileSync(join(home, ".codex/config.toml"), "utf8");
       expect(toml).toContain(`"${pinned}"`);
+
+      output.length = 0;
+      expect(await init("claude-code")).toBe(0);
+      const claudeMcp = JSON.parse(readFileSync(join(cwd, ".mcp.json"), "utf8")) as {
+        mcpServers: { deepseek: { args: string[] } };
+      };
+      expect(claudeMcp.mcpServers.deepseek.args).toEqual(["-y", pinned]);
     } finally {
       if (previousHome === undefined) delete process.env.HOME;
       else process.env.HOME = previousHome;
@@ -2130,7 +2481,7 @@ describe("whole-repo review regressions", () => {
     uninstall(first);
   });
 
-  for (const host of ["pi", "codex"] as const) {
+  for (const host of ["pi", "codex", "claude-code"] as const) {
     for (const search of ["preferred", "optional"] as const) {
       test(`${host} only steers the preferred capability when search is ${search}`, () => {
         const input = makeInput(host, "project", search, search === "preferred" ? "optional" : "preferred");
@@ -2139,7 +2490,8 @@ describe("whole-repo review regressions", () => {
         expect(block.includes("deepseek_web_search")).toBe(input.search === "preferred");
         expect(block.includes("deepseek_fetch")).toBe(input.fetch === "preferred");
         expect(applyPlan(plan, input).lines.length).toBeGreaterThan(0);
-        expect(readFileSync(join(input.cwd, "AGENTS.md"), "utf8")).toContain(block);
+        const rulesFile = join(input.cwd, host === "claude-code" ? "CLAUDE.md" : "AGENTS.md");
+        expect(readFileSync(rulesFile, "utf8")).toContain(block);
         uninstall(input);
       });
     }
@@ -2182,6 +2534,24 @@ describe("shared config ownership lifecycle", () => {
     const second = { ...first, cwd, home: alias, configHome: join(cwd, "other-config-home") };
     expect(planForHost("codex", second).errors[0]?.message).toContain(first.cwd);
     uninstall(first);
+  });
+
+  test("claude-code global ownership is independent of XDG config home", () => {
+    // The user-level ~/.claude.json and ~/.claude/settings.json live outside the
+    // install record's config home; without the shared-file sidecar a second
+    // install under another configHome could claim (and later delete) them.
+    const first = makeInput("claude-code", "global", "optional", "optional");
+    applyPlan(planForHost("claude-code", first), first);
+    // Sidecar naming is "." + basename, so the dotfile gets a leading "..".
+    const claim = join(first.home, "..claude.json.deepseek-web-retrieval.claude-code.owner.json");
+    expect(existsSync(claim)).toBe(true);
+    const second = { ...first, cwd: tempDir("dwr-other-project-"), configHome: undefined };
+    const otherConfigHome = join(second.cwd, "other-config-home");
+    expect(planForHost("claude-code", { ...second, configHome: otherConfigHome }).errors[0]?.message).toContain(
+      first.cwd,
+    );
+    uninstall(first);
+    expect(existsSync(claim)).toBe(false);
   });
 
   test("legacy generated registrations cannot be adopted from another project, and re-init migrates the owner", () => {

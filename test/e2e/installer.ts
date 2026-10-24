@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { parseJsonc } from "../../src/core/jsonc";
@@ -155,6 +155,73 @@ export async function runInstallerScenario(runner: Runner): Promise<string[]> {
     excerpt(codexListAfter.stdout),
   );
   log.push("installer: codex uninstall restored the config (kill switch and entry gone)");
+
+  // --- Claude Code, global scope, forced search + preferred fetch: the deny
+  // kill switch and the user-scope registration. Global scope is what makes the
+  // `claude mcp list` check a real handshake: user-scope servers are
+  // health-checked, while an unapproved project `.mcp.json` server only lists
+  // as "Pending approval" without connecting. The onboarding flag is written
+  // first so the installer also exercises merging into existing user content.
+  writeFileSync(join(runner.homeDir.host, ".claude.json"), JSON.stringify({ hasCompletedOnboarding: true }));
+  await install(
+    runner,
+    cli,
+    ["--host", "claude-code", "--scope", "global", "--search", "forced", "--fetch", "preferred"],
+    packageRef,
+    cwd,
+    env,
+  );
+  const claudeUserFile = join(runner.homeDir.host, ".claude.json");
+  const claudeMcp = parseJsonc(readFileSync(claudeUserFile, "utf8")) as { mcpServers?: Record<string, unknown> };
+  check(claudeMcp.mcpServers?.deepseek !== undefined, "the installer wrote no deepseek entry into ~/.claude.json");
+  const claudeSettings = parseJsonc(readFileSync(join(runner.homeDir.host, ".claude", "settings.json"), "utf8")) as {
+    permissions?: { deny?: string[] };
+  };
+  check(
+    claudeSettings.permissions?.deny?.includes("WebSearch") === true,
+    "claude-code forced search did not deny the built-in WebSearch tool",
+    JSON.stringify(claudeSettings),
+  );
+  check(
+    readFileSync(join(runner.homeDir.host, ".claude", "CLAUDE.md"), "utf8").includes(
+      "<!-- deepseek-web-retrieval:claude-code:rules:begin -->",
+    ),
+    "claude-code preferred fetch did not write the CLAUDE.md rules block",
+  );
+  await prewarmNpx(runner, env, packageRef);
+  const claudeEnv = { ...env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1" };
+  const claudeList = await runner.run(["claude", "mcp", "list"], { cwd, env: claudeEnv, timeoutMs: 120_000 });
+  check(
+    claudeList.exitCode === 0 && /deepseek:[^\n]*Connected/.test(claudeList.stdout),
+    "`claude mcp list` does not show the installed server as connected (the real stdio handshake)",
+    excerpt(`${claudeList.stdout}\n${claudeList.stderr}`),
+  );
+  log.push(
+    "installer: claude-code global init wrote the deny switch, the rules block, and a connected user-scope registration",
+  );
+
+  await uninstall(runner, cli, "claude-code", "global", cwd, env);
+  const claudeAfter = parseJsonc(readFileSync(claudeUserFile, "utf8")) as {
+    hasCompletedOnboarding?: boolean;
+    mcpServers?: Record<string, unknown>;
+  };
+  check(claudeAfter.mcpServers?.deepseek === undefined, "claude-code uninstall left the deepseek entry behind");
+  check(
+    claudeAfter.hasCompletedOnboarding === true,
+    "claude-code uninstall dropped the user's own ~/.claude.json content",
+  );
+  check(
+    !existsSync(join(runner.homeDir.host, ".claude", "settings.json")),
+    "claude-code uninstall left the settings file behind",
+  );
+  check(!existsSync(join(runner.homeDir.host, ".claude", "CLAUDE.md")), "claude-code uninstall left CLAUDE.md behind");
+  const claudeListAfter = await runner.run(["claude", "mcp", "list"], { cwd, env: claudeEnv, timeoutMs: 120_000 });
+  check(
+    claudeListAfter.exitCode === 0 && !claudeListAfter.stdout.includes("deepseek"),
+    "`claude mcp list` still shows a server after claude-code uninstall",
+    excerpt(claudeListAfter.stdout || claudeListAfter.stderr),
+  );
+  log.push("installer: claude-code uninstall restored the user's ~/.claude.json and removed everything it created");
 
   // --- OpenCode, project scope, forced search + preferred fetch: engine
   // replacement plus the fetch rules block. (OpenCode search has no preferred

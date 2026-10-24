@@ -29,7 +29,8 @@ You should receive an initial response within a few days.
   DeepSeek credential from OpenCode's integration store. It uses the credential
   only for the `Authorization` header sent to `api.deepseek.com`.
 - Pi and the MCP server read `DEEPSEEK_API_KEY` from their process environment;
-  Codex forwards it through `env_vars`, and Pi's MCP fallback uses an environment reference.
+  Codex forwards it through `env_vars`, Pi's MCP fallback and Claude Code use an
+  environment reference (`${DEEPSEEK_API_KEY}` expansion in the registration).
 - Queries and URLs are sent to DeepSeek's servers. Do not use these adapters for
   private URLs unless you accept that disclosure.
 - `fetchBlockPrivateHosts` defaults to `true` and rejects localhost, private IPs,

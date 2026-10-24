@@ -5,7 +5,8 @@ chain, the shared config file, the full knob vocabulary, and which layer to set.
 Behavior (what search and fetch do) lives in the README's
 [General behavior](../README.md#general-behavior); per-host mechanics (output
 caps, deadlines, how the environment reaches a stdio server) live in the host
-guides: [Codex](agents/codex.md), [Pi](agents/pi.md),
+guides: [Codex](agents/codex.md), [Claude Code](agents/claude-code.md),
+[Pi](agents/pi.md),
 [OpenCode](agents/opencode-v2.md).
 
 ## The resolution chain
