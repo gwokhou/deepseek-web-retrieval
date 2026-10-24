@@ -72,6 +72,7 @@ export async function runConfigCommand(
       signal: new AbortController().signal,
       auth: { apiKey },
       retry: resolved.retry,
+      baseUrl: resolved.baseUrl,
     });
     const elapsedMs = Date.now() - startedAt;
     io.out(

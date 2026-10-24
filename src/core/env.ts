@@ -1,4 +1,4 @@
-import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, SEARCH_LOCALIZATION_ENV } from "./constants";
+import { API_KEY_ENV, BASE_URL_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, SEARCH_LOCALIZATION_ENV } from "./constants";
 import { normalizeDomain } from "./domains";
 import { resolvePluginOptions } from "./options";
 import type { PluginOptions, ResolvedOptions } from "./types";
@@ -23,6 +23,7 @@ const NUMBER_ENV = {
 const TEXT_ENV = {
   language: "DEEPSEEK_SEARCH_LANGUAGE",
   searchLocalization: SEARCH_LOCALIZATION_ENV,
+  baseUrl: BASE_URL_ENV,
 } as const;
 
 const DOMAINS_ENV = {
@@ -107,6 +108,7 @@ export function envOptionsReport(env: Env = process.env): EnvOptionsReport {
 
   putNumber(options, "maxRetries", env, warnings);
   putNumber(options, "retryBaseDelayMs", env, warnings);
+  putText(options, "baseUrl", env);
 
   const known = new Set(OPTION_ENV_VARS);
   for (const key of Object.keys(env)) {

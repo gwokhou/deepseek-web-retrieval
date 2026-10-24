@@ -91,7 +91,13 @@ export function resolveRegistration(input?: PluginOptions): Registration {
 
 /** One place builds the per-request context the core expects. */
 function requestContext(config: ResolvedOptions, apiKey: string, signal: AbortSignal, timeoutMs?: number) {
-  return { signal, auth: { apiKey }, retry: config.retry, ...(timeoutMs === undefined ? {} : { timeoutMs }) };
+  return {
+    signal,
+    auth: { apiKey },
+    retry: config.retry,
+    baseUrl: config.baseUrl,
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  };
 }
 
 async function runFetch(

@@ -27,6 +27,7 @@ const VOCABULARY = [
   { key: "fetchBlockPrivateHosts", read: (o: ResolvedOptions) => o.fetch.blockPrivateHosts },
   { key: "maxRetries", read: (o: ResolvedOptions) => o.retry.maxRetries },
   { key: "retryBaseDelayMs", read: (o: ResolvedOptions) => o.retry.baseDelayMs },
+  { key: "baseUrl", read: (o: ResolvedOptions) => o.baseUrl },
 ] as const;
 
 /** The config keys in vocabulary order; the shared config file accepts exactly these. */

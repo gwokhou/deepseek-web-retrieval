@@ -47,6 +47,12 @@ export interface ResolvedOptions {
   readonly fetch: FetchOptions;
   readonly auth: AuthOptions;
   readonly retry: RetryOptions;
+  /**
+   * The API root both retrieval endpoints are composed from. Infrastructure
+   * routing, not a result-shaping knob: proxies and mock upstreams override it;
+   * anything but an http(s) URL is dropped at resolution back to the default.
+   */
+  readonly baseUrl: string;
 }
 
 export interface DeepSeekSearchResult {

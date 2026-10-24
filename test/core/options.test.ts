@@ -35,7 +35,24 @@ describe("resolve options", () => {
       },
       auth: { source: "auto" },
       retry: { maxRetries: 2, baseDelayMs: 250 },
+      baseUrl: "https://api.deepseek.com",
     });
+  });
+
+  test("resolves the base URL: http(s) kept slash-stripped, anything else dropped to default", () => {
+    expect(resolvePluginOptions({ baseUrl: "https://deepseek-proxy.example.com" }).baseUrl).toBe(
+      "https://deepseek-proxy.example.com",
+    );
+    // Trailing slashes collapse so endpoint composition never doubles them.
+    expect(resolvePluginOptions({ baseUrl: "http://127.0.0.1:8791///" }).baseUrl).toBe("http://127.0.0.1:8791");
+    // A path prefix is routing configuration and survives.
+    expect(resolvePluginOptions({ baseUrl: "https://gw.example.com/deepseek/" }).baseUrl).toBe(
+      "https://gw.example.com/deepseek",
+    );
+    const invalid = [undefined, "", "   ", "api.deepseek.com", "ftp://api.deepseek.com", "file:///etc/passwd", 42, {}];
+    for (const value of invalid) {
+      expect(resolvePluginOptions({ baseUrl: value }).baseUrl).toBe("https://api.deepseek.com");
+    }
   });
 
   test("clamps numbers and ignores invalid types", () => {

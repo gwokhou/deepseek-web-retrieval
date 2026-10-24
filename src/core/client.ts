@@ -1,4 +1,10 @@
-import { FETCH_ENDPOINT, MAX_ORI_QUESTION_CHARS, MAX_QUERY_CHARS, SEARCH_ENDPOINT } from "./constants";
+import {
+  DEFAULT_API_BASE_URL,
+  FETCH_ENDPOINT_PATH,
+  MAX_ORI_QUESTION_CHARS,
+  MAX_QUERY_CHARS,
+  SEARCH_ENDPOINT_PATH,
+} from "./constants";
 import { assertFetchHostPolicy } from "./domains";
 import { formatFetchedContent, truncate } from "./format";
 import { buildQuery, processResults } from "./search";
@@ -20,6 +26,14 @@ export { DeepSeekApiError } from "./transport";
 /** The shorter of the configured and per-call timeout always wins. */
 function effectiveTimeout(configuredMs: number, perCallMs: number | undefined): number {
   return perCallMs === undefined ? configuredMs : Math.min(configuredMs, perCallMs);
+}
+
+/**
+ * Composes a request endpoint from the resolved base URL (already
+ * slash-stripped by resolveBaseUrl; absent means the production default).
+ */
+function apiUrl(baseUrl: string | undefined, path: string): string {
+  return `${baseUrl ?? DEFAULT_API_BASE_URL}${path}`;
 }
 
 /**
@@ -49,6 +63,12 @@ export interface RequestOptions {
   readonly retry: RetryOptions;
   /** Per-call cap in milliseconds; the shorter of this and the configured timeout wins. */
   readonly timeoutMs?: number;
+  /**
+   * The resolved API root; adapters pass `config.baseUrl` so every request
+   * follows the `baseUrl` knob. Absent falls back to the production default
+   * (unit tests composing requests by hand rely on that).
+   */
+  readonly baseUrl?: string;
 }
 
 export interface SearchRequest extends RequestOptions {
@@ -84,7 +104,7 @@ export async function searchWeb(
   const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs);
   const oriQuestion = oriQuestionValue(request.oriQuestion);
   const payload = await postJson<SearchResponse>(
-    SEARCH_ENDPOINT,
+    apiUrl(request.baseUrl, SEARCH_ENDPOINT_PATH),
     {
       query: builtQuery,
       count: options.count,
@@ -108,10 +128,15 @@ export async function fetchPage(url: URL, options: FetchOptions, request: Reques
   const target = parseFetchUrl(url.href);
   assertFetchHostPolicy(target, options);
   const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs);
-  const payload = await postJson<FetchResponse>(FETCH_ENDPOINT, { url: target.href }, "DeepSeek Fetch", {
-    ...request,
-    timeoutMs: timeout,
-  });
+  const payload = await postJson<FetchResponse>(
+    apiUrl(request.baseUrl, FETCH_ENDPOINT_PATH),
+    { url: target.href },
+    "DeepSeek Fetch",
+    {
+      ...request,
+      timeoutMs: timeout,
+    },
+  );
   const title = typeof payload.title === "string" ? payload.title.trim() : "";
   const content = typeof payload.content === "string" ? payload.content : "";
   if (!content.trim()) {

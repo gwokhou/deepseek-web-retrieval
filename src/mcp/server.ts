@@ -96,7 +96,7 @@ export function createDeepSeekServer(
 }
 
 function requestContext(config: ResolvedOptions, env: Env, signal: AbortSignal) {
-  return { signal, auth: { apiKey: requireApiKey(env) }, retry: config.retry };
+  return { signal, auth: { apiKey: requireApiKey(env) }, retry: config.retry, baseUrl: config.baseUrl };
 }
 
 /**

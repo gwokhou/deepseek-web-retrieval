@@ -18,6 +18,7 @@ describe("OPTION_ENV_VARS", () => {
       // TEXT_ENV
       "DEEPSEEK_SEARCH_LANGUAGE",
       "DEEPSEEK_SEARCH_LOCALIZATION",
+      "DEEPSEEK_BASE_URL",
       // DOMAINS_ENV
       "DEEPSEEK_SEARCH_BLOCKED_DOMAINS",
       "DEEPSEEK_SEARCH_INCLUDE_DOMAINS",
@@ -66,6 +67,14 @@ describe("pluginOptionsFromEnv", () => {
   test("drops invalid numeric values so shared defaults apply", () => {
     const options = pluginOptionsFromEnv({ DEEPSEEK_SEARCH_COUNT: "not-a-number", DEEPSEEK_FETCH_MAX_CHARS: "" });
     expect(options).toEqual({});
+  });
+
+  test("maps DEEPSEEK_BASE_URL onto the baseUrl knob, trimmed", () => {
+    expect(pluginOptionsFromEnv({ DEEPSEEK_BASE_URL: " http://127.0.0.1:8791 " })).toEqual({
+      baseUrl: "http://127.0.0.1:8791",
+    });
+    // Empty drops like every other text knob; URL validity is resolved downstream.
+    expect(pluginOptionsFromEnv({ DEEPSEEK_BASE_URL: "   " })).toEqual({});
   });
 
   test("splits domain lists on commas and drops empty entries", () => {

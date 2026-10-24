@@ -169,7 +169,12 @@ export default function deepSeekWebRetrieval(pi: ExtensionAPI): void {
 }
 
 function requestContext(config: ResolvedOptions, signal: AbortSignal | undefined): RequestOptions {
-  return { signal: signal ?? NEVER_ABORTS, auth: { apiKey: requireApiKey() }, retry: config.retry };
+  return {
+    signal: signal ?? NEVER_ABORTS,
+    auth: { apiKey: requireApiKey() },
+    retry: config.retry,
+    baseUrl: config.baseUrl,
+  };
 }
 
 /**

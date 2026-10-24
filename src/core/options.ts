@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import {
+  DEFAULT_API_BASE_URL,
   DEFAULT_API_KEY_SOURCE,
   DEFAULT_FETCH_MAX_CHARS,
   DEFAULT_MAX_RESULTS,
@@ -32,6 +33,7 @@ export function resolvePluginOptions(input?: PluginOptions): ResolvedOptions {
     fetch: resolveFetchOptions(input),
     auth: resolveAuthOptions(input),
     retry: resolveRetryOptions(input),
+    baseUrl: resolveBaseUrl(input?.baseUrl),
   };
 }
 
@@ -80,6 +82,26 @@ export function resolveRetryOptions(input?: PluginOptions): RetryOptions {
     maxRetries: clampInt(input?.maxRetries, DEFAULT_MAX_RETRIES, 0, MAX_RETRIES),
     baseDelayMs: clampInt(input?.retryBaseDelayMs, DEFAULT_RETRY_BASE_DELAY_MS, 0, MAX_RETRY_DELAY_MS),
   };
+}
+
+/**
+ * Constraint: only an http(s) URL with no fragment survives, trailing slashes
+ * stripped so endpoint composition never doubles them. Anything else — a bare
+ * hostname, a non-http scheme, an empty string — drops to the production
+ * default, the same drop-and-default contract as every other invalid knob.
+ */
+export function resolveBaseUrl(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_API_BASE_URL;
+  const trimmed = value.trim();
+  if (!trimmed) return DEFAULT_API_BASE_URL;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return DEFAULT_API_BASE_URL;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return DEFAULT_API_BASE_URL;
+  return trimmed.replace(/\/+$/, "");
 }
 
 /**

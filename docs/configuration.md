@@ -84,6 +84,7 @@ drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
 | `fetchBlockPrivateHosts` | `DEEPSEEK_FETCH_BLOCK_PRIVATE_HOSTS` | true |
 | `maxRetries` | `DEEPSEEK_MAX_RETRIES` | 2 |
 | `retryBaseDelayMs` | `DEEPSEEK_RETRY_BASE_DELAY_MS` | 250 |
+| `baseUrl` | `DEEPSEEK_BASE_URL` | https://api.deepseek.com |
 
 <!-- /generated: knob-table -->
 
@@ -105,5 +106,11 @@ drift from the code (`bun run docs:matrix` regenerates it; CI checks it).
 - **`searchLocalization` must be a valid IPv4 or IPv6 address**; anything else
   is dropped at option resolution. It is deployment-level configuration, never
   a per-call tool parameter.
+- **`baseUrl` routes the retrieval API** (`/v1/tools/search` and
+  `/v1/tools/fetch` are composed from it). It is infrastructure routing for
+  proxies, gateways, and mock upstreams — not a provider switch, so nothing
+  falls back to another search service. Only an http(s) URL survives
+  resolution (trailing slashes are stripped); anything else drops back to
+  `https://api.deepseek.com`.
 - **Domains** in the environment are comma-separated; entries that are not
   domains are dropped (and reported by `config`).

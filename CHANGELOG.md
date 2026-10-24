@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here, one sentence per item.
 
+## Unreleased
+
+- Add the `baseUrl` knob (`DEEPSEEK_BASE_URL` environment variable or shared-file key) so every retrieval request can be routed through a proxy, enterprise gateway, or mock upstream; only an http(s) URL is accepted and anything else drops back to `https://api.deepseek.com`.
+
 ## 0.8.0
 
 - Add Claude Code as a supported host: an MCP-only integration registered in `.mcp.json` (project scope) or `~/.claude.json` (user scope), with a full installer host module (plan/apply/uninstall, both scopes), a `docs/agents/claude-code.md` guide, a version probe with drift note, and managed-policy detection that reports a `managed-settings.json` layer outranking the install.

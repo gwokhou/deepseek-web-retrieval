@@ -1,5 +1,15 @@
-export const SEARCH_ENDPOINT = "https://api.deepseek.com/v1/tools/search";
-export const FETCH_ENDPOINT = "https://api.deepseek.com/v1/tools/fetch";
+/**
+ * The DeepSeek API root every request is composed from. `baseUrl` overrides it
+ * (env `DEEPSEEK_BASE_URL`, shared-file key `baseUrl`) so proxies, enterprise
+ * gateways, and mock upstreams can intercept retrieval without touching the
+ * adapters; the two endpoints below stay the production default.
+ */
+export const DEFAULT_API_BASE_URL = "https://api.deepseek.com";
+export const SEARCH_ENDPOINT_PATH = "/v1/tools/search";
+export const FETCH_ENDPOINT_PATH = "/v1/tools/fetch";
+
+export const SEARCH_ENDPOINT = `${DEFAULT_API_BASE_URL}${SEARCH_ENDPOINT_PATH}`;
+export const FETCH_ENDPOINT = `${DEFAULT_API_BASE_URL}${FETCH_ENDPOINT_PATH}`;
 
 /**
  * Search defaults are benchmarked against surveyed AI-native search APIs and
@@ -45,6 +55,7 @@ export const MAX_RETRY_DELAY_MS = 10000;
 
 /** The single source for every DEEPSEEK_* environment variable name. */
 export const API_KEY_ENV = "DEEPSEEK_API_KEY";
+export const BASE_URL_ENV = "DEEPSEEK_BASE_URL";
 export const ENABLE_SEARCH_ENV = "DEEPSEEK_ENABLE_SEARCH";
 export const ENABLE_FETCH_ENV = "DEEPSEEK_ENABLE_FETCH";
 export const SEARCH_LOCALIZATION_ENV = "DEEPSEEK_SEARCH_LOCALIZATION";

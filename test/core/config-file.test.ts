@@ -190,6 +190,7 @@ describe("readFileOptions", () => {
       fetchBlockPrivateHosts: false,
       maxRetries: 2,
       retryBaseDelayMs: 500,
+      baseUrl: "https://deepseek-proxy.example.com",
     };
     // The constant and the vocabulary it promises stay in lockstep.
     const listed: string[] = [...SHARED_CONFIG_KEYS].sort();

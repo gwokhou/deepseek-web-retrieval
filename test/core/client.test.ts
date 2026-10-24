@@ -83,6 +83,31 @@ describe("DeepSeek client", () => {
     expect(Array.from(clamped)[0]).toBe("😀");
   });
 
+  test("baseUrl composes both endpoints and falls back to the production default", async () => {
+    const capturedUrls: string[] = [];
+    const fetchImpl = (async (input: string | URL | Request) => {
+      capturedUrls.push(String(input));
+      const path = String(input);
+      const body = path.endsWith("/v1/tools/search")
+        ? { results: [{ url: "https://a", title: "A" }] }
+        : { title: "T", content: "C" };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof fetch;
+
+    await searchWeb("bun", resolveSearchOptions(), { ...request(fetchImpl), baseUrl: "http://127.0.0.1:8791" });
+    await fetchPage(new URL("https://example.com/"), resolveFetchOptions(), {
+      ...request(fetchImpl),
+      baseUrl: "http://127.0.0.1:8791",
+    });
+    await searchWeb("bun", resolveSearchOptions(), request(fetchImpl));
+
+    expect(capturedUrls).toEqual([
+      "http://127.0.0.1:8791/v1/tools/search",
+      "http://127.0.0.1:8791/v1/tools/fetch",
+      "https://api.deepseek.com/v1/tools/search",
+    ]);
+  });
+
   test("search omits ori_question when absent or whitespace-only", async () => {
     const capturedBodies: unknown[] = [];
     const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
