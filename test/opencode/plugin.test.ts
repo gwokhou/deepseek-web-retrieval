@@ -306,6 +306,22 @@ describe("OpenCode plugin wiring", () => {
     expect(result.content).toBe("# Example\n\nBody");
   });
 
+  test("a per-call maxChars budget overrides the configured cap", async () => {
+    process.env.DEEPSEEK_API_KEY = "sk-test";
+    const fetchImpl = (async () =>
+      Response.json({ title: "Example", content: "x".repeat(300) })) as unknown as typeof fetch;
+
+    const captured = await setup({ fetchMaxChars: 400 }, fetchImpl);
+    assert.ok(captured.tool, "Fetch tool must be registered");
+    const tighter = await captured.tool.execute({ url: "https://example.com/page", maxChars: 50 }, toolContext());
+
+    expect(Array.from(tighter.content ?? "").length).toBeLessThanOrEqual(50);
+    expect(tighter.metadata).toMatchObject({ truncated: true });
+
+    const full = await captured.tool.execute({ url: "https://example.com/page" }, toolContext());
+    expect(full.metadata).toMatchObject({ truncated: false });
+  });
+
   test("default mode leaves the built-in webfetch untouched", async () => {
     const captured = await setup();
 

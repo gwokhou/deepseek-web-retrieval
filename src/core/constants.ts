@@ -29,6 +29,10 @@ export const DEFAULT_MIN_AUTHORITY = 0;
 export const DEFAULT_MAX_SUMMARY_CHARS = 1200;
 
 export const DEFAULT_FETCH_MAX_CHARS = 16000;
+/** The ceiling for a per-call fetch budget, matching the configured knob's range. */
+export const MAX_FETCH_CHARS = 1_000_000;
+/** The API's documented count range top; per-call counts share it. */
+export const MAX_SEARCH_COUNT = 50;
 export const DEFAULT_TIMEOUT_MS = 30000;
 export const MIN_TIMEOUT_MS = 1000;
 export const MAX_TIMEOUT_MS = 120000;

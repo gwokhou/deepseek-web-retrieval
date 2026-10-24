@@ -300,6 +300,54 @@ describe("pi extension tools", () => {
     });
   });
 
+  test("count and maxChars per-call parameters override the configured knobs", async () => {
+    process.env.DEEPSEEK_API_KEY = "sk-test";
+    const bodies: unknown[] = [];
+    const fetchImpl = capturingSearchFetch(bodies);
+
+    const config = resolveExtensionOptions({});
+    const search = await searchTool(config, createRetrievalClient({ fetchImpl })).execute(
+      "call_count",
+      { query: "bun", count: 20 },
+      undefined,
+      undefined,
+      {} as never,
+    );
+    expect(search.isError).toBeUndefined();
+    expect((bodies[0] as { count: number }).count).toBe(20);
+
+    const pageFetch = (async () => Response.json({ title: "T", content: "y".repeat(300) })) as unknown as typeof fetch;
+    const fetched = await fetchTool(config, createRetrievalClient({ fetchImpl: pageFetch })).execute(
+      "call_max",
+      { url: "https://a/", maxChars: 40 },
+      undefined,
+      undefined,
+      {} as never,
+    );
+    expect(fetched.isError).toBeUndefined();
+    const text = (fetched.content[0] as { text: string }).text;
+    expect(Array.from(text).length).toBeLessThanOrEqual(40);
+    expect(text).toContain("[content truncated]");
+  });
+
+  test("headers the effective query when a language filter applies", async () => {
+    process.env.DEEPSEEK_API_KEY = "sk-test";
+    const bodies: unknown[] = [];
+    const fetchImpl = capturingSearchFetch(bodies);
+
+    const config = resolveExtensionOptions({ DEEPSEEK_SEARCH_LANGUAGE: "zh" });
+    const result = await searchTool(config, createRetrievalClient({ fetchImpl })).execute(
+      "call_lang",
+      { query: "bun" },
+      undefined,
+      undefined,
+      {} as never,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(textOf(result).startsWith("Searched for: bun lang:zh")).toBe(true);
+  });
+
   test("derives ori_question from the most recent user message when the input is blank", async () => {
     process.env.DEEPSEEK_API_KEY = "sk-test";
     const bodies: unknown[] = [];

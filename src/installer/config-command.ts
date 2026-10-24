@@ -68,7 +68,7 @@ export async function runConfigCommand(
   const client = deps.client ?? createRetrievalClient();
   const startedAt = Date.now();
   try {
-    const results = await client.searchWeb(query, resolved.search, {
+    const outcome = await client.searchWeb(query, resolved.search, {
       signal: new AbortController().signal,
       auth: { apiKey },
       retry: resolved.retry,
@@ -76,10 +76,10 @@ export async function runConfigCommand(
     });
     const elapsedMs = Date.now() - startedAt;
     io.out(
-      `search "${query.trim()}" — ${results.length} ${results.length === 1 ? "result" : "results"} in ${elapsedMs} ms`,
+      `search "${query.trim()}" — ${outcome.results.length} ${outcome.results.length === 1 ? "result" : "results"} in ${elapsedMs} ms`,
     );
     io.out("");
-    for (const line of formatSearchResults(results).split("\n")) io.out(line);
+    for (const line of formatSearchResults(outcome.results, outcome).split("\n")) io.out(line);
     return 0;
   } catch (error) {
     io.err(error instanceof Error ? error.message : String(error));

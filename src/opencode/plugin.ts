@@ -5,7 +5,7 @@ import type { RetrievalClient } from "../core/client";
 import { inspectFetchTarget, retrievalClient } from "../core/client";
 import { sharedFileOptions } from "../core/config-file";
 import { configDeviations } from "../core/config-summary";
-import { FETCH_MARKDOWN_ONLY, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions";
+import { FETCH_MARKDOWN_ONLY, FETCH_MAX_CHARS_PARAMETER, FETCH_OUTPUT_TRUNCATED } from "../core/descriptions";
 import { pluginOptionsFromEnv } from "../core/env";
 import { formatQualityMarker } from "../core/format";
 import { resolveFetchTimeoutMs, resolvePluginOptions } from "../core/options";
@@ -16,6 +16,7 @@ type FetchInput = {
   readonly url: string;
   readonly format?: "markdown" | "text" | "html";
   readonly timeout?: number;
+  readonly maxChars?: number;
 };
 
 const FETCH_INPUT = {
@@ -37,6 +38,12 @@ const FETCH_INPUT = {
       maximum: 120,
       description:
         "Optional timeout in seconds (maximum: 120). The effective limit is the shorter of this and fetchTimeoutMs.",
+    },
+    maxChars: {
+      type: "integer",
+      minimum: 0,
+      maximum: 1_000_000,
+      description: FETCH_MAX_CHARS_PARAMETER,
     },
   },
   required: ["url"],
@@ -90,13 +97,20 @@ export function resolveRegistration(input?: PluginOptions): Registration {
 }
 
 /** One place builds the per-request context the core expects. */
-function requestContext(config: ResolvedOptions, apiKey: string, signal: AbortSignal, timeoutMs?: number) {
+function requestContext(
+  config: ResolvedOptions,
+  apiKey: string,
+  signal: AbortSignal,
+  timeoutMs?: number,
+  maxChars?: number,
+) {
   return {
     signal,
     auth: { apiKey },
     retry: config.retry,
     baseUrl: config.baseUrl,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
+    ...(maxChars === undefined ? {} : { maxChars }),
   };
 }
 
@@ -141,7 +155,7 @@ async function runFetch(
   const page = await client.fetchDocument(
     target,
     config.fetch,
-    requestContext(config, apiKey, context.signal, timeoutMs),
+    requestContext(config, apiKey, context.signal, timeoutMs, input.maxChars),
   );
   return {
     content: page.content,
@@ -179,12 +193,15 @@ export function createOpenCodePlugin(client: RetrievalClient = retrievalClient) 
             name: "DeepSeek",
             execute: async (input, { signal }) => {
               const apiKey = await resolveApiKey(ctx, config.auth.source);
-              const results = await client.searchWeb(
+              const outcome = await client.searchWeb(
                 input.query,
                 config.search,
                 requestContext(config, apiKey, signal),
               );
-              return results.map(toOpenCodeResult);
+              // OpenCode's result shape is closed, so the effective-query header
+              // has nowhere to ride on this path (documented in the guide);
+              // degradation notes still surface through thrown error messages.
+              return outcome.results.map(toOpenCodeResult);
             },
           });
           if (registration.setDefault) editor.default.set("deepseek");

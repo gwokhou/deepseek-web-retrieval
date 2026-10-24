@@ -127,10 +127,15 @@ binary files, per-request billing) are documented there.
 ### Search
 
 - Requests summaries only (`need_content: false`, falling back from `summary` to
-  `snippet`); full page content never enters the results.
+  `snippet`); full page content never enters the results. A summary the cap shortens ends
+  with an ellipsis.
 - Deduplicates URLs; an empty result set is normal, not an error.
-- Builds `blockedDomains`, `includeDomains`, and `language` into query operators, and
-  rejects the final query locally when it exceeds the API's 128-character limit.
+- Builds `blockedDomains`, `includeDomains`, and `language` into query operators (part of
+  DeepSeek's documented search syntax). A combined query over the API's 128-character limit
+  degrades instead of failing — the query body truncates first, the language filter drops
+  next, the include list last, and blocked domains never drop — and whenever operators or
+  degradation changed the query, the result text opens with `Searched for: <effective query>`
+  so the model can attribute what it sees.
 - Optional `rerank_score` and `authority` thresholds are off by default — the default
   returns exactly what DeepSeek ranked. A positive threshold drops results below it.
   A missing `rerank_score` is dropped too; an unknown `authority` stays unless
@@ -139,12 +144,15 @@ binary files, per-request billing) are documented there.
   the Pi extension), the tool accepts an optional `original_question`: the user's
   question in their own words. It is forwarded as DeepSeek's `ori_question`, trimmed
   and truncated to 128 characters; on the Pi extension, a blank input falls back to the
-  most recent user message in the session.
+  most recent user message in the session. Those paths also take an optional per-call
+  `count` (1–50) overriding the configured result count for that call.
 
 ### Fetch
 
 - Output is capped per the table above, title included; a `[content truncated]` marker
-  is added when the limit leaves room for it.
+  is added when the limit leaves room for it. An optional per-call `maxChars` parameter
+  (0–1,000,000) on every adapter overrides the configured cap for one call — a model that
+  sees the marker can widen the budget and re-fetch.
 - A page that already opens with its title as a top-level heading does not get a
   duplicate title.
 - URLs must be absolute `http://` or `https://`, credential-free, and at most 8,192

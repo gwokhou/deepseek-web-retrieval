@@ -1,27 +1,67 @@
 import { describe, expect, test } from "bun:test";
 import { resolveSearchOptions } from "../../src/core/options";
-import { buildQuery, parsePublished, processResults } from "../../src/core/search";
+import { composeSearchQuery, parsePublished, processResults } from "../../src/core/search";
 import type { DeepSeekSearchResult } from "../../src/core/types";
 
 const defaults = resolveSearchOptions(undefined);
 
-describe("buildQuery", () => {
+describe("composeSearchQuery", () => {
   test("appends blocked, included, and language operators", () => {
     expect(
-      buildQuery("  typescript  ", {
+      composeSearchQuery("  typescript  ", {
         blockedDomains: ["pinterest.com"],
         includeDomains: ["nodejs.org", "https://developer.mozilla.org/en-US"],
         language: "zh,en",
       }),
-    ).toBe("typescript -site:pinterest.com site:nodejs.org OR site:developer.mozilla.org lang:zh,en");
+    ).toEqual({
+      query: "typescript -site:pinterest.com site:nodejs.org OR site:developer.mozilla.org lang:zh,en",
+      notes: [],
+    });
   });
 
   test("leaves the query alone when no modifiers are configured", () => {
-    expect(buildQuery("bun runtime", defaults)).toBe("bun runtime");
+    expect(composeSearchQuery("bun runtime", defaults)).toEqual({ query: "bun runtime", notes: [] });
   });
 
   test("accepts a language that already has the lang: prefix", () => {
-    expect(buildQuery("bun", { ...defaults, language: "lang:ja" })).toBe("bun lang:ja");
+    expect(composeSearchQuery("bun", { ...defaults, language: "lang:ja" })).toEqual({
+      query: "bun lang:ja",
+      notes: [],
+    });
+  });
+
+  test("truncates the body before dropping any operator", () => {
+    // -site:pinterest.com occupies 19+1 characters of the 40-character budget.
+    const composed = composeSearchQuery("q".repeat(99), { ...defaults, blockedDomains: ["pinterest.com"] }, 40);
+    expect(Array.from(composed.query).length).toBe(40);
+    expect(composed.query.endsWith("-site:pinterest.com")).toBe(true);
+    expect(composed.notes).toEqual(["query truncated to 20 characters (query length limit)"]);
+  });
+
+  test("drops the language filter before the include list", () => {
+    // Keeping every operator leaves only 5 characters of the 24-character
+    // budget — under the 8-character floor — so the language filter goes.
+    const composed = composeSearchQuery("bodybody", { ...defaults, includeDomains: ["a.com"], language: "zh" }, 24);
+    expect(composed.query).toBe("bodybody site:a.com");
+    expect(composed.notes).toEqual(["language filter dropped (query length limit)"]);
+  });
+
+  test("drops the include list last", () => {
+    const composed = composeSearchQuery(
+      "body",
+      { ...defaults, includeDomains: ["averylongdomainname.example"], language: "zh" },
+      16,
+    );
+    expect(composed.query).toBe("body");
+    expect(composed.notes).toEqual([
+      "language filter dropped (query length limit)",
+      "includeDomains filter dropped (query length limit)",
+    ]);
+  });
+
+  test("never drops blocked domains: oversized -site: lists fail the call", () => {
+    const blockedDomains = Array.from({ length: 20 }, (_value, index) => `domain${index}.example`);
+    expect(() => composeSearchQuery("q".repeat(100), { ...defaults, blockedDomains })).toThrow("cannot fit");
   });
 });
 
@@ -111,15 +151,24 @@ describe("processResults", () => {
     ]);
   });
 
-  test("falls back to snippet, truncates summaries, and omits invalid dates", () => {
+  test("falls back to snippet, truncates summaries with a marker, and omits invalid dates", () => {
     const options = resolveSearchOptions({ maxSummaryChars: 5 });
     const raw: DeepSeekSearchResult[] = [
       { url: "https://a", summary: "   ", snippet: "abcdefgh", rerank_score: 2, authority: 3 },
       { url: "https://b", date: "not a date", rerank_score: 2, authority: 3 },
     ];
     expect(processResults(raw, options)).toEqual([
-      { url: "https://a/", content: "abcde", rerankScore: 2, authority: 3 },
+      // The snippet was cut at 5 characters; the ellipsis marks the cut.
+      { url: "https://a/", content: "abcde…", rerankScore: 2, authority: 3 },
       { url: "https://b/", rerankScore: 2, authority: 3 },
+    ]);
+  });
+
+  test("does not mark a summary the cap did not shorten", () => {
+    const options = resolveSearchOptions({ maxSummaryChars: 5 });
+    const raw: DeepSeekSearchResult[] = [{ url: "https://a", summary: "abcde", rerank_score: 2, authority: 3 }];
+    expect(processResults(raw, options)).toEqual([
+      { url: "https://a/", content: "abcde", rerankScore: 2, authority: 3 },
     ]);
   });
 

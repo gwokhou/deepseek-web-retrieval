@@ -6,7 +6,8 @@
 export const FETCH_SERVICE_LIMITS =
   "DeepSeek does not render JavaScript and cannot reach private networks; PDFs, images, and other binary files are unsupported.";
 
-export const FETCH_OUTPUT_TRUNCATED = "Output is truncated to the configured size.";
+export const FETCH_OUTPUT_TRUNCATED =
+  "Output is truncated to the configured size; the optional maxChars parameter raises or lowers that size for one call.";
 
 export const FETCH_MARKDOWN_ONLY = 'Only format "markdown" is supported.';
 
@@ -45,3 +46,11 @@ export const SEARCH_ORI_QUESTION_PARAMETER =
   "reformulated query. Optional; 1-128 characters, and longer values are truncated.";
 
 export const FETCH_URL_PARAMETER = "Absolute http:// or https:// URL to fetch. Credentials are rejected.";
+
+export const FETCH_MAX_CHARS_PARAMETER =
+  "Optional per-call character budget for this fetch, 0-1,000,000, title included. Overrides the configured cap " +
+  "for this call; a [content truncated] marker is appended when the output is cut.";
+
+export const SEARCH_COUNT_PARAMETER =
+  "Optional number of results for this call, 1-50. Overrides the configured count and result cap for this call; " +
+  "billing is per request, not per result.";

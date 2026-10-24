@@ -181,7 +181,12 @@ per-call result count: OpenCode's `websearch` tool input is fixed to `query` (ve
 at 2.1.4), so the provider has no channel for either. Upstream requests:
 [anomalyco/opencode#58635](https://github.com/anomalyco/opencode/issues/58635) (session linkage)
 and [#58636](https://github.com/anomalyco/opencode/issues/58636) (per-call `count`); see the
-[research note](../research/ori-question-sourcing.md).
+[research note](../research/ori-question-sourcing.md). The fetch tools are not constrained:
+they accept an optional per-call `maxChars` (0–1,000,000) that overrides the configured
+`fetchMaxChars` for one call, so the model can widen the budget after seeing a
+`[content truncated]` marker. The effective-query header and query degradation notes have no
+channel on this path either — OpenCode's result shape is closed — but degradation still runs,
+and failures that cannot degrade surface as errors.
 
 ## Configuration
 

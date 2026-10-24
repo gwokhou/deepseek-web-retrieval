@@ -42,12 +42,15 @@ describe("DeepSeek client", () => {
       );
     }) as typeof fetch;
 
-    const results = await searchWeb("bun", resolveSearchOptions({ count: 20 }), request(fetchImpl));
+    const outcome = await searchWeb("bun", resolveSearchOptions({ count: 20 }), request(fetchImpl));
 
-    expect(results).toEqual([
+    expect(outcome.results).toEqual([
       { url: "https://a/", title: "A", content: "summary", rerankScore: 2.5, authority: 3 },
       { url: "https://b/", title: "B", content: "low", rerankScore: 1, authority: 4 },
     ]);
+    expect(outcome.inputQuery).toBe("bun");
+    expect(outcome.effectiveQuery).toBe("bun");
+    expect(outcome.notes).toEqual([]);
     assert.ok(captured, "Search request must be captured");
     expect(captured.url).toBe("https://api.deepseek.com/v1/tools/search");
     expect(JSON.parse(String(captured.init.body))).toEqual({
@@ -179,6 +182,26 @@ describe("DeepSeek client", () => {
     expect(calls).toBe(0);
   });
 
+  test("a per-call maxChars budget overrides the configured cap in both directions", async () => {
+    const long = "x".repeat(300);
+    const fetchImpl = (async () => Response.json({ title: "Example", content: long })) as unknown as typeof fetch;
+
+    const tighter = await fetchDocument("https://example.com/page", resolveFetchOptions(), {
+      ...request(fetchImpl),
+      maxChars: 50,
+    });
+    expect(Array.from(tighter.content).length).toBeLessThanOrEqual(50);
+    expect(tighter.truncated).toBe(true);
+
+    // 400 leaves room for the title heading plus the full 300-character body.
+    const larger = await fetchDocument("https://example.com/page", resolveFetchOptions({ fetchMaxChars: 50 }), {
+      ...request(fetchImpl),
+      maxChars: 400,
+    });
+    expect(Array.from(larger.content).length).toBeGreaterThan(50);
+    expect(larger.truncated).toBe(false);
+  });
+
   test("URL objects enforce the same protocol, credentials, and length limits as strings", async () => {
     let calls = 0;
     const fetchImpl = (async () => {
@@ -236,12 +259,12 @@ describe("DeepSeek client", () => {
       return new Response(JSON.stringify({ results: [] }), { status: 200 });
     }) as unknown as typeof fetch;
 
-    const results = await searchWeb(
+    const outcome = await searchWeb(
       "bun",
       resolveSearchOptions(),
       request(fetchImpl, new AbortController().signal, { maxRetries: 1, baseDelayMs: 0 }),
     );
-    expect(results).toEqual([]);
+    expect(outcome.results).toEqual([]);
     expect(calls).toBe(2);
   });
 
@@ -328,22 +351,40 @@ describe("DeepSeek client", () => {
     await expect(pending).rejects.toThrow("stop reading");
   });
 
-  test("rejects a query that exceeds the limit after search modifiers", async () => {
+  test("degrades a query that exceeds the limit after search modifiers", async () => {
+    let sent: string | undefined;
+    const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
+      sent = JSON.parse(String(init.body)).query;
+      return new Response(JSON.stringify({ results: [] }));
+    }) as unknown as typeof fetch;
+
+    const outcome = await searchWeb(
+      "q".repeat(100),
+      resolveSearchOptions({
+        blockedDomains: ["pinterest.com", "facebook.com", "x.com"],
+      }),
+      request(fetchImpl),
+    );
+
+    expect(Array.from(sent ?? "").length).toBeLessThanOrEqual(128);
+    expect(sent).toContain("-site:pinterest.com");
+    expect(outcome.notes).toHaveLength(1);
+    expect(outcome.notes[0]).toContain("query truncated");
+    expect(outcome.effectiveQuery).toBe(sent ?? "");
+    expect(outcome.inputQuery).toBe("q".repeat(100));
+  });
+
+  test("rejects when the blockedDomains operators alone crowd out the query", async () => {
     let calls = 0;
     const fetchImpl = (async () => {
       calls += 1;
       return new Response(JSON.stringify({ results: [] }));
     }) as unknown as typeof fetch;
 
+    const blockedDomains = Array.from({ length: 20 }, (_value, index) => `domain${index}.example`);
     await expect(
-      searchWeb(
-        "q".repeat(100),
-        resolveSearchOptions({
-          blockedDomains: ["pinterest.com", "facebook.com", "x.com"],
-        }),
-        request(fetchImpl),
-      ),
-    ).rejects.toThrow("after applying");
+      searchWeb("q".repeat(100), resolveSearchOptions({ blockedDomains }), request(fetchImpl)),
+    ).rejects.toThrow("cannot fit");
     expect(calls).toBe(0);
   });
 
@@ -352,11 +393,12 @@ describe("DeepSeek client", () => {
     const fetchImpl = (async (_input: string | URL | Request, init: RequestInit) => {
       sent = JSON.parse(String(init.body)).query;
       return new Response(JSON.stringify({ results: [] }));
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
-    await searchWeb("q".repeat(120), resolveSearchOptions({ language: "en" }), request(fetchImpl));
+    const outcome = await searchWeb("q".repeat(120), resolveSearchOptions({ language: "en" }), request(fetchImpl));
 
-    expect(sent?.length).toBe(128);
+    expect(Array.from(sent ?? "").length).toBe(128);
+    expect(outcome.notes).toEqual([]);
   });
 
   test("rejects oversized successful responses", async () => {

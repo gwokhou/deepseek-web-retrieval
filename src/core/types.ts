@@ -78,6 +78,17 @@ export interface SearchResult {
   readonly siteName?: string;
 }
 
+/** What one search call executed: the processed results plus the query actually sent. */
+export interface SearchOutcome {
+  readonly results: readonly SearchResult[];
+  /** The query as the caller provided it, trimmed. */
+  readonly inputQuery: string;
+  /** The query sent to DeepSeek, operators included. */
+  readonly effectiveQuery: string;
+  /** One entry per degradation applied to fit the query budget; empty means nothing was adjusted. */
+  readonly notes: readonly string[];
+}
+
 export interface FetchedPage {
   readonly url: string;
   readonly title: string;

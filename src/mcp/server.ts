@@ -4,16 +4,19 @@ import * as z from "zod/v4";
 import pkg from "../../package.json";
 import type { RetrievalClient } from "../core/client";
 import { retrievalClient } from "../core/client";
-import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants";
+import { ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, MAX_FETCH_CHARS, MAX_SEARCH_COUNT } from "../core/constants";
 import {
+  FETCH_MAX_CHARS_PARAMETER,
   FETCH_TOOL_DESCRIPTION,
   FETCH_URL_PARAMETER,
+  SEARCH_COUNT_PARAMETER,
   SEARCH_ORI_QUESTION_PARAMETER,
   SEARCH_QUERY_PARAMETER,
   SEARCH_TOOL_DESCRIPTION,
 } from "../core/descriptions";
 import type { Env } from "../core/env";
 import { formatSearchResults, toStructuredResult } from "../core/format";
+import { withPerCallCount } from "../core/options";
 import type { ResolvedOptions } from "../core/types";
 import { requireApiKey } from "./auth";
 import { omitStructuredContent } from "./client";
@@ -23,10 +26,12 @@ export const MCP_SERVER_NAME = "deepseek-web-retrieval";
 const SEARCH_INPUT = z.object({
   query: z.string().min(1).describe(SEARCH_QUERY_PARAMETER),
   original_question: z.string().optional().describe(SEARCH_ORI_QUESTION_PARAMETER),
+  count: z.number().int().min(1).max(MAX_SEARCH_COUNT).optional().describe(SEARCH_COUNT_PARAMETER),
 });
 
 const FETCH_INPUT = z.object({
   url: z.string().min(1).describe(FETCH_URL_PARAMETER),
+  maxChars: z.number().int().min(0).max(MAX_FETCH_CHARS).optional().describe(FETCH_MAX_CHARS_PARAMETER),
 });
 
 /**
@@ -49,15 +54,15 @@ export function createDeepSeekServer(
         inputSchema: SEARCH_INPUT,
         annotations: { readOnlyHint: true },
       },
-      async ({ query, original_question }, ctx) => {
+      async ({ query, original_question, count }, ctx) => {
         try {
           const request = requestContext(config, env, ctx.mcpReq.signal);
-          const results = await client.searchWeb(query, config.search, {
+          const outcome = await client.searchWeb(query, withPerCallCount(config.search, count), {
             ...request,
             oriQuestion: original_question,
           });
-          return callResult(server, ctx, formatSearchResults(results), {
-            results: results.map(toStructuredResult),
+          return callResult(server, ctx, formatSearchResults(outcome.results, outcome), {
+            results: outcome.results.map(toStructuredResult),
           });
         } catch (error) {
           return toErrorResult(error);
@@ -75,10 +80,10 @@ export function createDeepSeekServer(
         inputSchema: FETCH_INPUT,
         annotations: { readOnlyHint: true },
       },
-      async ({ url }, ctx) => {
+      async ({ url, maxChars }, ctx) => {
         try {
           const request = requestContext(config, env, ctx.mcpReq.signal);
-          const page = await client.fetchDocument(url, config.fetch, request);
+          const page = await client.fetchDocument(url, config.fetch, { ...request, maxChars });
           return callResult(server, ctx, page.content, {
             url: page.url,
             title: page.title,

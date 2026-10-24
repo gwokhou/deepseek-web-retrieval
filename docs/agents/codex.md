@@ -148,7 +148,13 @@ The model calls `mcp__deepseek__deepseek_web_search` or `mcp__deepseek__deepseek
 
 The search tool accepts an optional `original_question` argument — the user's question in
 their own words — forwarded as DeepSeek's `ori_question` to sharpen search intent; omit it
-when the query already stands alone.
+when the query already stands alone. It also takes an optional `count` (1–50) for the call,
+and the fetch tool takes an optional `maxChars` (0–1,000,000) per-call output budget; each
+overrides the configured default for that call, so the model can widen a truncated fetch or
+ask for more results without rephrasing the query. When configured domain or language
+operators change the query actually sent, the result text opens with
+`Searched for: <effective query>` (plus any degradation applied to fit the API's
+128-character limit), so the model can attribute results to the configuration in effect.
 
 ## Configuration
 

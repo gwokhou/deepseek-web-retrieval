@@ -110,7 +110,12 @@ The search tool accepts an optional `original_question` input — the user's que
 own words — forwarded as DeepSeek's `ori_question` to sharpen search intent. When the model
 leaves it blank, the extension falls back to the most recent user message in the session
 (best-effort; truncated to the API's 128-character limit). The MCP fallback path has no
-session access, so there a blank input simply omits the parameter.
+session access, so there a blank input simply omits the parameter. The search tool also
+takes an optional `count` (1–50) for the call, and the fetch tool an optional `maxChars`
+(0–1,000,000) per-call output budget; each overrides the configured default for that call.
+When configured domain or language operators change the query actually sent, the result text
+opens with `Searched for: <effective query>` (plus any degradation applied to fit the API's
+128-character limit), so the model can attribute results to the configuration in effect.
 
 ## Configuration
 

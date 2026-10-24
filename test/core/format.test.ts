@@ -134,6 +134,33 @@ describe("formatSearchResults", () => {
 
     expect(formatSearchResults([result()])).toBe("1. [Example page](https://example.com/page)\n   A short summary.");
   });
+
+  test("adds no header when the effective query matches the input", () => {
+    const context = { inputQuery: "bun", effectiveQuery: "bun", notes: [] };
+    expect(formatSearchResults([result()], context)).toBe(
+      "1. [Example page](https://example.com/page)\n   A short summary.",
+    );
+  });
+
+  test("headers the effective query when operators changed it, with degradation notes", () => {
+    const context = {
+      inputQuery: "bun",
+      effectiveQuery: "bun lang:zh",
+      notes: [],
+    };
+    expect(formatSearchResults([result()], context)).toBe(
+      "Searched for: bun lang:zh\n\n1. [Example page](https://example.com/page)\n   A short summary.",
+    );
+
+    const degraded = {
+      inputQuery: "bun",
+      effectiveQuery: "bu",
+      notes: ["query truncated to 2 characters (query length limit)"],
+    };
+    expect(formatSearchResults([], degraded)).toBe(
+      "Searched for: bu — query truncated to 2 characters (query length limit)\n\nNo results found.",
+    );
+  });
 });
 
 describe("toStructuredResult", () => {

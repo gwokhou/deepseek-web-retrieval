@@ -454,6 +454,52 @@ describe("per-tool enable switches", () => {
       await persona.close();
     }
   });
+
+  test("search count and fetch maxChars parameters reach the wire and the output budget", async () => {
+    const stub = createStub();
+    stub.respond(SEARCH_RESULTS);
+    const persona = await connectPersona(stub.fetchImpl);
+    try {
+      const search = await persona.client.callTool({
+        name: "deepseek_web_search",
+        arguments: { query: "deepseek mcp", count: 20 },
+      });
+      expect(search.isError).toBeFalsy();
+      expect(JSON.parse(String(stub.captured?.init.body)).count).toBe(20);
+
+      stub.respond({ title: "Example", content: "x".repeat(300) });
+      const fetched = await persona.client.callTool({
+        name: "deepseek_fetch",
+        arguments: { url: "https://a.example/one", maxChars: 40 },
+      });
+      expect(fetched.isError).toBeFalsy();
+      const text = (fetched.content[0] as { text: string }).text;
+      expect(Array.from(text).length).toBeLessThanOrEqual(40);
+      expect(text).toContain("[content truncated]");
+    } finally {
+      await persona.close();
+    }
+  });
+
+  test("search headers the effective query when a language filter applies", async () => {
+    const stub = createStub();
+    stub.respond(SEARCH_RESULTS);
+    const persona = await connectPersona(
+      stub.fetchImpl,
+      undefined,
+      { DEEPSEEK_API_KEY: "sk-test" },
+      resolvePluginOptions({ language: "zh" }),
+    );
+    try {
+      const search = await persona.client.callTool({
+        name: "deepseek_web_search",
+        arguments: { query: "deepseek mcp" },
+      });
+      expect((search.content[0] as { text: string }).text.startsWith("Searched for: deepseek mcp lang:zh")).toBe(true);
+    } finally {
+      await persona.close();
+    }
+  });
 });
 
 describe("servePrecheck", () => {

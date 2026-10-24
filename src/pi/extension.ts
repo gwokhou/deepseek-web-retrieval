@@ -7,10 +7,12 @@ import type { RequestOptions, RetrievalClient } from "../core/client";
 import { inspectFetchTarget, retrievalClient } from "../core/client";
 import { sharedFileOptions } from "../core/config-file";
 import { configDeviations } from "../core/config-summary";
-import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV } from "../core/constants";
+import { API_KEY_ENV, ENABLE_FETCH_ENV, ENABLE_SEARCH_ENV, MAX_FETCH_CHARS, MAX_SEARCH_COUNT } from "../core/constants";
 import {
+  FETCH_MAX_CHARS_PARAMETER,
   FETCH_TOOL_DESCRIPTION,
   FETCH_URL_PARAMETER,
+  SEARCH_COUNT_PARAMETER,
   SEARCH_ORI_QUESTION_PARAMETER,
   SEARCH_QUERY_PARAMETER,
   SEARCH_TOOL_DESCRIPTION,
@@ -18,7 +20,7 @@ import {
 import type { Env } from "../core/env";
 import { pluginOptionsFromEnv } from "../core/env";
 import { formatSearchResults, toStructuredResult } from "../core/format";
-import { resolvePluginOptions } from "../core/options";
+import { resolvePluginOptions, withPerCallCount } from "../core/options";
 import type { ResolvedOptions } from "../core/types";
 import type { ExtensionSettings } from "./settings";
 import { readExtensionSettings, SETTINGS_NAMESPACE } from "./settings";
@@ -30,6 +32,7 @@ const SEARCH_PARAMETERS = Type.Object({
       description: `${SEARCH_ORI_QUESTION_PARAMETER} When left blank, the most recent user message in the session is sent instead, truncated to fit.`,
     }),
   ),
+  count: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_SEARCH_COUNT, description: SEARCH_COUNT_PARAMETER })),
 });
 
 const SEARCH_OUTPUT = Type.Object({
@@ -48,6 +51,9 @@ const SEARCH_OUTPUT = Type.Object({
 
 const FETCH_PARAMETERS = Type.Object({
   url: Type.String({ minLength: 1, description: FETCH_URL_PARAMETER }),
+  maxChars: Type.Optional(
+    Type.Integer({ minimum: 0, maximum: MAX_FETCH_CHARS, description: FETCH_MAX_CHARS_PARAMETER }),
+  ),
 });
 
 const FETCH_OUTPUT = Type.Object({
@@ -100,13 +106,13 @@ export function searchTool(config: ResolvedOptions, client: RetrievalClient = re
         // The explicit parameter wins; only when the model left it blank does
         // the session fallback get a say.
         const explicit = params.original_question?.trim() ? params.original_question : undefined;
-        const results = await client.searchWeb(params.query, config.search, {
+        const outcome = await client.searchWeb(params.query, withPerCallCount(config.search, params.count), {
           ...requestContext(config, signal),
           oriQuestion: explicit ?? sessionOriQuestion(ctx),
         });
         return {
-          content: [{ type: "text", text: formatSearchResults(results) }],
-          structuredContent: { results: results.map(toStructuredResult) },
+          content: [{ type: "text", text: formatSearchResults(outcome.results, outcome) }],
+          structuredContent: { results: outcome.results.map(toStructuredResult) },
           details: undefined,
         };
       } catch (error) {
@@ -130,7 +136,10 @@ export function fetchTool(config: ResolvedOptions, client: RetrievalClient = ret
     async execute(_toolCallId, params, signal): Promise<AgentToolResult> {
       try {
         const target = inspectFetchTarget(params.url, config.fetch);
-        const page = await client.fetchDocument(target, config.fetch, requestContext(config, signal));
+        const page = await client.fetchDocument(target, config.fetch, {
+          ...requestContext(config, signal),
+          maxChars: params.maxChars,
+        });
         return {
           content: [{ type: "text", text: page.content }],
           structuredContent: {

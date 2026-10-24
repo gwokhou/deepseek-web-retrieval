@@ -13,6 +13,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   MAX_RETRIES,
   MAX_RETRY_DELAY_MS,
+  MAX_SEARCH_COUNT,
   MAX_TIMEOUT_MS,
   MIN_TIMEOUT_MS,
 } from "./constants";
@@ -102,6 +103,18 @@ export function resolveBaseUrl(value: unknown): string {
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return DEFAULT_API_BASE_URL;
   return trimmed.replace(/\/+$/, "");
+}
+
+/**
+ * Applies a per-call result count to resolved search options. The count the
+ * model asked for is what it wants to see, so it sets both the request count
+ * and the post-filter cap for that call; the configured knobs stay the
+ * default, not a ceiling.
+ */
+export function withPerCallCount(options: SearchOptions, count: number | undefined): SearchOptions {
+  if (count === undefined || !Number.isFinite(count)) return options;
+  const clamped = Math.min(MAX_SEARCH_COUNT, Math.max(1, Math.trunc(count)));
+  return { ...options, count: clamped, maxResults: clamped };
 }
 
 /**

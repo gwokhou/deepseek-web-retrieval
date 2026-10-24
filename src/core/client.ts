@@ -1,13 +1,14 @@
 import {
   DEFAULT_API_BASE_URL,
   FETCH_ENDPOINT_PATH,
+  MAX_FETCH_CHARS,
   MAX_ORI_QUESTION_CHARS,
   MAX_QUERY_CHARS,
   SEARCH_ENDPOINT_PATH,
 } from "./constants";
 import { assertFetchHostPolicy } from "./domains";
 import { formatFetchedContent, truncate } from "./format";
-import { buildQuery, processResults } from "./search";
+import { composeSearchQuery, processResults } from "./search";
 import { postJson } from "./transport";
 import type {
   DeepSeekSearchResult,
@@ -17,7 +18,7 @@ import type {
   RequestAuth,
   RetryOptions,
   SearchOptions,
-  SearchResult,
+  SearchOutcome,
 } from "./types";
 import { parseFetchUrl } from "./url";
 
@@ -26,6 +27,16 @@ export { DeepSeekApiError } from "./transport";
 /** The shorter of the configured and per-call timeout always wins. */
 function effectiveTimeout(configuredMs: number, perCallMs: number | undefined): number {
   return perCallMs === undefined ? configuredMs : Math.min(configuredMs, perCallMs);
+}
+
+/**
+ * The per-call budget wins outright, unlike timeouts: a model that just saw a
+ * truncation marker is asking for more than the default on purpose, so the
+ * configured value stays the default rather than a ceiling.
+ */
+function effectiveMaxChars(configured: number, perCall: number | undefined): number {
+  if (perCall === undefined || !Number.isFinite(perCall)) return configured;
+  return Math.min(MAX_FETCH_CHARS, Math.max(0, Math.trunc(perCall)));
 }
 
 /**
@@ -63,6 +74,8 @@ export interface RequestOptions {
   readonly retry: RetryOptions;
   /** Per-call cap in milliseconds; the shorter of this and the configured timeout wins. */
   readonly timeoutMs?: number;
+  /** Per-call fetch budget in characters; overrides the configured cap for this call. */
+  readonly maxChars?: number;
   /**
    * The resolved API root; adapters pass `config.baseUrl` so every request
    * follows the `baseUrl` knob. Absent falls back to the production default
@@ -80,26 +93,20 @@ export interface SearchRequest extends RequestOptions {
   readonly oriQuestion?: string;
 }
 
-export async function searchWeb(
-  query: string,
-  options: SearchOptions,
-  request: SearchRequest,
-): Promise<SearchResult[]> {
+export async function searchWeb(query: string, options: SearchOptions, request: SearchRequest): Promise<SearchOutcome> {
   const trimmed = query.trim();
   if (!trimmed) throw new Error("DeepSeek search query must not be empty");
-  if (Array.from(trimmed).length > MAX_QUERY_CHARS) {
-    throw new Error(`DeepSeek search query must be ${MAX_QUERY_CHARS} characters or fewer`);
-  }
-
-  const builtQuery = buildQuery(trimmed, options);
-  const builtQueryLength = Array.from(builtQuery).length;
-  if (builtQueryLength > MAX_QUERY_CHARS) {
+  const trimmedLength = Array.from(trimmed).length;
+  if (trimmedLength > MAX_QUERY_CHARS) {
+    // The query rides in the message so the model can see what to shorten.
     throw new Error(
-      `DeepSeek search query must be ${MAX_QUERY_CHARS} characters or fewer after applying ` +
-        `blockedDomains, includeDomains, and language ` +
-        `(built query is ${builtQueryLength} characters)`,
+      `DeepSeek search query must be ${MAX_QUERY_CHARS} characters or fewer ` +
+        `(got ${trimmedLength}: ${JSON.stringify(truncate(trimmed, 64))})`,
     );
   }
+
+  const composed = composeSearchQuery(trimmed, options);
+  const builtQuery = composed.query;
 
   const timeout = effectiveTimeout(options.timeoutMs, request.timeoutMs);
   const oriQuestion = oriQuestionValue(request.oriQuestion);
@@ -119,7 +126,13 @@ export async function searchWeb(
   if (!Array.isArray(payload.results)) {
     throw new Error("DeepSeek Search returned a response without a results array");
   }
-  return processResults(payload.results as DeepSeekSearchResult[], options);
+  const results = processResults(payload.results as DeepSeekSearchResult[], options);
+  return {
+    results,
+    inputQuery: trimmed,
+    effectiveQuery: builtQuery,
+    notes: composed.notes,
+  };
 }
 
 export async function fetchPage(url: URL, options: FetchOptions, request: RequestOptions): Promise<FetchedPage> {
@@ -163,7 +176,11 @@ export async function fetchDocument(
 ): Promise<FetchedDocument> {
   if (typeof url !== "string" && !(url instanceof URL)) throw new Error('"url" must be a string or URL');
   const page = await fetchPage(url instanceof URL ? url : parseFetchUrl(url), options, request);
-  const formatted = formatFetchedContent(page.title, page.content, options.maxChars);
+  const formatted = formatFetchedContent(
+    page.title,
+    page.content,
+    effectiveMaxChars(options.maxChars, request.maxChars),
+  );
   return {
     url: page.url,
     title: page.title,

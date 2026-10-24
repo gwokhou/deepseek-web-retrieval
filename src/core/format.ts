@@ -86,13 +86,33 @@ export function formatTimeoutError(operation: string, timeoutMs: number): string
 }
 
 /**
+ * The query context shown to the model above the results: emitted only when
+ * the effective query differs from what the model sent (operators applied or
+ * degradation happened), so an unfiltered search adds no header noise.
+ */
+export interface SearchQueryContext {
+  readonly inputQuery: string;
+  readonly effectiveQuery: string;
+  readonly notes: readonly string[];
+}
+
+function searchHeader(context: SearchQueryContext | undefined): string | undefined {
+  if (!context) return undefined;
+  if (context.effectiveQuery === context.inputQuery && context.notes.length === 0) return undefined;
+  const header = `Searched for: ${context.effectiveQuery}`;
+  return context.notes.length > 0 ? `${header} — ${context.notes.join("; ")}` : header;
+}
+
+/**
  * Renders processed search results as Markdown for a text content block.
  * Hosts that ignore structured output read this text.
  */
-export function formatSearchResults(results: readonly SearchResult[]): string {
-  if (results.length === 0) return "No results found.";
-
-  return results
+export function formatSearchResults(results: readonly SearchResult[], context?: SearchQueryContext): string {
+  const header = searchHeader(context);
+  if (results.length === 0) {
+    return header ? `${header}\n\nNo results found.` : "No results found.";
+  }
+  const body = results
     .map((result, index) => {
       const title = result.title?.trim() || result.url;
       const marker = formatQualityMarker(result);
@@ -106,6 +126,7 @@ export function formatSearchResults(results: readonly SearchResult[]): string {
       return lines.join("\n");
     })
     .join("\n\n");
+  return header ? `${header}\n\n${body}` : body;
 }
 
 /**

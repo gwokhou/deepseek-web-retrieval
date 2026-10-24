@@ -1,25 +1,103 @@
+import { MAX_QUERY_CHARS } from "./constants";
 import { normalizeDomains } from "./domains";
 import { truncate } from "./format";
 import type { DeepSeekSearchResult, SearchOptions, SearchResult } from "./types";
 import { normalizeResultUrl } from "./url";
 
+/** The fewest body characters a degraded query keeps before operators start dropping. */
+const MIN_BODY_CHARS = 8;
+
+function charCount(value: string): number {
+  return Array.from(value).length;
+}
+
+/** The query string plus every adjustment made to fit it under the length limit. */
+export interface ComposedQuery {
+  readonly query: string;
+  readonly notes: readonly string[];
+}
+
+interface OperatorParts {
+  readonly blocked: readonly string[];
+  readonly include?: string;
+  readonly language?: string;
+}
+
 /**
- * Appends DeepSeek search operators:
- *   blocked: -site:example.com (space separated for multiple)
- *   include: site:a.com OR site:b.com
- *   language: lang:zh or lang:zh,en
+ * Operators are official API surface, documented in the guide's search-syntax
+ * section (搜索语法): site:, -site:, lang:, quoted phrases, after:/before:.
  */
-export function buildQuery(
+function operatorParts(options: Pick<SearchOptions, "blockedDomains" | "includeDomains" | "language">): OperatorParts {
+  const blocked = normalizeDomains(options.blockedDomains).map((domain) => `-site:${domain}`);
+  const include = normalizeDomains(options.includeDomains).map((domain) => `site:${domain}`);
+  const language = options.language?.trim().replace(/^lang:/i, "");
+  return {
+    blocked,
+    include: include.length ? include.join(" OR ") : undefined,
+    language: language ? `lang:${language}` : undefined,
+  };
+}
+
+function assemble(body: string, parts: OperatorParts, withInclude: boolean, withLang: boolean): string {
+  const segments = [body, ...parts.blocked];
+  if (withInclude && parts.include) segments.push(parts.include);
+  if (withLang && parts.language) segments.push(parts.language);
+  return segments.filter((segment) => segment.length > 0).join(" ");
+}
+
+/** Characters left for the query body once the kept operators and separators are paid for. */
+function bodyBudget(parts: OperatorParts, withInclude: boolean, withLang: boolean, maxChars: number): number {
+  const fixed = [
+    ...parts.blocked,
+    ...(withInclude && parts.include ? [parts.include] : []),
+    ...(withLang && parts.language ? [parts.language] : []),
+  ].join(" ");
+  return maxChars - (fixed ? charCount(fixed) + 1 : 0);
+}
+
+/**
+ * Builds the wire query within the API's character budget, degrading instead of
+ * failing when operators push it over: the query body is truncated first (user
+ * configuration outranks model verbosity), the language filter drops next, the
+ * include list last; blocked domains never drop. Only when the -site:
+ * operators alone crowd out the body does the call fail. Every adjustment is
+ * reported in `notes` so the model can be shown what was actually searched.
+ */
+export function composeSearchQuery(
   query: string,
   options: Pick<SearchOptions, "blockedDomains" | "includeDomains" | "language">,
-): string {
-  const parts = [query.trim()];
-  for (const domain of normalizeDomains(options.blockedDomains)) parts.push(`-site:${domain}`);
-  const include = normalizeDomains(options.includeDomains);
-  if (include.length) parts.push(include.map((domain) => `site:${domain}`).join(" OR "));
-  const language = options.language?.trim().replace(/^lang:/i, "");
-  if (language) parts.push(`lang:${language}`);
-  return parts.filter((part) => part.length > 0).join(" ");
+  maxChars: number = MAX_QUERY_CHARS,
+): ComposedQuery {
+  const parts = operatorParts(options);
+  const body = query.trim();
+  const notes: string[] = [];
+
+  const attempt = (withInclude: boolean, withLang: boolean): string | undefined => {
+    const budget = bodyBudget(parts, withInclude, withLang, maxChars);
+    if (charCount(body) <= budget) return assemble(body, parts, withInclude, withLang);
+    if (budget >= MIN_BODY_CHARS) {
+      notes.push(`query truncated to ${budget} characters (query length limit)`);
+      return assemble(truncate(body, budget), parts, withInclude, withLang);
+    }
+    return undefined;
+  };
+
+  let assembled = attempt(true, true);
+  if (assembled === undefined && parts.language) {
+    notes.push("language filter dropped (query length limit)");
+    assembled = attempt(true, false);
+  }
+  if (assembled === undefined && parts.include) {
+    notes.push("includeDomains filter dropped (query length limit)");
+    assembled = attempt(false, false);
+  }
+  if (assembled === undefined) {
+    throw new Error(
+      `DeepSeek search query cannot fit ${maxChars} characters: the blockedDomains -site: ` +
+        `operators alone occupy ${charCount(parts.blocked.join(" "))} characters`,
+    );
+  }
+  return { query: assembled, notes };
 }
 
 export function parsePublished(value: unknown): number | undefined {
@@ -64,7 +142,12 @@ export function processResults(raw: readonly DeepSeekSearchResult[], options: Se
     }
 
     seen.add(url);
-    const content = truncate(optionalText(item.summary) ?? optionalText(item.snippet) ?? "", options.maxSummaryChars);
+    const rawContent = optionalText(item.summary) ?? optionalText(item.snippet) ?? "";
+    const cutContent = truncate(rawContent, options.maxSummaryChars);
+    // The ellipsis marks a summary the cap actually shortened; official
+    // summaries are typically 600-800 characters, so the 1,200 default
+    // rarely triggers it.
+    const content = cutContent && charCount(rawContent) > options.maxSummaryChars ? `${cutContent}…` : cutContent;
     const published = parsePublished(item.date);
     const title = optionalText(item.title);
     const rerankScore = typeof rerank === "number" && Number.isFinite(rerank) ? rerank : undefined;
