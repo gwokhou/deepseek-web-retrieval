@@ -128,7 +128,15 @@ function planPiExtension(input: InstallerInput, previous: InstallRecord | undefi
       previous: typeof namespace.enableFetch === "boolean" ? namespace.enableFetch : undefined,
     });
   }
-  edits.push({ file: paths.config, format: "json", ops });
+  edits.push({
+    file: paths.config,
+    format: "json",
+    // Global-scope files live outside the install record's config home, so they
+    // need the owner sidecar that stops a second install (another project or
+    // XDG_CONFIG_HOME) from claiming them — the codex topology.
+    ...(input.scope === "global" ? { shared: true as const } : {}),
+    ops,
+  });
 
   notes.push(
     "Pi resolves the packages source at session start; the first launch after apply fetches the package from npm " +
@@ -234,7 +242,14 @@ function planMcpCompetitorDisables(input: InstallerInput, notes: string[], error
   const edits: FileEdit[] = [];
   if (competitors.length > 0) {
     const ops = planCompetitorDisables(servers, competitors, notes, errors);
-    if (ops.length > 0) edits.push({ file: mcpFile, format: "json", ops });
+    if (ops.length > 0) {
+      edits.push({
+        file: mcpFile,
+        format: "json",
+        ...(input.scope === "global" ? { shared: true as const } : {}),
+        ops,
+      });
+    }
   }
   if (bystanders.length > 0) notes.push(othersStayRegisteredNote(bystanders));
   return edits;
@@ -267,7 +282,13 @@ function planPiMcp(input: InstallerInput): InstallPlan {
   const servers = loaded.value.mcpServers;
   const existingEntry = isPlainObject(servers) ? servers.deepseek : undefined;
   const ops: ConfigOp[] = [{ op: "set", path: ["mcpServers", "deepseek"], value: entry, previous: existingEntry }];
-  edits.push({ file: paths.config, format: "json", ops });
+  edits.push({
+    file: paths.config,
+    format: "json",
+    // Same shared-file reason as the extension path's settings.json above.
+    ...(input.scope === "global" ? { shared: true as const } : {}),
+    ops,
+  });
 
   if (isPlainObject(servers)) {
     if (servers.deepseek !== undefined) notes.push(replacingExistingEntryNote("mcpServers.deepseek"));

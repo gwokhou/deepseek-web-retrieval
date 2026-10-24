@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { userConfigHome } from "../../src/core/config-file";
 import { API_KEY_ENV } from "../../src/core/constants";
 import { OPTION_ENV_VARS } from "../../src/core/env";
@@ -2552,6 +2552,26 @@ describe("shared config ownership lifecycle", () => {
     );
     uninstall(first);
     expect(existsSync(claim)).toBe(false);
+  });
+
+  test("pi global ownership is independent of XDG config home", () => {
+    // Both Pi paths write user-level files under ~/.pi/agent when global; each
+    // must carry the shared-file sidecar like codex's config.toml. The refusal
+    // message differs per path: the extension path's own foreign-package guard
+    // fires first, while the MCP path is stopped by the ownership claim.
+    for (const path of ["extension", "mcp"] as const) {
+      const first = makeInput("pi", "global", "optional", "optional", path);
+      applyPlan(planForHost("pi", first), first);
+      const config = join(first.home, ".pi", "agent", path === "mcp" ? "mcp.json" : "settings.json");
+      const claim = join(first.home, ".pi", "agent", `.${basename(config)}.deepseek-web-retrieval.pi.owner.json`);
+      expect(existsSync(claim)).toBe(true);
+      const second = { ...first, cwd: tempDir("dwr-other-project-"), configHome: undefined };
+      const otherConfigHome = join(second.cwd, "other-config-home");
+      const refusal = planForHost("pi", { ...second, configHome: otherConfigHome });
+      expect(refusal.errors[0]?.message).toContain(path === "extension" ? "already lists" : first.cwd);
+      uninstall(first);
+      expect(existsSync(claim)).toBe(false);
+    }
   });
 
   test("legacy generated registrations cannot be adopted from another project, and re-init migrates the owner", () => {

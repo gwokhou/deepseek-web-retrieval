@@ -48,8 +48,11 @@ function uninstallLocked(input: InstallerInput, record: InstallRecord): string[]
   for (const file of [...record.files].reverse()) {
     lines.push(...revertRecordedFile(file, record.host, { label: "", whole: true }));
   }
-  deleteRecord(input);
+  // Release claims before deleting the record: releaseClaim re-asserts lineage
+  // through recordReadPath, whose legacy win32 fallback needs the record file
+  // to still exist on disk.
   releaseFileOwnership(input, record.files);
+  deleteRecord(input);
   pruneEmptyDir(stateDir(input, input.scope));
   lines.push(`removed install record (${input.host}, ${input.scope})`);
   return lines;
