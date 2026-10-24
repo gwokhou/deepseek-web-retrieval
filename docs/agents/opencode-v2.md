@@ -176,9 +176,12 @@ Fetch https://opencode.ai/v2/docs/build/plugins and summarize the plugin lifecyc
 The model calls `websearch` (provider `deepseek`) or `deepseek_fetch`. When
 `fetchOverrideWebfetch` is enabled, Markdown fetches go through `webfetch` instead.
 
-DeepSeek's optional `ori_question` is not sent on this path: OpenCode's `websearch` tool
-input is fixed to `query` at 2.0.32, so the provider has no channel for it (see the
-[research note](../research/ori-question-sourcing.md)).
+DeepSeek's optional `ori_question` is not sent on this path, and the model cannot request a
+per-call result count: OpenCode's `websearch` tool input is fixed to `query` (verified unchanged
+at 2.1.4), so the provider has no channel for either. Upstream requests:
+[anomalyco/opencode#58635](https://github.com/anomalyco/opencode/issues/58635) (session linkage)
+and [#58636](https://github.com/anomalyco/opencode/issues/58636) (per-call `count`); see the
+[research note](../research/ori-question-sourcing.md).
 
 ## Configuration
 

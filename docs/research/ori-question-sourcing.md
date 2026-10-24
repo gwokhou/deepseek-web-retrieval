@@ -170,6 +170,15 @@ tag (commit `843a6c5`); the `opencode-ai/opencode` repository's tags stop at `v0
   only heuristic correlation via the session hooks (which fire per model request with the
   sessionID, but no API contract binds a provider call to a session).
 
+  Post-baseline drift check (2026-10-24): the interface is unchanged at 2.1.4, the latest npm
+  release on that date (unpkg dist of `@opencode/schema`/`@opencode/plugin` 2.1.4:
+  `ProviderInput = Pick<Input, "query">`, provider context `{ signal }`). Upstream requests
+  filed the same day to widen this surface:
+  [anomalyco/opencode#58635](https://github.com/anomalyco/opencode/issues/58635) (session
+  linkage in the provider execute context) and
+  [#58636](https://github.com/anomalyco/opencode/issues/58636) (optional per-call `count`
+  passthrough) — re-check both when the baseline or the OpenCode lock bumps.
+
 Verdict: **tool path (`deepseek_fetch` / the `webfetch` override): A feasible (validated against
 the declared schema; raw JSON Schema forwarded verbatim) and B feasible
 (`ctx.session.context`). Websearch provider path (the search replacement this repo ships): neither
@@ -256,7 +265,9 @@ negotiated revision in the matrix.
   `ctx.session.context({ sessionID })` — user messages with their `text` — at call time, so
   channel B exists here without touching schemas. The `websearch` provider replacement — the path
   this repo uses for search — has neither channel at 2.0.32: its model-facing input schema is
-  fixed in host source to `query`, and its provider context is `{ signal }` only. Note also that
+  fixed in host source to `query`, and its provider context is `{ signal }` only (upstream
+  requests: [#58635](https://github.com/anomalyco/opencode/issues/58635),
+  [#58636](https://github.com/anomalyco/opencode/issues/58636)). Note also that
   `FETCH_INPUT` sets `additionalProperties: false`, which matters if a parameter is ever added on
   channel A: an undeclared field would be rejected by OpenCode's runtime validation with a
   retryable error.
