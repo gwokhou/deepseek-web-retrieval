@@ -252,10 +252,11 @@ one vocabulary pair, one pipeline. `—` marks host-integration entries the file
 | Runtime | Node.js 20+ (stdio) |
 | DeepSeek API | `/v1/tools/search`, `/v1/tools/fetch` |
 
-Verified against the Claude Code lock in `docs/hosts.jsonc` on Linux over stdio: the
-installer's registration, tiers, and uninstall run in the keyless Docker e2e with a real
-`claude mcp list` handshake. The billed prompt scenario (`bun run test:e2e claude-code`)
-exercises the same build end to end and requires `DEEPSEEK_API_KEY`.
+Tested with Claude Code at the `docs/hosts.jsonc` lock on Linux over stdio: the keyless
+Docker e2e verifies the installer's registration, tiers, and uninstall with a real
+`claude mcp list` handshake, and the billed scenario (`bun run test:e2e claude-code`,
+requires `DEEPSEEK_API_KEY`) runs headless prompts end to end with the deny kill switch
+asserted for both capabilities.
 
 ## Uninstall
 

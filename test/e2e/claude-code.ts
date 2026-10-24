@@ -126,13 +126,14 @@ function checkToolLeg(
   );
   lines.push("kill switch: WebSearch and WebFetch stayed denied for the whole session");
   if (markdownNeedle !== undefined) {
-    // The tool_result blocks carry the server's text (string or content blocks);
-    // search the serialization so either shape satisfies the check.
+    // Stream shape verified at the lock: a tool_use block carries its id in `id`;
+    // the matching tool_result references it via `tool_use_id` and carries the
+    // server's output as a string. Search the serialization so any shape fits.
     const ids = new Set(
       events.flatMap((event) =>
         (event.message?.content ?? [])
           .filter((block) => block.type === "tool_use" && block.name === tool)
-          .map((block) => String(block.tool_use_id ?? "")),
+          .map((block) => String(block.id ?? "")),
       ),
     );
     const results = events.flatMap((event) =>
@@ -155,6 +156,7 @@ interface Event {
     readonly content?: readonly {
       readonly type?: string;
       readonly name?: string;
+      readonly id?: string;
       readonly tool_use_id?: string;
     }[];
   };
